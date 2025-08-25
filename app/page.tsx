@@ -1,6 +1,17 @@
+"use client";
 import Link from "next/link";
+import type { PropsWithChildren } from "react";
+import { motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  Award,
+  Rocket,
+  Briefcase,
+  Sparkles,
+  BookOpen,
+  Globe,
+} from "lucide-react";
 
-type Service = { title: string; blurb: string; img: string; href: string };
 type Work = { title: string; tag: string; img: string; href: string };
 type Plan = {
   name: "Starter" | "Growth" | "Performance" | "Custom";
@@ -18,47 +29,42 @@ type Person = {
   href?: string;
 };
 
-const SERVICES: Service[] = [
+const SERVICES = [
   {
     title: "Performance Marketing",
-    blurb:
-      "Google Search & PMax to capture intent; Meta to test and scale creative.",
-    img: "https://source.unsplash.com/featured/800x480?digital,marketing",
-    href: "/services/",
-  },
-  {
-    title: "CRO & UX",
-    blurb:
-      "A/B testing cadence, message clarity, social proof, and speed passes.",
-    img: "https://source.unsplash.com/featured/800x480?ui,ux",
-    href: "/services/",
+    desc: "Google Ads (Search, PMax), Meta Ads, and landing pages engineered for ROI.",
+    icon: <Rocket className="w-5 h-5" />,
+    tags: ["google ads", "pmax", "meta", "cro"],
   },
   {
     title: "AI Agents & Automations",
-    blurb:
-      "WhatsApp flows, on-site assistants, lead routing, follow-ups, reporting.",
-    img: "https://source.unsplash.com/featured/800x480?ai,automation",
-    href: "/services/",
+    desc: "WhatsApp flows, on‑site assistants, lead routing, CRM workflows, and reporting.",
+    icon: <Sparkles className="w-5 h-5" />,
+    tags: ["whatsapp", "chatbots", "zapier", "make"],
+  },
+  {
+    title: "E‑commerce Growth (Shopify)",
+    desc: "Store setup, product strategy, Klaviyo flows, upsells, subscriptions, LTV.",
+    icon: <Briefcase className="w-5 h-5" />,
+    tags: ["shopify", "klaviyo", "ux", "ltv"],
+  },
+  {
+    title: "Hotel Booking Funnels",
+    desc: "Direct booking strategy: parity pages, PMax+Meta mix, OTA sync, analytics.",
+    icon: <Award className="w-5 h-5" />,
+    tags: ["hotels", "pms", "ota", "meta"],
+  },
+  {
+    title: "SEO & Content Systems",
+    desc: "Compound traffic via content clusters, internal linking, and intent mapping.",
+    icon: <BookOpen className="w-5 h-5" />,
+    tags: ["seo", "content", "clusters", "schema"],
   },
   {
     title: "Analytics & Measurement",
-    blurb: "GA4/GTM schema, CAPI/server-side conversions, ROAS dashboards.",
-    img: "https://source.unsplash.com/featured/800x480?analytics,dashboard",
-    href: "/services/",
-  },
-  {
-    title: "E-commerce (Shopify)",
-    blurb:
-      "Theme setup, speed upgrades, Klaviyo flows, upsells, subscriptions.",
-    img: "https://source.unsplash.com/featured/800x480?shopify,ecommerce",
-    href: "/services/",
-  },
-  {
-    title: "Hotels (Direct Bookings)",
-    blurb:
-      "Parity pages vs OTAs, PMax + Meta, remarketing & cart-abandon flows.",
-    img: "https://source.unsplash.com/featured/800x480?hotel,booking",
-    href: "/services/",
+    desc: "GA4, GTM, server‑side events, conversion APIs, dashboards, and audits.",
+    icon: <Globe className="w-5 h-5" />,
+    tags: ["ga4", "gtm", "ssr", "capi"],
   },
 ];
 
@@ -66,20 +72,20 @@ const WORK: Work[] = [
   {
     title: "Upscale Hotel — More Direct, Less OTA",
     tag: "Hotels",
-    img: "https://source.unsplash.com/featured/900x560?hotel,lobby",
-    href: "/work/",
+    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
+    href: "/work/upscale-hotel",
   },
   {
     title: "PearlyTots — D2C Launch & Scale",
     tag: "D2C",
-    img: "https://source.unsplash.com/featured/900x560?packaging,brand",
-    href: "/work/",
+    img: "https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80",
+    href: "/work/pearlytots",
   },
   {
     title: "QuickSqad — AI Support to Cut CAC",
     tag: "AI",
-    img: "https://source.unsplash.com/featured/900x560?chatbot,ai",
-    href: "/work/",
+    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
+    href: "/work/quicksquad",
   },
 ];
 
@@ -134,6 +140,15 @@ const PLANS: Plan[] = [
   },
 ];
 
+const SKILLS = [
+  "Google Ads (Search, PMax)",
+  "Meta Ads",
+  "SEO & Content Systems",
+  "Shopify & CRO",
+  "AI Agents (WhatsApp, Web)",
+  "Analytics (GA4/GTM/CAPI)",
+];
+
 const TEAM: Person[] = [
   {
     name: "Bhupendra Kumar",
@@ -143,18 +158,26 @@ const TEAM: Person[] = [
     href: "mailto:bhupendra@digipants.com",
   },
   {
-    name: "Creative Partner",
+    name: "Anju Mishra",
     role: "Ad Concepts & UGC",
     img: "/anju.JPG",
     bio: "Concepts, hooks, and editing to fuel creative testing.",
   },
   {
-    name: "Automation Partner",
+    name: "Ajit Rai",
     role: "AI Agents & Data",
     img: "/ajit.jpg",
     bio: "WhatsApp/CRM flows, lead routing, and reporting integrations.",
   },
 ];
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
+      {children}
+    </span>
+  );
+}
 
 function Section({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
@@ -166,9 +189,25 @@ function Section({ id, children }: { id?: string; children: React.ReactNode }) {
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
+function Container({ children }: PropsWithChildren) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 shadow-sm">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+      {children}
+    </div>
+  );
+}
+
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-sm shadow-sm ${className}`}
+    >
       {children}
     </div>
   );
@@ -221,56 +260,67 @@ export default function Page() {
               </div>
             </div>
           </div>
-          <Card>
-            <img
-              src="https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1200&auto=format&fit=crop"
-              alt="Growth dashboard"
-              className="w-full h-full object-cover"
+          <Card className="p-4 md:p-6">
+            <div
+              className="aspect-[4/5] w-full overflow-hidden rounded-xl bg-[url('https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1200&auto=format&fit=crop')] bg-cover bg-center"
+              aria-label="Profile visual placeholder"
             />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {SKILLS.map((s) => (
+                <Badge key={s}>{s}</Badge>
+              ))}
+            </div>
           </Card>
         </div>
       </Section>
 
       <Section id="services">
-        <div className="flex items-end justify-between gap-4">
-          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-            Services
-          </h2>
-          <Link
-            href="/services/"
-            className="text-sm font-medium hover:opacity-80"
-          >
-            Explore all →
-          </Link>
-        </div>
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {SERVICES.map((s) => (
-            <Link key={s.title} href={s.href} className="group">
-              <Card>
-                <div className="aspect-video w-full overflow-hidden">
-                  <img
-                    src={s.img}
-                    alt={s.title}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold group-hover:underline">
-                      {s.title}
-                    </h3>
-                    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-                      Core
+        <Container>
+          <div className="flex items-end justify-between gap-4 mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Services
+            </h2>
+            <a
+              href="#contact"
+              className="text-sm inline-flex items-center gap-1 hover:underline"
+            >
+              Get a custom plan <ArrowUpRight className="w-4 h-4" />
+            </a>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {SERVICES.map((srv) => (
+              <motion.div
+                key={srv.title}
+                initial={{ y: 12, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card className="p-6 h-full">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                      {srv.icon}
                     </span>
+                    <h3 className="font-semibold">{srv.title}</h3>
                   </div>
-                  <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                    {s.blurb}
+                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    {srv.desc}
                   </p>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {srv.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="text-xs rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </Container>
       </Section>
 
       <Section id="work">

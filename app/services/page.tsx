@@ -27,7 +27,7 @@ const SERVICES: Service[] = [
       "Creative matrix & concept sprints",
       "Weekly reporting & ROAS guardrails",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?search,ads",
+    img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
   },
   {
     title: "CRO & UX",
@@ -39,7 +39,7 @@ const SERVICES: Service[] = [
       "Message clarity, social proof, pricing",
       "Speed passes & Core Web Vitals",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?ux,design",
+    img: "https://images.unsplash.com/photo-1680016661694-1cd3faf31c3a?q=80&w=1674&auto=format&fit=crop&w=1200&q=80",
   },
   {
     title: "AI Agents & Automations",
@@ -51,7 +51,7 @@ const SERVICES: Service[] = [
       "CRM follow-ups & reminders",
       "Dashboards & alerts",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?ai,assistant",
+    img: "https://plus.unsplash.com/premium_photo-1673400313501-9c29fac93076?q=80&w=1064&auto=format&fit=crop&w=1200&q=80",
   },
   {
     title: "Analytics & Measurement",
@@ -63,7 +63,7 @@ const SERVICES: Service[] = [
       "Server-side conversions / CAPI",
       "Funnel & channel dashboards",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?analytics,graphs",
+    img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
   },
   {
     title: "E-commerce (Shopify)",
@@ -75,7 +75,7 @@ const SERVICES: Service[] = [
       "Upsells & subscriptions",
       "Offer testing & bundles",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?shopify,store",
+    img: "https://images.unsplash.com/photo-1730818874996-dea4bddf5554?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
   },
   {
     title: "Hotels (Direct Bookings)",
@@ -87,7 +87,7 @@ const SERVICES: Service[] = [
       "Cart-abandon automations",
       "Direct share tracking",
     ],
-    img: "https://source.unsplash.com/featured/1200x800?hotel,travel",
+    img: "https://plus.unsplash.com/premium_photo-1661398617246-80d03c66c6f3?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
   },
 ];
 

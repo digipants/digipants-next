@@ -85,9 +85,9 @@ export default function Page() {
         <Container>
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
-              src="/work/pearlytots/hero.jpg"
+              src="https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80"
               alt="PearlyTots storefront and campaign overview"
-              className="w-full object-cover"
+              className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
         </Container>

@@ -86,9 +86,9 @@ export default function Page() {
         <Container>
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
-              src="/work/zescher/hero.jpg"
+              src="https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80"
               alt="Zescher POD storefront and product samples"
-              className="w-full object-cover"
+              className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
         </Container>

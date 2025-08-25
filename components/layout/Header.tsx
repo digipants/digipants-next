@@ -16,21 +16,32 @@ const NAV = [
   { id: "services", label: "Services", href: "/services/" },
   { id: "work", label: "Work", href: "/work/" },
   { id: "pricing", label: "Pricing", href: "/pricing/" },
-  { id: "contact", label: "Contact", href: "/contact-us/" },
 ];
 
 function useTheme() {
-  const [theme, setTheme] = useState(
-    typeof window !== "undefined"
-      ? localStorage.getItem("theme") || "dark"
-      : "dark"
-  );
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [ready, setReady] = useState(false);
+
+  // On mount, read the class put there by ThemeInit (no DOM writes here)
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-  return { theme, setTheme };
+    const darkNow = document.documentElement.classList.contains("dark");
+    setTheme(darkNow ? "dark" : "light");
+    setReady(true);
+  }, []);
+
+  // Toggle writes DOM + storage
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+    try {
+      localStorage.setItem("theme", next);
+    } catch {}
+  };
+
+  return { theme, toggle, ready };
 }
+
 
 function Container({ children }: PropsWithChildren) {
   return (
@@ -76,11 +87,11 @@ function Button({
 export default function Page() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const { theme, setTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { theme, toggle, ready } = useTheme();
 
   return (
-  <header className="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-zinc-900/40 border-b border-zinc-200/60 dark:border-zinc-800/60">
+    <header className="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-zinc-900/40 border-b border-zinc-200/60 dark:border-zinc-800/60">
       <Container>
         <div className="flex h-16 items-center justify-between">
           <a
@@ -103,11 +114,8 @@ export default function Page() {
                 </a>
               );
             })}
-            <Button
-              variant="ghost"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {mounted ? (
+            <Button variant="ghost" onClick={toggle}>
+              {ready ? (
                 theme === "dark" ? (
                   <Sun className="w-4 h-4" />
                 ) : (
@@ -122,18 +130,15 @@ export default function Page() {
             </Button>
           </nav>
           <div className="md:hidden flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {mounted ? (
+            <Button variant="ghost" onClick={toggle}>
+              {ready ? (
                 theme === "dark" ? (
-                  <Sun className="w-5 h-5" />
+                  <Sun className="w-4 h-4" />
                 ) : (
-                  <Moon className="w-5 h-5" />
+                  <Moon className="w-4 h-4" />
                 )
               ) : (
-                <span className="inline-block w-5 h-5" aria-hidden />
+                <span className="inline-block w-4 h-4" aria-hidden />
               )}
             </Button>
             <button
@@ -154,7 +159,7 @@ export default function Page() {
             {NAV.map((n) => (
               <a
                 key={n.id}
-                href={`#${n.id}`}
+                href={n.href}
                 className="py-2"
                 onClick={() => setMenuOpen(false)}
               >

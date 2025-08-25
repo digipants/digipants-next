@@ -32,7 +32,7 @@ const projects = [
     summary:
       "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
     tag: "D2C",
-    img: "/work/pearlytots/hero.jpg",
+    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
   },
   {
     slug: "upscale-hotel",
@@ -40,7 +40,7 @@ const projects = [
     summary:
       "PMax + Meta remarketing, parity landing pages, and automations to lift direct bookings.",
     tag: "Hotels",
-    img: "/work/upscale-hotel/hero.jpg",
+    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
   },
   {
     slug: "quicksquad",
@@ -48,7 +48,7 @@ const projects = [
     summary:
       "AI triage bot + landing UX revamp to improve trust, lead quality, and lower CAC.",
     tag: "AI",
-    img: "/work/quicksquad/hero.jpg",
+    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
   },
   {
     slug: "zescher",
@@ -56,7 +56,7 @@ const projects = [
     summary:
       "Sanskrit‑inspired POD brand with automated design‑to‑print workflow and a conversion‑optimized storefront.",
     tag: "POD",
-    img: "/work/zescher/hero.jpg",
+    img: "https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80",
   },
 ];
 

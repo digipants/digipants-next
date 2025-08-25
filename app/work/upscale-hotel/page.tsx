@@ -87,9 +87,9 @@ export default function Page() {
         <Container>
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
-              src="/work/upscale-hotel/hero.jpg"
+              src="https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80"
               alt="Upscale Hotel booking funnel and campaign overview"
-              className="w-full object-cover"
+              className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
         </Container>

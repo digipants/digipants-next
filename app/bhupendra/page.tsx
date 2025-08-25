@@ -82,28 +82,32 @@ const CASE_STUDIES = [
     metric: "Direct bookings up",
     summary:
       "Rebuilt the funnel with PMax + Meta remarketing, added parity landing pages, and automated cart‑abandon flows.",
-    link: "/bhupendra/work/upscale-hotel",
+    link: "/work/upscale-hotel",
+    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
   },
   {
     title: "PearlyTots — D2C Launch & Scale",
     metric: "CVR trending ↑",
     summary:
       "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
-    link: "/bhupendra/work/pearlytots",
+    link: "/work/pearlytots",
+    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
   },
   {
     title: "quicksquad — AI Support to Cut CAC",
     metric: "Lower acquisition cost",
     summary:
       "Built an AI triage bot and revamped landing UX for clarity and faster resolution; improved trust and lead quality.",
-    link: "/bhupendra/work/quicksquad",
+    link: "/work/quicksquad",
+    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
   },
   {
     title: "Zescher — POD Launch & Growth",
     metric: "360° brand launch",
     summary:
       "Sanskrit‑inspired POD brand with automated design‑to‑print workflow and a conversion‑optimized storefront.",
-    link: "/bhupendra/work/zescher",
+    link: "/work/zescher",
+    img: "https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80",
   },
 ];
 
@@ -360,8 +364,11 @@ export default function bhupendraPage() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
               >
-                <Card className="overflow-hidden h-full">
-                  <div className="aspect-video bg-[url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop')] bg-cover bg-center" />
+                <Card className="overflow-hidden h-full group">
+                  <div
+                    className="aspect-video bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
+                    style={{ backgroundImage: `url(${cs.img})` }}
+                  />
                   <div className="p-5">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="font-semibold group-hover:underline">

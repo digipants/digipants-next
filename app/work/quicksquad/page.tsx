@@ -85,9 +85,9 @@ export default function Page() {
         <Container>
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
-              src="/work/quicksquad/hero.jpg"
+              src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80"
               alt="quicksquad AI support bot and landing UX overview"
-              className="w-full object-cover"
+              className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
         </Container>
