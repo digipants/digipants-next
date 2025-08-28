@@ -1,6 +1,18 @@
 // app/services/page.tsx
 import Link from "next/link";
 import type { Metadata } from "next";
+import AnimatedSection from "@/components/animate/AnimatedSection";
+import AnimatedCard from "@/components/animate/AnimatedCard";
+import {
+  ArrowUpRight,
+  Award,
+  Rocket,
+  Briefcase,
+  Sparkles,
+  BookOpen,
+  Globe,
+} from "lucide-react";
+import { PropsWithChildren } from "react";
 
 export const metadata: Metadata = {
   title: "Services | DigiPants",
@@ -16,84 +28,75 @@ type Service = {
   img: string;
 };
 
-const SERVICES: Service[] = [
+const SERVICES = [
   {
     title: "Performance Marketing",
-    blurb:
-      "Capture intent with Google Search & PMax. Find scale with Meta creative testing that compounds.",
-    bullets: [
-      "Account audit & restructure",
-      "Offer/LP testing cadence",
-      "Creative matrix & concept sprints",
-      "Weekly reporting & ROAS guardrails",
-    ],
-    img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    title: "CRO & UX",
-    blurb:
-      "Friction down, clarity up. Hypothesis-driven A/B tests that turn attention into revenue.",
-    bullets: [
-      "Heuristic + analytics review",
-      "Prioritized test backlog",
-      "Message clarity, social proof, pricing",
-      "Speed passes & Core Web Vitals",
-    ],
-    img: "https://images.unsplash.com/photo-1680016661694-1cd3faf31c3a?q=80&w=1674&auto=format&fit=crop&w=1200&q=80",
+    desc: "Google Ads (Search, PMax), Meta Ads, and landing pages engineered for ROI.",
+    icon: <Rocket className="w-5 h-5" />,
+    tags: ["google ads", "pmax", "meta", "cro"],
   },
   {
     title: "AI Agents & Automations",
-    blurb:
-      "WhatsApp flows, on-site assistants, CRM routing. Faster replies, better qualification.",
-    bullets: [
-      "WhatsApp & web assistants",
-      "Lead scoring & routing",
-      "CRM follow-ups & reminders",
-      "Dashboards & alerts",
-    ],
-    img: "https://plus.unsplash.com/premium_photo-1673400313501-9c29fac93076?q=80&w=1064&auto=format&fit=crop&w=1200&q=80",
+    desc: "WhatsApp flows, on‑site assistants, lead routing, CRM workflows, and reporting.",
+    icon: <Sparkles className="w-5 h-5" />,
+    tags: ["whatsapp", "chatbots", "zapier", "make"],
+  },
+  {
+    title: "E‑commerce Growth (Shopify)",
+    desc: "Store setup, product strategy, Klaviyo flows, upsells, subscriptions, LTV.",
+    icon: <Briefcase className="w-5 h-5" />,
+    tags: ["shopify", "klaviyo", "ux", "ltv"],
+  },
+  {
+    title: "Hotel Booking Funnels",
+    desc: "Direct booking strategy: parity pages, PMax+Meta mix, OTA sync, analytics.",
+    icon: <Award className="w-5 h-5" />,
+    tags: ["hotels", "pms", "ota", "meta"],
+  },
+  {
+    title: "SEO & Content Systems",
+    desc: "Compound traffic via content clusters, internal linking, and intent mapping.",
+    icon: <BookOpen className="w-5 h-5" />,
+    tags: ["seo", "content", "clusters", "schema"],
   },
   {
     title: "Analytics & Measurement",
-    blurb:
-      "Trust the numbers. GA4/GTM events, CAPI/server-side conversions, and ROAS dashboards.",
-    bullets: [
-      "Tracking plan & event schema",
-      "GTM setup & QA",
-      "Server-side conversions / CAPI",
-      "Funnel & channel dashboards",
-    ],
-    img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    title: "E-commerce (Shopify)",
-    blurb:
-      "Launch fast, iterate faster. Theme setup, Klaviyo flows, LTV lifts with upsells & subs.",
-    bullets: [
-      "Theme setup & speed",
-      "Klaviyo browse/cart/post-purchase",
-      "Upsells & subscriptions",
-      "Offer testing & bundles",
-    ],
-    img: "https://images.unsplash.com/photo-1730818874996-dea4bddf5554?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    title: "Hotels (Direct Bookings)",
-    blurb:
-      "More direct, less OTA. Parity pages, PMax + Meta mix, remarketing & cart-abandon flows.",
-    bullets: [
-      "Offer parity landing pages",
-      "PMax + Meta remarketing",
-      "Cart-abandon automations",
-      "Direct share tracking",
-    ],
-    img: "https://plus.unsplash.com/premium_photo-1661398617246-80d03c66c6f3?q=80&w=2070&auto=format&fit=crop&w=1200&q=80",
+    desc: "GA4, GTM, server‑side events, conversion APIs, dashboards, and audits.",
+    icon: <Globe className="w-5 h-5" />,
+    tags: ["ga4", "gtm", "ssr", "capi"],
   },
 ];
 
-function Section({ children }: { children: React.ReactNode }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="scroll-mt-24 py-12 md:py-16">
+    <div
+      className={`rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-sm shadow-sm ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Container({ children }: PropsWithChildren) {
+  return (
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+      {children}
+    </div>
+  );
+}
+
+function Section({
+  children,
+  ...props
+}: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) {
+  return (
+    <section className="scroll-mt-24 py-12 md:py-16" {...props}>
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         {children}
       </div>
@@ -142,38 +145,54 @@ export default function ServicesPage() {
       </Section>
 
       {/* Service grid */}
-      <Section>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {SERVICES.map((s) => (
-            <div
-              key={s.title}
-              className="overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 shadow-sm"
+      <AnimatedSection id="services">
+        <Container>
+          <div className="flex items-end justify-between gap-4 mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Services
+            </h2>
+            <a
+              href="#contact"
+              className="text-sm inline-flex items-center gap-1 hover:underline"
             >
-              <div className="aspect-video w-full overflow-hidden">
-                <img
-                  src={s.img}
-                  alt={s.title}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="p-5">
-                <h3 className="font-semibold">{s.title}</h3>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                  {s.blurb}
-                </p>
-                <ul className="mt-3 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  {s.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-2">
-                      <span className="mt-[6px] inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />{" "}
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+              Get a custom plan <ArrowUpRight className="w-4 h-4" />
+            </a>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {SERVICES.map((srv) => (
+              <AnimatedCard
+                key={srv.title}
+                initial={{ y: 12, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card className="p-6 h-full">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                      {srv.icon}
+                    </span>
+                    <h3 className="font-semibold">{srv.title}</h3>
+                  </div>
+                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    {srv.desc}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {srv.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="text-xs rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              </AnimatedCard>
+            ))}
+          </div>
+        </Container>
+      </AnimatedSection>
 
       {/* Approach recap */}
       <Section>

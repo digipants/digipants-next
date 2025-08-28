@@ -224,7 +224,7 @@ export default function Page() {
               Open for select projects
             </div>
             <h1 className="mt-4 text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
-              Better, faster websites. <br className="hidden sm:block" />
+              Better, faster solutions. <br className="hidden sm:block" />
               Growth that compounds.
             </h1>
             <p className="mt-4 text-lg text-zinc-700 dark:text-zinc-300 max-w-xl">
@@ -260,11 +260,18 @@ export default function Page() {
               </div>
             </div>
           </div>
-          <Card className="p-4 md:p-6">
-            <div
-              className="aspect-[4/5] w-full overflow-hidden rounded-xl bg-[url('https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1200&auto=format&fit=crop')] bg-cover bg-center"
-              aria-label="Profile visual placeholder"
-            />
+          <Card className="p-4 md:p-6 self-start">
+            {/* fixed, responsive heights instead of aspect ratio */}
+            <div className="w-full h-64 sm:h-80 md:h-[520px] lg:h-[600px] rounded-xl overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1600&auto=format&fit=crop"
+                alt="Profile visual placeholder"
+                className="w-full h-full object-cover"
+                loading="eager"
+                fetchPriority="high"
+              />
+            </div>
+
             <div className="mt-4 flex flex-wrap gap-2">
               {SKILLS.map((s) => (
                 <Badge key={s}>{s}</Badge>
