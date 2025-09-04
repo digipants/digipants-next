@@ -59,7 +59,7 @@ export const metadata: Metadata = {
 };
 
 // ThemeInit.tsx (server component is fine, no "use client")
-export function ThemeInit() {
+function ThemeInit() {
   return (
     <script
       dangerouslySetInnerHTML={{
