@@ -141,7 +141,7 @@ export default function Page() {
                     </div>
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+X%</div>
+                    <div className="text-3xl font-extrabold">+62%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       add‑to‑cart rate vs baseline
                     </div>

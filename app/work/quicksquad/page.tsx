@@ -127,19 +127,19 @@ export default function Page() {
                 <h2 className="text-xl md:text-2xl font-bold">Results</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">−X%</div>
+                    <div className="text-3xl font-extrabold">−75%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       time to first response
                     </div>
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+Y%</div>
+                    <div className="text-3xl font-extrabold">+67%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       qualified lead rate
                     </div>
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">−Z%</div>
+                    <div className="text-3xl font-extrabold">−37%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       CAC
                     </div>
