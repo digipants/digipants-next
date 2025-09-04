@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
-import { projects} from "@/lib/data";
+import { projects } from "@/lib/data";
 import { notFound } from "next/navigation";
 
 type Params = { slug: string };
@@ -11,10 +11,12 @@ export async function generateStaticParams() {
   return projects.map((p) => ({ slug: p.slug }));
 }
 
-export async function generateMetadata(
-  { params }: { params: Promise<{ slug: string }> }
-): Promise<Metadata> {
-  const { slug } = await params;           // ✅ await first
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params; // ✅ await first
   const proj = projects.find((p) => p.slug === slug);
   if (!proj) return { title: "Case Study — DigiPants" };
 
@@ -39,7 +41,6 @@ export async function generateMetadata(
     },
   };
 }
-
 
 export default async function Page(
   { params }: { params: Promise<{ slug: string }> } // ⬅️ Promise
@@ -252,7 +253,7 @@ export default async function Page(
               ← Back to Selected Work
             </Link>
             <Link
-              href="/bhupendra/contact"
+              href="/contact-us"
               className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
             >
               Start a project
