@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
-import { projects } from "@/lib/data";
+import { projects} from "@/lib/data";
 import { notFound } from "next/navigation";
 
 type Params = { slug: string };
@@ -11,13 +11,14 @@ export async function generateStaticParams() {
   return projects.map((p) => ({ slug: p.slug }));
 }
 
-export function generateMetadata({ params }: { params: Params }): Metadata {
-  const proj = projects.find((p) => p.slug === params.slug);
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string }> }
+): Promise<Metadata> {
+  const { slug } = await params;           // ✅ await first
+  const proj = projects.find((p) => p.slug === slug);
   if (!proj) return { title: "Case Study — DigiPants" };
 
   const url = `https://digipants.com/work/${proj.slug}/`;
-  const ogImg = proj.img;
-
   return {
     title: `${proj.title} — DigiPants`,
     description: proj.summary,
@@ -28,18 +29,57 @@ export function generateMetadata({ params }: { params: Params }): Metadata {
       url,
       siteName: "DigiPants",
       type: "article",
-      images: [{ url: ogImg, width: 1200, height: 630, alt: proj.title }],
+      images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
     },
     twitter: {
       card: "summary_large_image",
       title: proj.title,
       description: proj.summary,
-      images: [ogImg],
+      images: [proj.img],
     },
   };
 }
 
-export default function Page({ params }: { params: Params }) {
+
+export default async function Page(
+  { params }: { params: Promise<{ slug: string }> } // ⬅️ Promise
+) {
+  const { slug } = await params; // ✅ await first
+
+  const proj = projects.find((p) => p.slug === slug);
+  if (!proj) return notFound();
+
+  const breadcrumbCase = (proj: (typeof projects)[number]) =>
+    ({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://digipants.com/",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Work",
+          item: "https://digipants.com/work/",
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: proj.title,
+          item: `https://digipants.com/work/${proj.slug}/`,
+        },
+      ],
+    } as const);
+  const Badge = ({ children }: { children: React.ReactNode }) => (
+    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
+      {children}
+    </span>
+  );
+
   const Section = ({ children }: { children: React.ReactNode }) => (
     <section className="scroll-mt-24 py-10 md:py-16">{children}</section>
   );
@@ -48,43 +88,10 @@ export default function Page({ params }: { params: Params }) {
       {children}
     </div>
   );
-  const proj = projects.find((p) => p.slug === params.slug);
-  if (!proj) return notFound();
-
-  const breadcrumbCase = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: "https://digipants.com/",
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Work",
-        item: "https://digipants.com/work/",
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: proj.title,
-        item: `https://digipants.com/work/${proj.slug}/`,
-      },
-    ],
-  } as const;
-
-  const Badge = ({ children }: { children: React.ReactNode }) => (
-    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-      {children}
-    </span>
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
-      <JsonLd data={breadcrumbCase} />
+      <JsonLd data={breadcrumbCase(proj)} />
       <Section>
         <Container>
           <nav className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">

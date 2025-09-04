@@ -53,22 +53,20 @@ export const metadata: Metadata = {
   },
 };
 
-// runs in <head> before the page paints
-function ThemeInit() {
+// ThemeInit.tsx (server component is fine, no "use client")
+export function ThemeInit() {
   return (
     <script
       dangerouslySetInnerHTML={{
-        __html: `
-(function() {
-  try {
-    var stored = localStorage.getItem('theme');
-    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var theme = stored || (systemDark ? 'dark' : 'light');
-    if (theme === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-  } catch (e) {}
-})();
-        `,
+        __html: `(function() {
+          try {
+            var stored = localStorage.getItem('theme');
+            var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var theme = stored || (systemDark ? 'dark' : 'light');
+            if (theme === 'dark') document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+          } catch (e) {}
+        })();`
       }}
     />
   );
@@ -94,11 +92,8 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${poppins.variable} ${inter.variable}`} suppressHydrationWarning>
-      <head>
-        <meta name="color-scheme" content="dark light" />
-        <ThemeInit />
-      </head>
       <body className="font-sans min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900">
+        <ThemeInit />
         <Header />
         <main>{children}</main>
         <Footer />

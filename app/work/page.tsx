@@ -2,27 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
-import { projects } from "@/lib/data";
-
-const breadcrumbWork = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Home",
-      item: "https://digipants.com/",
-    },
-    {
-      "@type": "ListItem",
-      position: 2,
-      name: "Work",
-      item: "https://digipants.com/work/",
-    },
-  ],
-} as const;
-
+import { projects, breadcrumbWork } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: "Work — DigiPants",
