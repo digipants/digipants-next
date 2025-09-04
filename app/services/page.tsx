@@ -14,11 +14,94 @@ import {
 } from "lucide-react";
 import { PropsWithChildren } from "react";
 
+import JsonLd from "@/components/seo/JsonLd";
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "Which plan should I choose?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Starter is for quick wins and validation. Growth adds steady experimentation. Performance is for aggressive scaling or complex stacks. Custom is tailored for unique goals or compliance needs.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How fast do we see results?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Most clients see early signals in 30–45 days and meaningful lift within 6–12 weeks, depending on channel mix, data quality, and velocity of experiments.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What’s included each month?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "A prioritized roadmap, ad ops (Google/Meta), CRO tests, analytics maintenance, reporting, and async/weekly check-ins. Exact scope varies by plan.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can we pause or cancel?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Monthly plans can pause or cancel with notice per your agreement. We hand off assets and documentation on request.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Do you work with hotels, D2C, and services?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. We specialize in hotels (direct bookings), D2C (Shopify), and service businesses. We adapt playbooks per vertical and stage.",
+      },
+    },
+  ],
+} as const;
+
 export const metadata: Metadata = {
-  title: "Services | DigiPants",
+  title: "Services — DigiPants",
   description:
-    "Performance marketing, CRO/UX, analytics, and AI automations—shipped fast, measured rigorously.",
-  openGraph: { title: "Services | DigiPants", url: "/services/" },
+    "Performance marketing, CRO, analytics, and AI automations for hotels, D2C brands, and service businesses—built to ship fast and compound growth.",
+  alternates: { canonical: "https://digipants.com/services/" },
+  openGraph: {
+    title: "Services — DigiPants",
+    description:
+      "Google & Meta Ads, CRO/UX, analytics pipelines, server-side tracking, AI agents, and Shopify growth.",
+    url: "https://digipants.com/services/",
+    siteName: "DigiPants",
+    type: "website",
+    images: [
+      {
+        url: "https://digipants.com/og/services-cover.jpg",
+        width: 1200,
+        height: 630,
+        alt: "DigiPants Services",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Services — DigiPants",
+    description:
+      "End-to-end growth systems: ads, CRO, analytics, and AI automations.",
+    images: ["https://digipants.com/og/services-cover.jpg"],
+  },
+  keywords: [
+    "digital marketing services",
+    "performance marketing",
+    "CRO agency",
+    "conversion rate optimization",
+    "analytics implementation",
+    "server-side tracking",
+    "AI automation",
+    "Shopify growth",
+    "hotel marketing",
+  ],
 };
 
 type Service = {
@@ -107,6 +190,7 @@ function Section({
 export default function ServicesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
+      <JsonLd data={faqSchema} />
       {/* Hero */}
       <Section>
         <div className="grid gap-8 md:grid-cols-2 items-center">

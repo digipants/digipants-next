@@ -3,9 +3,42 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pricing | DigiPants",
-  description: "Simple plans that start delivering within weeks.",
-  openGraph: { title: "Pricing | DigiPants", url: "/pricing/" },
+  title: "Pricing — DigiPants",
+  description:
+    "Transparent digital marketing plans that deliver measurable growth within weeks. Choose Starter, Growth, Performance, or Custom to fit your goals.",
+  alternates: {
+    canonical: "https://digipants.com/pricing/",
+  },
+  openGraph: {
+    title: "Pricing — DigiPants",
+    description:
+      "Transparent plans for hotels, D2C brands, and service businesses. Get results in weeks, not months.",
+    url: "https://digipants.com/pricing/",
+    siteName: "DigiPants",
+    type: "website",
+    images: [
+      {
+        url: "https://digipants.com/og/pricing-cover.jpg", // ideally generate a branded image
+        width: 1200,
+        height: 630,
+        alt: "DigiPants Pricing Plans",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pricing — DigiPants",
+    description:
+      "Choose the right DigiPants plan to accelerate your growth: Starter, Growth, Performance, or Custom.",
+    images: ["https://digipants.com/og/pricing-cover.jpg"],
+  },
+  keywords: [
+    "DigiPants pricing",
+    "digital marketing plans",
+    "performance marketing",
+    "CRO packages",
+    "AI automation services",
+  ],
 };
 
 type Plan = {

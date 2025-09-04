@@ -1,68 +1,70 @@
 // file: app/work/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/JsonLd";
+import { projects } from "@/lib/data";
+
+const breadcrumbWork = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: "https://digipants.com/",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Work",
+      item: "https://digipants.com/work/",
+    },
+  ],
+} as const;
+
 
 export const metadata: Metadata = {
-  title: "Selected Work | Bhupendra Kumar",
+  title: "Work — DigiPants",
   description:
-    "Case studies across hotels, D2C, AI support, and print‑on‑demand.",
+    "Selected projects and case studies across hotels, D2C, and AI—showing the experiments, results, and playbooks behind growth.",
+  alternates: { canonical: "https://digipants.com/work/" },
   openGraph: {
-    title: "Selected Work | Bhupendra Kumar",
+    title: "Work — DigiPants",
     description:
-      "Case studies across hotels, D2C, AI support, and print‑on‑demand.",
+      "Case studies that detail the strategy, experiments, and measurable lift.",
     url: "https://digipants.com/work/",
     siteName: "DigiPants",
-    images: [{ url: "/work/og.jpg", width: 1200, height: 630 }],
-    locale: "en_IN",
     type: "website",
+    images: [
+      {
+        url: "https://digipants.com/og/work-cover.jpg",
+        width: 1200,
+        height: 630,
+        alt: "DigiPants Case Studies",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Selected Work | Bhupendra Kumar",
+    title: "Work — DigiPants",
     description:
-      "Case studies across hotels, D2C, AI support, and print‑on‑demand.",
-    images: ["/work/og.jpg"],
+      "Real results: direct bookings, lower CAC, higher CVR, faster revenue.",
+    images: ["https://digipants.com/og/work-cover.jpg"],
   },
+  keywords: [
+    "marketing case studies",
+    "growth case studies",
+    "hotel direct bookings",
+    "D2C growth",
+    "AI chatbot case study",
+    "conversion lift",
+  ],
 };
 
-const projects = [
-  {
-    slug: "pearlytots",
-    title: "PearlyTots — D2C Launch & Scale",
-    summary:
-      "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
-    tag: "D2C",
-    img: "https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    slug: "upscale-hotel",
-    title: "Upscale Hotel — More Direct, Less OTA",
-    summary:
-      "PMax + Meta remarketing, parity landing pages, and automations to lift direct bookings.",
-    tag: "Hotels",
-    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    slug: "quicksquad",
-    title: "quicksquad — AI Support to Cut CAC",
-    summary:
-      "AI triage bot + landing UX revamp to improve trust, lead quality, and lower CAC.",
-    tag: "AI",
-    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    slug: "zescher",
-    title: "Zescher — POD Launch & Growth",
-    summary:
-      "Sanskrit‑inspired POD brand with automated design‑to‑print workflow and a conversion‑optimized storefront.",
-    tag: "POD",
-    img: "https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80",
-  },
-];
-
-function Card({ p }: { p: (typeof projects)[number] }) {
+function WorkCard({ p }: { p: (typeof projects)[number] }) {
   return (
-    <Link href={`/work/${p.slug}/`} className="group">
+    <Link href={`/work/${p.slug}`} className="group">
       <div className="overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 shadow-sm h-full">
         <div className="aspect-video w-full overflow-hidden">
           <img
@@ -102,6 +104,7 @@ function Card({ p }: { p: (typeof projects)[number] }) {
 export default function WorkIndexPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
+      <JsonLd data={breadcrumbWork} />
       <section className="scroll-mt-24 py-10 md:py-16">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
           <nav className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
@@ -127,7 +130,7 @@ export default function WorkIndexPage() {
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => (
-              <Card key={p.slug} p={p} />
+              <WorkCard key={p.slug} p={p} />
             ))}
           </div>
         </div>

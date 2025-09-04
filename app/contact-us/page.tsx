@@ -3,10 +3,40 @@ import type { Metadata } from "next";
 import ContactForm from "@/components/forms/ContactForm";
 
 export const metadata: Metadata = {
-  title: "Contact | DigiPants",
-  description: "Tell us about your project. We reply within 24 hours.",
-  openGraph: { title: "Contact | DigiPants", url: "/contact-us/" },
+  title: "Contact — DigiPants",
+  description:
+    "Tell us about your goals, constraints, and timeline. We’ll reply within 24 hours with a plan.",
+  alternates: { canonical: "https://digipants.com/contact-us/" },
+  openGraph: {
+    title: "Contact — DigiPants",
+    description:
+      "Start a project or request a custom plan. Response within 24 hours.",
+    url: "https://digipants.com/contact-us/",
+    siteName: "DigiPants",
+    type: "website",
+    images: [
+      {
+        url: "https://digipants.com/og/contact-cover.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Contact DigiPants",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contact — DigiPants",
+    description: "Share context and goals—get a fast, actionable response.",
+    images: ["https://digipants.com/og/contact-cover.jpg"],
+  },
+  keywords: [
+    "contact DigiPants",
+    "start a project",
+    "marketing proposal",
+    "custom plan",
+  ],
 };
+
 
 function Section({ children }: { children: React.ReactNode }) {
   return (

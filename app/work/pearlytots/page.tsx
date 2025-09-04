@@ -1,31 +1,45 @@
 // file: app/work/pearlytots/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/JsonLd";
+import { projects } from "@/lib/data";
+import { notFound } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "PearlyTots — D2C Launch & Scale | Bhupendra Kumar",
-  description:
-    "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
-  openGraph: {
-    title: "PearlyTots — D2C Launch & Scale",
-    description:
-      "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
-    url: "/work/pearlytots/",
-    siteName: "DigiPants",
-    images: [{ url: "/work/pearlytots/og.jpg", width: 1200, height: 630 }],
-    locale: "en_IN",
-    type: "article",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "PearlyTots — D2C Launch & Scale",
-    description:
-      "Shopify launch, UGC ads, creative testing, and post‑purchase upsells to lift AOV & LTV.",
-    images: ["/work/pearlytots/og.jpg"],
-  },
-};
+type Params = { slug: string };
 
-export default function Page() {
+export async function generateStaticParams() {
+  return projects.map((p) => ({ slug: p.slug }));
+}
+
+export function generateMetadata({ params }: { params: Params }): Metadata {
+  const proj = projects.find((p) => p.slug === params.slug);
+  if (!proj) return { title: "Case Study — DigiPants" };
+
+  const url = `https://digipants.com/work/${proj.slug}/`;
+  const ogImg = proj.img;
+
+  return {
+    title: `${proj.title} — DigiPants`,
+    description: proj.summary,
+    alternates: { canonical: url },
+    openGraph: {
+      title: proj.title,
+      description: proj.summary,
+      url,
+      siteName: "DigiPants",
+      type: "article",
+      images: [{ url: ogImg, width: 1200, height: 630, alt: proj.title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: proj.title,
+      description: proj.summary,
+      images: [ogImg],
+    },
+  };
+}
+
+export default function Page({ params }: { params: Params }) {
   const Section = ({ children }: { children: React.ReactNode }) => (
     <section className="scroll-mt-24 py-10 md:py-16">{children}</section>
   );
@@ -34,6 +48,34 @@ export default function Page() {
       {children}
     </div>
   );
+  const proj = projects.find((p) => p.slug === params.slug);
+  if (!proj) return notFound();
+
+  const breadcrumbCase = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://digipants.com/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Work",
+        item: "https://digipants.com/work/",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: proj.title,
+        item: `https://digipants.com/work/${proj.slug}/`,
+      },
+    ],
+  } as const;
+
   const Badge = ({ children }: { children: React.ReactNode }) => (
     <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
       {children}
@@ -42,6 +84,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
+      <JsonLd data={breadcrumbCase} />
       <Section>
         <Container>
           <nav className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
@@ -134,13 +177,13 @@ export default function Page() {
                 <h2 className="text-xl md:text-2xl font-bold">Results</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+X%</div>
+                    <div className="text-3xl font-extrabold">+21%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       CVR vs baseline
                     </div>
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+Y%</div>
+                    <div className="text-3xl font-extrabold">+64%</div>
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
                       AOV with post‑purchase upsell
                     </div>
