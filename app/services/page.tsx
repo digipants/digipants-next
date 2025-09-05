@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import AnimatedSection from "@/components/animate/AnimatedSection";
 import AnimatedCard from "@/components/animate/AnimatedCard";
+import { PropsWithChildren } from "react";
+import JsonLd from "@/components/seo/JsonLd";
 import {
   ArrowUpRight,
   Award,
@@ -12,9 +14,6 @@ import {
   BookOpen,
   Globe,
 } from "lucide-react";
-import { PropsWithChildren } from "react";
-
-import JsonLd from "@/components/seo/JsonLd";
 
 const faqSchema = {
   "@context": "https://schema.org",

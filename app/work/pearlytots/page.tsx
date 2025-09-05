@@ -3,13 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
 import { projects } from "@/lib/data";
-import { notFound } from "next/navigation";
-
-type Params = { slug: string };
-
-export async function generateStaticParams() {
-  return projects.map((p) => ({ slug: p.slug }));
-}
 
 export async function generateMetadata({
   params,
@@ -42,39 +35,8 @@ export async function generateMetadata({
   };
 }
 
-export default async function Page(
-  { params }: { params: Promise<{ slug: string }> } // ⬅️ Promise
-) {
-  const { slug } = await params; // ✅ await first
+export default async function Page() {
 
-  const proj = projects.find((p) => p.slug === slug);
-  if (!proj) return notFound();
-
-  const breadcrumbCase = (proj: (typeof projects)[number]) =>
-    ({
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "Home",
-          item: "https://digipants.com/",
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "Work",
-          item: "https://digipants.com/work/",
-        },
-        {
-          "@type": "ListItem",
-          position: 3,
-          name: proj.title,
-          item: `https://digipants.com/work/${proj.slug}/`,
-        },
-      ],
-    } as const);
   const Badge = ({ children }: { children: React.ReactNode }) => (
     <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
       {children}
@@ -92,7 +54,6 @@ export default async function Page(
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
-      <JsonLd data={breadcrumbCase(proj)} />
       <Section>
         <Container>
           <nav className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
