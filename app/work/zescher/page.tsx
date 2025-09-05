@@ -1,31 +1,62 @@
 // file: app/work/zescher/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/JsonLd";
+import { projects } from "@/lib/data";
+import { notFound } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Zescher — POD Launch & Growth | Bhupendra Kumar",
-  description:
-    "Developed a print‑on‑demand brand (Zescher) with unique Sanskrit‑inspired identity, streamlined design‑to‑print workflow, and conversion‑optimized storefront.",
-  openGraph: {
-    title: "Zescher — POD Launch & Growth",
-    description:
-      "Print‑on‑demand brand launch with Sanskrit‑inspired identity, design automation, and Shopify growth tactics.",
-    url: "/work/zescher/",
-    siteName: "DigiPants",
-    images: [{ url: "/work/zescher/og.jpg", width: 1200, height: 630 }],
-    locale: "en_IN",
-    type: "article",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Zescher — POD Launch & Growth",
-    description:
-      "POD launch project with brand identity, automated workflow, and Shopify growth.",
-    images: ["/work/zescher/og.jpg"],
-  },
-};
+const slug = "quicksquad";
+const proj = projects.find((p) => p.slug === slug);
+
+export const metadata: Metadata = proj
+  ? {
+      title: `${proj.title} — DigiPants`,
+      description: proj.summary,
+      alternates: { canonical: `https://digipants.com/work/${slug}/` },
+      openGraph: {
+        title: proj.title,
+        description: proj.summary,
+        url: `https://digipants.com/work/${slug}/`,
+        siteName: "DigiPants",
+        type: "article",
+        images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: proj.title,
+        description: proj.summary,
+        images: [proj.img],
+      },
+    }
+  : { title: "Case Study — DigiPants" };
 
 export default function Page() {
+  if (!proj) return notFound();
+
+  const breadcrumbCase = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://digipants.com/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Work",
+        item: "https://digipants.com/work/",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: proj.title,
+        item: `https://digipants.com/work/${slug}/`,
+      },
+    ],
+  } as const;
   const Section = ({ children }: { children: React.ReactNode }) => (
     <section className="scroll-mt-24 py-10 md:py-16">{children}</section>
   );
@@ -42,6 +73,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
+      <JsonLd data={breadcrumbCase} />
       <Section>
         <Container>
           <nav className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
