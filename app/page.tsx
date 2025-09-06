@@ -10,6 +10,7 @@ import {
   Sparkles,
   BookOpen,
   Globe,
+  Linkedin,
 } from "lucide-react";
 
 type Work = { title: string; tag: string; img: string; href: string };
@@ -26,6 +27,7 @@ type Person = {
   role: string;
   img: string;
   bio: string;
+  linkedin?: string;
   href?: string;
 };
 
@@ -156,18 +158,21 @@ const TEAM: Person[] = [
     img: "/bhupendra.jpg",
     bio: "Leads acquisition strategy across Google/Meta, analytics, and CRO.",
     href: "mailto:bhupendra@digipants.com",
+    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
   },
   {
     name: "Anju Mishra",
     role: "Ad Concepts & UGC",
     img: "/anju.JPG",
     bio: "Concepts, hooks, and editing to fuel creative testing.",
+    linkedin: "https://www.linkedin.com/in/anju-mishra-9232a313/",
   },
   {
     name: "Ajit Rai",
     role: "AI Agents & Data",
     img: "/ajit.jpg",
     bio: "WhatsApp/CRM flows, lead routing, and reporting integrations.",
+    linkedin: "https://www.linkedin.com/in/ajit-rai-1a8112287/",
   },
 ];
 
@@ -497,6 +502,15 @@ export default function Page() {
                       {m.role}
                     </div>
                   </div>
+                  <a
+                    href={m.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${m.name} on LinkedIn`}
+                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+                  >
+                    <Linkedin className="h-5 w-5" />
+                  </a>
                 </div>
                 <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
                   {m.bio}

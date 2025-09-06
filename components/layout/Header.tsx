@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
+import SocialLinks from "@/components/common/SocialLinks";
 import {
   Mail,
   Moon,
@@ -125,6 +126,12 @@ export default function Page() {
                 <span className="inline-block w-4 h-4" aria-hidden />
               )}
             </Button>
+            <SocialLinks
+              keys={["linkedin"]}
+              size={18}
+              className="hidden md:flex"
+              variant="header"
+            />
             <Button href="/contact-us">
               <Mail className="w-4 h-4" /> Contact
             </Button>

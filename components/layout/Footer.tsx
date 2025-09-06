@@ -1,3 +1,4 @@
+import SocialLinks from "@/components/common/SocialLinks";
 export default function Footer() {
   const year = new Date().getFullYear();
   return (
@@ -6,8 +7,13 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-600 dark:text-zinc-400">
           <div>© {year} DigiPants. All rights reserved.</div>
           <div className="flex items-center gap-4">
-            <a className="hover:underline" href="/privacy/">Privacy</a>
-            <a className="hover:underline" href="/terms/">Terms</a>
+            <a className="hover:underline" href="/privacy/">
+              Privacy
+            </a>
+            <a className="hover:underline" href="/terms/">
+              Terms
+            </a>
+            <SocialLinks variant="footer" />
           </div>
         </div>
       </div>
