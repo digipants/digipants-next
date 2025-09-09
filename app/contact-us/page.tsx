@@ -37,7 +37,6 @@ export const metadata: Metadata = {
   ],
 };
 
-
 function Section({ children }: { children: React.ReactNode }) {
   return (
     <section className="scroll-mt-24 py-12 md:py-16">
@@ -66,9 +65,9 @@ export default function ContactPage() {
                 ✉️{" "}
                 <a
                   className="underline-offset-4 hover:underline"
-                  href="mailto:bhupendra@digipants.com"
+                  href="mailto:support@digipants.com"
                 >
-                  bhupendra@digipants.com
+                  support@digipants.com
                 </a>
               </li>
               <li>🌍 Lucknow, India</li>

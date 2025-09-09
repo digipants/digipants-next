@@ -177,8 +177,8 @@ export default function PrivacyPage() {
             Depending on your region, you may have rights to access, correct,
             delete, or export your data, or object to certain processing. To
             exercise these rights, contact us at{" "}
-            <a href="mailto:bhupendra@digipants.com">bhupendra@digipants.com</a>
-            . We may need to verify your identity before fulfilling a request.
+            <a href="mailto:support@digipants.com">support@digipants.com</a>. We
+            may need to verify your identity before fulfilling a request.
           </p>
 
           <h2 id="security" className="scroll-mt-24">
@@ -211,8 +211,8 @@ export default function PrivacyPage() {
           </h2>
           <p>
             Questions? Email{" "}
-            <a href="mailto:bhupendra@digipants.com">bhupendra@digipants.com</a>
-            . You may also use our{" "}
+            <a href="mailto:support@digipants.com">support@digipants.com</a>.
+            You may also use our{" "}
             <Link href="/contact-us/" className="underline">
               contact form
             </Link>

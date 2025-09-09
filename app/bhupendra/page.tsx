@@ -26,7 +26,7 @@ const PROFILE = {
   tagline:
     "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
   location: "Lucknow, India",
-  email: "bhupendra@digipants.com",
+  email: "support@digipants.com",
   phone: "+91-9511-11-7747",
   socials: {
     linkedin: "https://www.linkedin.com/in/bhupendraprofile/",

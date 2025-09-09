@@ -204,8 +204,8 @@ export default function TermsPage() {
           </h2>
           <p>
             Questions about these Terms? Email{" "}
-            <a href="mailto:bhupendra@digipants.com">bhupendra@digipants.com</a>{" "}
-            or use our{" "}
+            <a href="mailto:support@digipants.com">support@digipants.com</a> or
+            use our{" "}
             <Link href="/contact-us/" className="underline">
               contact form
             </Link>

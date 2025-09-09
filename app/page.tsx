@@ -157,7 +157,7 @@ const TEAM: Person[] = [
     role: "Founder, Growth & Performance",
     img: "/bhupendra.jpg",
     bio: "Leads acquisition strategy across Google/Meta, analytics, and CRO.",
-    href: "mailto:bhupendra@digipants.com",
+    href: "mailto:support@digipants.com",
     linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
   },
   {
