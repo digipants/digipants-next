@@ -13,6 +13,8 @@ import {
   Sparkles,
   BookOpen,
   Globe,
+  Wrench,
+  Target,
 } from "lucide-react";
 
 const faqSchema = {
@@ -273,6 +275,78 @@ export default function ServicesPage() {
                 </Card>
               </AnimatedCard>
             ))}
+          </div>
+        </Container>
+      </AnimatedSection>
+
+      {/* Deep-dives into key services */}
+      <AnimatedSection id="deep-dives" className="py-12 md:py-16">
+        <Container>
+          <div className="flex items-end justify-between gap-4 mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Deep-dives
+            </h2>
+            <a
+              href="/contact-us"
+              className="text-sm inline-flex items-center gap-1 hover:underline"
+            >
+              Talk to us <ArrowUpRight className="w-4 h-4" />
+            </a>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <AnimatedCard
+              initial={{ y: 12, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+            >
+              <Link href="/services/web-development/" className="group block">
+                <Card className="p-6 h-full">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                      <Wrench className="w-5 h-5" />
+                    </span>
+                    <h3 className="font-semibold group-hover:underline">
+                      Web Development
+                    </h3>
+                  </div>
+                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    Process, tools, and our developer team. Next.js, TypeScript,
+                    UX, integrations, and performance budgets.
+                  </p>
+                  <div className="mt-4 text-sm font-medium inline-flex items-center gap-1">
+                    Explore <ArrowUpRight className="w-4 h-4" />
+                  </div>
+                </Card>
+              </Link>
+            </AnimatedCard>
+
+            <AnimatedCard
+              initial={{ y: 12, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+            >
+              <Link href="/services/digital-marketing/" className="group block">
+                <Card className="p-6 h-full">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                      <Target className="w-5 h-5" />
+                    </span>
+                    <h3 className="font-semibold group-hover:underline">
+                      Digital Marketing
+                    </h3>
+                  </div>
+                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    Process, tools, and the growth team. Google/Meta Ads, CRO,
+                    analytics, and experiment cadence.
+                  </p>
+                  <div className="mt-4 text-sm font-medium inline-flex items-center gap-1">
+                    Explore <ArrowUpRight className="w-4 h-4" />
+                  </div>
+                </Card>
+              </Link>
+            </AnimatedCard>
           </div>
         </Container>
       </AnimatedSection>
