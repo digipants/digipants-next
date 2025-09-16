@@ -1,9 +1,10 @@
 // app/services/digital-marketing/page.tsx
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Target, BarChart3, Users, ArrowUpRight } from "lucide-react";
+import { Target, BarChart3, Users, ArrowUpRight, Linkedin } from "lucide-react";
 import JsonLd from "@/components/seo/JsonLd";
 import AnimatedSection from "@/components/animate/AnimatedSection";
+import { link } from "fs";
 
 export const metadata: Metadata = {
   title: "Digital Marketing — DigiPants",
@@ -148,24 +149,28 @@ const TEAM = [
     img: "/bhupendra.jpg",
     blurb:
       "Leads acquisition strategy, analytics, and experimentation cadence.",
+    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
   },
   {
     name: "Aman",
     role: "Frontend Engineer (React/Next.js)",
     img: "/Aman.jpeg",
     blurb: "Builds UI components, forms, and interactions with TypeScript.",
+    linkedin: "https://www.linkedin.com/in/aman-kharwar-0a6843212/",
   },
   {
     name: "Parul",
     role: "QA & Automation",
     img: "/Parul.jpeg",
     blurb: "Regression, E2E flows, and performance checks before each release.",
+    linkedin: "https://www.linkedin.com/in/parul-maurya-3951b22b1/",
   },
   {
     name: "Kshama",
     role: "Project Ops",
     img: "/Kshama.jpg",
     blurb: "Schedules, status, and documentation to keep shipping on time.",
+    linkedin: "https://www.linkedin.com/in/kshama-tiwari-138903231/",
   },
 ];
 
@@ -301,6 +306,15 @@ export default function DigitalMarketingPage() {
                         {m.role}
                       </div>
                     </div>
+                    <a
+                      href={m.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${m.name} on LinkedIn`}
+                      className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+                    >
+                      <Linkedin className="h-5 w-5" />
+                    </a>
                   </div>
                   <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
                     {m.blurb}

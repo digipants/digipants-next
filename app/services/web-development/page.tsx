@@ -1,7 +1,13 @@
 // app/services/web-development/page.tsx
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CheckCircle2, Wrench, Users, ArrowUpRight } from "lucide-react";
+import {
+  CheckCircle2,
+  Wrench,
+  Users,
+  ArrowUpRight,
+  Linkedin,
+} from "lucide-react";
 import JsonLd from "@/components/seo/JsonLd";
 import AnimatedSection from "@/components/animate/AnimatedSection";
 
@@ -151,12 +157,14 @@ const TEAM = [
     role: "Tech Lead, Full‑stack",
     img: "/bhupendra.jpg",
     blurb: "Owns architecture, performance budgets, and end‑to‑end delivery.",
+    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
   },
   {
     name: "Aman",
     role: "Frontend Engineer (React/Next.js)",
     img: "/Aman.jpeg",
     blurb: "Builds UI components, forms, and interactions with TypeScript.",
+    linkedin: "https://www.linkedin.com/in/aman-kharwar-0a6843212/",
   },
   {
     name: "Aryan",
@@ -164,12 +172,14 @@ const TEAM = [
     img: "/Aryan.jpeg",
     blurb:
       "Owns responsive design, accessibility, and polish across breakpoints.",
+    linkedin: "https://www.linkedin.com/in/aryan-bhashkar/",
   },
   {
     name: "Himanshu",
     role: "UI Engineer (Tailwind)",
     img: "/Himanshu.jpeg",
     blurb: "APIs, integrations, and data flow between services and UI.",
+    linkedin: "https://www.linkedin.com/in/himanshusingh261/",
   },
 ];
 
@@ -303,6 +313,15 @@ export default function WebDevelopmentPage() {
                         {m.role}
                       </div>
                     </div>
+                    <a
+                      href={m.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${m.name} on LinkedIn`}
+                      className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+                    >
+                      <Linkedin className="h-5 w-5" />
+                    </a>
                   </div>
                   <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
                     {m.blurb}
