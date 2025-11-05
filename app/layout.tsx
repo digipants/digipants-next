@@ -56,6 +56,9 @@ export const metadata: Metadata = {
     shortcut: "/favicon-96x96.png",
     apple: "/apple-touch-icon.png",
   },
+    verification: {
+    google: "aCO75-5PzlX_vlEUYZtpyMPIHYnUbS-1gSe8Fj1qKEY"
+  }
 };
 
 // ThemeInit.tsx (server component is fine, no "use client")
