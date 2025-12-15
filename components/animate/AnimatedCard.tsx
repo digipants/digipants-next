@@ -3,7 +3,6 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 
-// Take all motion.div props (except ref) and omit DOM animation/drag handlers that conflict
 type MotionDivBase = Omit<
   React.ComponentProps<typeof motion.div>,
   | "ref"
