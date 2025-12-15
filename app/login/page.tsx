@@ -81,7 +81,6 @@ export default function LoginPage() {
           </a>
         </p>
 
-        {/* Footer */}
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
           By continuing, you agree to DigiPants’ Terms & Privacy Policy.
         </p>
