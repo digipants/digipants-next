@@ -1,8 +1,9 @@
-// app/layout.tsx
+﻿// app/layout.tsx
 import "./../styles/globals.css";
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import Providers from "@/components/Providers";
 import { Poppins, Inter } from "next/font/google";
 
 export const metadata: Metadata = {
@@ -104,10 +105,16 @@ export default function RootLayout({
     >
       <body className="font-sans min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900">
         <ThemeInit />
-        <Header />
-        <main>{children}</main>
-        <Footer />
+
+        {/* ✅ SessionProvider must wrap EVERYTHING that uses useSession */}
+        <Providers>
+          <Header />
+          {children}
+          <Footer />
+        </Providers>
+
       </body>
     </html>
   );
 }
+

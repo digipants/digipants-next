@@ -12,6 +12,7 @@ import {
   Globe,
   Linkedin,
 } from "lucide-react";
+import LoginPage from "@/components/Loginpage";
 
 type Work = { title: string; tag: string; img: string; href: string };
 type Plan = {
@@ -285,7 +286,6 @@ export default function Page() {
           </Card>
         </div>
       </Section>
-
       <Section id="services">
         <Container>
           <div className="flex items-end justify-between gap-4 mb-8">

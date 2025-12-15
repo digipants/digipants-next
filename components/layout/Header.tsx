@@ -1,9 +1,9 @@
-// components/layout/Header.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
-import SocialLinks from "@/components/common/SocialLinks";
+import { useSession } from "next-auth/react";
+import { User } from "lucide-react";
 import {
   Mail,
   Moon,
@@ -19,18 +19,50 @@ const NAV = [
   { id: "pricing", label: "Pricing", href: "/pricing/" },
 ];
 
+function ProfileIcon() {
+  const { data: session, status } = useSession();
+
+  if (status === "loading") return null;
+
+  const avatar = session?.user?.image;
+
+  const handleClick = () => {
+    if (!session) {
+      window.location.href = "/login";
+    } else {
+      window.location.href = "/dashboard";
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="h-9 w-9 rounded-full flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      aria-label="Profile"
+    >
+      {avatar ? (
+        <img
+          src={avatar}
+          alt="Profile"
+          className="h-8 w-8 rounded-full object-cover"
+        />
+      ) : (
+        <User className="h-4 w-4" />
+      )}
+    </button>
+  );
+}
+
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [ready, setReady] = useState(false);
 
-  // On mount, read the class put there by ThemeInit (no DOM writes here)
   useEffect(() => {
     const darkNow = document.documentElement.classList.contains("dark");
     setTheme(darkNow ? "dark" : "light");
     setReady(true);
   }, []);
 
-  // Toggle writes DOM + storage
   const toggle = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -42,7 +74,6 @@ function useTheme() {
 
   return { theme, toggle, ready };
 }
-
 
 function Container({ children }: PropsWithChildren) {
   return (
@@ -85,9 +116,7 @@ function Button({
   );
 }
 
-export default function Page() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, toggle, ready } = useTheme();
 
@@ -102,19 +131,19 @@ export default function Page() {
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
             DigiPants
           </a>
+
+          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-6">
-            {NAV.map((n) => {
-              let href = `/${n.id}`;
-              return (
-                <a
-                  key={n.id}
-                  href={n.href}
-                  className="text-sm font-medium hover:opacity-70"
-                >
-                  {n.label}
-                </a>
-              );
-            })}
+            {NAV.map((n) => (
+              <a
+                key={n.id}
+                href={n.href}
+                className="text-sm font-medium hover:opacity-70"
+              >
+                {n.label}
+              </a>
+            ))}
+
             <Button variant="ghost" onClick={toggle}>
               {ready ? (
                 theme === "dark" ? (
@@ -123,19 +152,20 @@ export default function Page() {
                   <Moon className="w-4 h-4" />
                 )
               ) : (
-                <span className="inline-block w-4 h-4" aria-hidden />
+                <span className="w-4 h-4" />
               )}
             </Button>
-            <SocialLinks
-              keys={["linkedin"]}
-              size={18}
-              className="hidden md:flex"
-              variant="header"
-            />
+
+            {/* Profile */}
+            <ProfileIcon />
+
             <Button href="/contact-us">
-              <Mail className="w-4 h-4" /> Contact
+              <Mail className="w-4 h-4" />
+              Contact
             </Button>
           </nav>
+
+          {/* Mobile */}
           <div className="md:hidden flex items-center gap-2">
             <Button variant="ghost" onClick={toggle}>
               {ready ? (
@@ -145,9 +175,12 @@ export default function Page() {
                   <Moon className="w-4 h-4" />
                 )
               ) : (
-                <span className="inline-block w-4 h-4" aria-hidden />
+                <span className="w-4 h-4" />
               )}
             </Button>
+
+            <ProfileIcon />
+
             <button
               className="p-2"
               onClick={() => setMenuOpen((s) => !s)}
@@ -161,6 +194,7 @@ export default function Page() {
             </button>
           </div>
         </div>
+
         {menuOpen && (
           <div className="md:hidden pb-4 flex flex-col gap-2">
             {NAV.map((n) => (
@@ -173,6 +207,13 @@ export default function Page() {
                 {n.label}
               </a>
             ))}
+            <a
+              href="/login"
+              className="py-2"
+              onClick={() => setMenuOpen(false)}
+            >
+              Login
+            </a>
             <a
               href="/contact-us"
               className="py-2"
