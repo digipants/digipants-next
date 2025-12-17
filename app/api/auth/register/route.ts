@@ -10,10 +10,7 @@ export async function POST(req: Request) {
 
     const file = formData.get("image") as File | null;
     const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
     const email = formData.get("email") as string;
-    const address = formData.get("address") as string;
-    const pincode = formData.get("pincode") as string;
     const password = formData.get("password") as string;
 
     if (!email || !password || !name) {
@@ -63,10 +60,7 @@ export async function POST(req: Request) {
 
     await User.create({
       name,
-      phone,
       email,
-      address,
-      pincode,
       password: hashedPassword,
       image: imageUrl,
     });
