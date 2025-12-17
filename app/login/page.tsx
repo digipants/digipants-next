@@ -93,7 +93,7 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Password with eye toggle */}
+          {/* Password */}
           <div className="space-y-1 relative">
             <label className="text-sm font-medium">Password</label>
             <input
@@ -111,6 +111,17 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {/* Forgot Password */}
+          <div className="text-right">
+            <a
+              href="/forgot-password"
+              className="text-sm text-zinc-600 dark:text-zinc-400 hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+
+          {/* Submit */}
           <button
             disabled={loading}
             onClick={handleCredentialsLogin}

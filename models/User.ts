@@ -7,6 +7,8 @@ export interface IUser {
   password?: string;
   image?: string | null;
   provider: "credentials" | "google";
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
