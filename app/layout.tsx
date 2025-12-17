@@ -122,7 +122,7 @@ export default function RootLayout({
           <Footer />
         </Providers>
 
-        {/* ✅ Toasts must be inside body */}
+        {/* Toasts must be inside body */}
         <ToastContainer
           position="top-center"
           autoClose={3000}
