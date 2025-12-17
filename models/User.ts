@@ -7,6 +7,8 @@ export interface IUser {
   password?: string;
   image?: string | null;
   provider: "credentials" | "google";
+
+  // 🔐 reset password fields
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
 }
@@ -14,24 +16,23 @@ export interface IUser {
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
-
     email: { type: String, required: true, unique: true },
-
-    // ✅ FIXED: typed function + boolean return
     password: {
       type: String,
-      required: function (this: IUser): boolean {
+      required: function (this: IUser) {
         return this.provider === "credentials";
       },
     },
-
     image: String,
-
     provider: {
       type: String,
       enum: ["credentials", "google"],
       default: "credentials",
     },
+
+    // 🔐 REQUIRED FOR RESET PASSWORD
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   { timestamps: true }
 );
