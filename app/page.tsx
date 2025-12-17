@@ -163,7 +163,7 @@ const TEAM: Person[] = [
   },
   {
     name: "Anju Mishra",
-    role: "Ad Concepts & UGC",
+    role: "Co-Founder, Ad Concepts & UGC",
     img: "/anju.JPG",
     bio: "Concepts, hooks, and editing to fuel creative testing.",
     linkedin: "https://www.linkedin.com/in/anju-mishra-9232a313/",

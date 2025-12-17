@@ -4,7 +4,7 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -36,8 +36,8 @@
     ]
   },
   "include": [
-    "**/*.ts", 
-    "**/*.tsx", 
+    "**/*.ts",
+    "**/*.tsx",
     "src/types",
     "app",
     "components",
@@ -46,7 +46,8 @@
     "next-env.d.ts",
     "styles",
     ".next/types/**/*.ts",
-    "types"
+    "types",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
