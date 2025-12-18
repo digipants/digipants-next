@@ -26,11 +26,11 @@ export async function POST(req: Request) {
 
     let imageUrl = "";
 
-    // 🔒 IMAGE UPLOAD (MAX 50 KB)
+    // 🔒 IMAGE UPLOAD (MAX 1 MB)
     if (file) {
       if (file.size > 1024 * 1024) {
         return NextResponse.json(
-          { message: "Image must be under 50KB" },
+          { message: "Image must be under 1MB" },
           { status: 400 }
         );
       }
