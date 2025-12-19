@@ -208,13 +208,6 @@ export default function Header() {
               </a>
             ))}
             <a
-              href="/login"
-              className="py-2"
-              onClick={() => setMenuOpen(false)}
-            >
-              Login
-            </a>
-            <a
               href="/contact-us"
               className="py-2"
               onClick={() => setMenuOpen(false)}
