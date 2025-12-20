@@ -63,6 +63,8 @@ export async function POST(req: Request) {
       email,
       password: hashedPassword,
       image: imageUrl,
+      provider: "credentials",
+      subscription: "free",
     });
 
     return NextResponse.json({ success: true });

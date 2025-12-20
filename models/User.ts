@@ -6,33 +6,54 @@ export interface IUser {
   email: string;
   password?: string;
   image?: string | null;
+
   provider: "credentials" | "google";
 
+  // 🏆 Lifetime access flag
+  subscription: "free" | "premium";
+
   // 🔐 reset password fields
-  resetPasswordToken?: string;
-  resetPasswordExpires?: Date;
+  resetPasswordToken?: string | null;
+  resetPasswordExpires?: Date | null;
 }
 
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
+
     email: { type: String, required: true, unique: true },
+
     password: {
       type: String,
-      required: function (this: IUser) {
+      required: function (this: any) {
         return this.provider === "credentials";
       },
     },
-    image: String,
+
+    image: { type: String, default: null },
+
     provider: {
       type: String,
       enum: ["credentials", "google"],
       default: "credentials",
     },
 
-    // 🔐 REQUIRED FOR RESET PASSWORD
-    resetPasswordToken: { type: String },
-    resetPasswordExpires: { type: Date },
+    // ✅ Lifetime subscription
+    subscription: {
+      type: String,
+      enum: ["free", "premium"],
+      default: "free",
+    },
+
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
+
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

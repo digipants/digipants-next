@@ -6,6 +6,8 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import crypto from "crypto";
 
+/* ---------------- RESET PASSWORD HELPERS ---------------- */
+
 export function generateResetToken() {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = crypto
@@ -13,23 +15,24 @@ export function generateResetToken() {
     .update(rawToken)
     .digest("hex");
 
-  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-  return { rawToken, hashedToken, expires };
+  return { rawToken, hashedToken };
 }
 
 export function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
+
+/* ---------------- NEXT AUTH CONFIG ---------------- */
+
 export const authOptions: NextAuthOptions = {
   providers: [
-    // ---------------- GOOGLE ----------------
+    /* ---------------- GOOGLE ---------------- */
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
 
-    // ---------------- CREDENTIALS ----------------
+    /* ---------------- CREDENTIALS ---------------- */
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -45,7 +48,7 @@ export const authOptions: NextAuthOptions = {
         const user = await User.findOne({ email: credentials.email }).lean();
         if (!user) return null;
 
-        // prevent password login for Google users
+        // Block Google users from password login
         if (user.provider === "google") return null;
 
         if (!user.password) return null;
@@ -61,6 +64,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email,
           image: user.image || null,
+          subscription: user.subscription ?? "free",
         };
       },
     }),
@@ -77,11 +81,10 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    // -------- SAVE GOOGLE USER TO DB --------
+    /* ---------------- GOOGLE USER UPSERT ---------------- */
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         await connectDB();
-
         if (!user.email) return false;
 
         await User.findOneAndUpdate(
@@ -91,6 +94,7 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             image: user.image,
             provider: "google",
+            subscription: "free", // ✅ default
           },
           { upsert: true }
         );
@@ -98,14 +102,31 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
+    /* ---------------- JWT ---------------- */
     async jwt({ token, user }) {
-      if (user) token.id = (user as any).id;
+      // first login
+      if (user) {
+        token.id = (user as any).id;
+        token.subscription = (user as any).subscription ?? "free";
+      }
+
+      // fallback fetch (only once)
+      if (!token.subscription && token.id) {
+        await connectDB();
+        const dbUser = await User.findById(token.id).select("subscription");
+        token.subscription = dbUser?.subscription ?? "free";
+      }
+
       return token;
     },
 
+    /* ---------------- SESSION ---------------- */
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.subscription = token.subscription as
+          | "free"
+          | "premium";
       }
       return session;
     },
