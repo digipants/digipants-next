@@ -8,14 +8,21 @@ import crypto from "crypto";
 
 /* ---------------- RESET PASSWORD HELPERS ---------------- */
 
-export function generateResetToken() {
+export function generateResetToken(): {
+  rawToken: string;
+  hashedToken: string;
+  expires: Date;
+} {
   const rawToken = crypto.randomBytes(32).toString("hex");
+
   const hashedToken = crypto
     .createHash("sha256")
     .update(rawToken)
     .digest("hex");
 
-  return { rawToken, hashedToken };
+  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+  return { rawToken, hashedToken, expires };
 }
 
 export function hashToken(token: string) {
@@ -48,7 +55,7 @@ export const authOptions: NextAuthOptions = {
         const user = await User.findOne({ email: credentials.email }).lean();
         if (!user) return null;
 
-        // Block Google users from password login
+        // ❌ block Google users from password login
         if (user.provider === "google") return null;
 
         if (!user.password) return null;
@@ -57,6 +64,7 @@ export const authOptions: NextAuthOptions = {
           credentials.password,
           user.password
         );
+
         if (!isValid) return null;
 
         return {
@@ -94,7 +102,7 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             image: user.image,
             provider: "google",
-            subscription: "free", // ✅ default
+            subscription: "free", // lifetime free until upgraded
           },
           { upsert: true }
         );
@@ -104,13 +112,12 @@ export const authOptions: NextAuthOptions = {
 
     /* ---------------- JWT ---------------- */
     async jwt({ token, user }) {
-      // first login
       if (user) {
         token.id = (user as any).id;
         token.subscription = (user as any).subscription ?? "free";
       }
 
-      // fallback fetch (only once)
+      // fetch once if missing
       if (!token.subscription && token.id) {
         await connectDB();
         const dbUser = await User.findById(token.id).select("subscription");
