@@ -90,25 +90,38 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     /* ---------------- GOOGLE USER UPSERT ---------------- */
-    async signIn({ user, account }) {
-      if (account?.provider === "google") {
-        await connectDB();
-        if (!user.email) return false;
+async signIn({ user, account }) {
+  if (account?.provider === "google") {
+    await connectDB();
+    if (!user.email) return false;
 
-        await User.findOneAndUpdate(
-          { email: user.email },
-          {
-            name: user.name ?? "Google User",
-            email: user.email,
-            image: user.image,
-            provider: "google",
-            subscription: "free", // lifetime free until upgraded
+    const existingUser = await User.findOne({ email: user.email });
+
+    if (!existingUser) {
+      // 🆕 NEW USER → set subscription
+      await User.create({
+        name: user.name ?? "Google User",
+        email: user.email,
+        image: user.image,
+        provider: "google",
+        subscription: "free",
+      });
+    } else {
+      // 👤 EXISTING USER → DO NOT TOUCH SUBSCRIPTION
+      await User.updateOne(
+        { email: user.email },
+        {
+          $set: {
+            name: user.name ?? existingUser.name,
+            image: user.image ?? existingUser.image,
           },
-          { upsert: true }
-        );
-      }
-      return true;
-    },
+        }
+      );
+    }
+  }
+
+  return true;
+},
 
     /* ---------------- JWT ---------------- */
     async jwt({ token, user }) {
