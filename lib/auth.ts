@@ -55,7 +55,7 @@ export const authOptions: NextAuthOptions = {
         const user = await User.findOne({ email: credentials.email }).lean();
         if (!user) return null;
 
-        // ❌ block Google users from password login
+        // block Google users from password login
         if (user.provider === "google") return null;
 
         if (!user.password) return null;
@@ -93,62 +93,51 @@ export const authOptions: NextAuthOptions = {
 async signIn({ user, account }) {
   if (account?.provider === "google") {
     await connectDB();
+
     if (!user.email) return false;
 
-    const existingUser = await User.findOne({ email: user.email });
-
-    if (!existingUser) {
-      // 🆕 NEW USER → set subscription
-      await User.create({
+    const dbUser = await User.findOneAndUpdate(
+      { email: user.email },
+      {
         name: user.name ?? "Google User",
         email: user.email,
         image: user.image,
         provider: "google",
-        subscription: "free",
-      });
-    } else {
-      // 👤 EXISTING USER → DO NOT TOUCH SUBSCRIPTION
-      await User.updateOne(
-        { email: user.email },
-        {
-          $set: {
-            name: user.name ?? existingUser.name,
-            image: user.image ?? existingUser.image,
-          },
-        }
-      );
-    }
+      },
+      { upsert: true, new: true } // 👈 IMPORTANT
+    );
+
+    // 👇 attach MongoDB id to user object
+    (user as any).id = dbUser._id.toString();
   }
 
   return true;
 },
 
     /* ---------------- JWT ---------------- */
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = (user as any).id;
-        token.subscription = (user as any).subscription ?? "free";
-      }
+async jwt({ token, user }) {
+  // First login
+  if (user) {
+    token.id = (user as any).id; // ✅ MongoDB _id only
+  }
 
-      // fetch once if missing
-      if (!token.subscription && token.id) {
-        await connectDB();
-        const dbUser = await User.findById(token.id).select("subscription");
-        token.subscription = dbUser?.subscription ?? "free";
-      }
+  // Always sync subscription
+  if (token.id) {
+    await connectDB();
+    const dbUser = await User.findById(token.id).select("subscription");
+    token.subscription = dbUser?.subscription ?? "free";
+  }
 
-      return token;
-    },
+  return token;
+},
 
     /* ---------------- SESSION ---------------- */
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.subscription = token.subscription as
-          | "free"
-          | "premium";
-      }
-      return session;
-    },
+async session({ session, token }) {
+  if (session.user) {
+    session.user.id = token.id as string;
+    session.user.subscription = token.subscription as "free" | "premium";
+  }
+  return session;
+}
   },
 };
