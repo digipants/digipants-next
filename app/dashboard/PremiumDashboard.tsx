@@ -1,45 +1,65 @@
 "use client";
 
-import { useState } from "react";
-import { Crown, X, Expand } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Crown, X, ExternalLink } from "lucide-react";
 
 export default function PremiumDashboard() {
   const [open, setOpen] = useState(false);
 
+  /* ================= SECURITY BLOCKS ================= */
+
+  useEffect(() => {
+    if (!open) return;
+
+    const blockContext = (e: Event) => e.preventDefault();
+    const blockKeys = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ["s", "p", "u", "c"].includes(e.key.toLowerCase())
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("contextmenu", blockContext);
+    document.addEventListener("keydown", blockKeys);
+
+    return () => {
+      document.removeEventListener("contextmenu", blockContext);
+      document.removeEventListener("keydown", blockKeys);
+    };
+  }, [open]);
+
   return (
     <>
-      <div className="space-y-8">
-
+      <div className="space-y-10">
         {/* ================= HERO ================= */}
-        <div className="relative overflow-hidden rounded-3xl border border-yellow-400/30 dark:border-yellow-500/20 bg-gradient-to-br from-yellow-50 via-white to-yellow-100 dark:from-zinc-900 dark:via-zinc-900 dark:to-yellow-900/20 p-8 shadow-xl">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,215,128,0.25),transparent_60%)] pointer-events-none" />
-
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg">
-              <Crown size={28} />
+        <div className="relative overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-white via-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 p-8 shadow-xl">
+          <div className="flex items-center gap-5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg">
+              <Crown size={30} />
             </div>
 
             <div>
-              <h2 className="text-2xl font-extrabold">
-                Premium Member
+              <h2 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
+                Premium Access
               </h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Lifetime access unlocked
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Secure streaming • Lifetime access
               </p>
             </div>
           </div>
         </div>
 
-        {/* ================= PDF PREVIEW ================= */}
-        <div className="rounded-3xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 p-6 shadow-lg space-y-4">
-
+        {/* ================= PDF CARD ================= */}
+        <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-lg space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">
-                Premium PDF
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
+                Premium Strategy PDF
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Click to open full A4 view
+                Optimized for A4 • View-only
               </p>
             </div>
 
@@ -48,12 +68,12 @@ export default function PremiumDashboard() {
             </span>
           </div>
 
-          {/* SMALL PREVIEW */}
+          {/* Preview */}
           <button
             onClick={() => setOpen(true)}
-            className="group relative w-full overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:shadow-xl transition"
+            className="relative group w-full overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-700 transition hover:shadow-xl"
           >
-            <div className="relative h-[220px] bg-zinc-100 dark:bg-zinc-800">
+            <div className="h-[220px] bg-zinc-100 dark:bg-zinc-800">
               <iframe
                 title="PDF preview"
                 src="https://drive.google.com/file/d/1fL2QJk6pTlSr13-zEEWF7EG6C_-tQjpd/preview"
@@ -61,69 +81,70 @@ export default function PremiumDashboard() {
               />
             </div>
 
-            {/* Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
-              <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold shadow">
-                <Expand size={16} />
-                View Full PDF
+            {/* Premium Icon Button (matches provided image) */}
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black/80 text-white shadow-lg">
+                <ExternalLink size={16} />
               </div>
             </div>
+
+            {/* Overlay */}
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition" />
           </button>
 
-          <p className="text-xs text-zinc-500">
-            Optimized for A4 reading • Premium only
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Streaming only • Download disabled • Access logged
           </p>
         </div>
       </div>
-
-      {/* ================= FULLSCREEN MODAL ================= */}
+      {/* ================= FULLSCREEN VIEW ================= */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur">
-
-          <div className="relative w-[80vw] h-[90vh] max-w-5xl rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
-
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center">
+          <div className="relative w-[92vw] h-[94vh] max-w-6xl rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-              <h4 className="font-semibold text-sm">
-                Premium PDF — Full View
-              </h4>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                Premium PDF Viewer
+              </p>
 
               <button
-              title="open"
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded-lg p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                title="Close"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* A4 PDF VIEW */}
+            {/* PDF */}
             <iframe
-              title="Full PDF"
+              title="Secure PDF"
               src="https://drive.google.com/file/d/1fL2QJk6pTlSr13-zEEWF7EG6C_-tQjpd/preview"
               className="h-full w-full"
+              sandbox="allow-scripts allow-same-origin allow-pointer-lock"
+              referrerPolicy="no-referrer"
             />
           </div>
         </div>
       )}
-            {/* ================= FUTURE PERKS ================= */}
-      <div className="grid gap-4 md:grid-cols-3">
-
-        {[
-          "Lifetime Access",
-          "Exclusive PDFs",
-          "Priority Support",
-        ].map((perk) => (
-          <div
-            key={perk}
-            className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 p-4 text-center shadow-sm hover:shadow-md transition"
-          >
-            <p className="text-sm font-semibold">{perk}</p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Included in your premium plan
-            </p>
-          </div>
-        ))}
+      {/* ================= FUTURE PERKS ================= */}{" "}
+      <div className="grid mt-10 gap-4 md:grid-cols-3">
+        {" "}
+        {["Lifetime Access", "Exclusive PDFs", "Priority Support"].map(
+          (perk) => (
+            <div
+              key={perk}
+              className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 p-4 text-center shadow-sm hover:shadow-md transition"
+            >
+              {" "}
+              <p className="text-sm font-semibold">{perk}</p>{" "}
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                {" "}
+                Included in your premium plan{" "}
+              </p>{" "}
+            </div>
+          )
+        )}{" "}
       </div>
     </>
   );
