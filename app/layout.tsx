@@ -1,14 +1,9 @@
-﻿// app/layout.tsx
+// app/layout.tsx
 import "./../styles/globals.css";
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import Providers from "@/components/Providers";
 import { Poppins, Inter } from "next/font/google";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-
-/* ---------------- Metadata ---------------- */
 
 export const metadata: Metadata = {
   title: "DigiPants – Growth-Driven Digital Marketing Agency",
@@ -39,7 +34,7 @@ export const metadata: Metadata = {
     siteName: "DigiPants",
     images: [
       {
-        url: "/og.jpg",
+        url: "/og.jpg", // make sure this exists in your /public folder
         width: 1200,
         height: 630,
         alt: "DigiPants – Digital Marketing Growth Agency",
@@ -53,21 +48,17 @@ export const metadata: Metadata = {
     title: "DigiPants – Growth-Driven Digital Marketing Agency",
     description:
       "Performance marketing, CRO, AI automations, and websites for hotels, D2C, and service businesses.",
-    images: ["/og.jpg"],
-    creator: "@digipantstweets",
+    images: ["/og.jpg"], // same as OG image
+    creator: "@digipantstweets", // update if you have a Twitter handle
   },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon-96x96.png",
     apple: "/apple-touch-icon.png",
   },
-  verification: {
-    google: "aCO75-5PzlX_vlEUYZtpyMPIHYnUbS-1gSe8Fj1qKEY",
-  },
 };
 
-/* ---------------- Theme Init ---------------- */
-
+// ThemeInit.tsx (server component is fine, no "use client")
 function ThemeInit() {
   return (
     <script
@@ -80,17 +71,15 @@ function ThemeInit() {
             if (theme === 'dark') document.documentElement.classList.add('dark');
             else document.documentElement.classList.remove('dark');
           } catch (e) {}
-        })();`,
+        })();`
       }}
     />
   );
 }
 
-/* ---------------- Fonts ---------------- */
-
 const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700"], // headings
   variable: "--font-poppins",
 });
 
@@ -98,8 +87,6 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
 });
-
-/* ---------------- Root Layout ---------------- */
 
 export default function RootLayout({
   children,
@@ -114,24 +101,9 @@ export default function RootLayout({
     >
       <body className="font-sans min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900">
         <ThemeInit />
-
-        {/* Providers = SessionProvider */}
-        <Providers>
-          <Header />
-          {children}
-          <Footer />
-        </Providers>
-
-        {/* Toasts must be inside body */}
-        <ToastContainer
-          position="top-center"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          pauseOnHover
-          theme="colored"
-        />
+        <Header />
+        <main>{children}</main>
+        <Footer />
       </body>
     </html>
   );

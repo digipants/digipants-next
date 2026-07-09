@@ -12,7 +12,6 @@ import {
   Globe,
   Linkedin,
 } from "lucide-react";
-import LoginPage from "@/components/Loginpage";
 
 type Work = { title: string; tag: string; img: string; href: string };
 type Plan = {
@@ -163,7 +162,7 @@ const TEAM: Person[] = [
   },
   {
     name: "Anju Mishra",
-    role: "Co-Founder, Ad Concepts & UGC",
+    role: "Ad Concepts & UGC",
     img: "/anju.JPG",
     bio: "Concepts, hooks, and editing to fuel creative testing.",
     linkedin: "https://www.linkedin.com/in/anju-mishra-9232a313/",
@@ -286,6 +285,7 @@ export default function Page() {
           </Card>
         </div>
       </Section>
+
       <Section id="services">
         <Container>
           <div className="flex items-end justify-between gap-4 mb-8">
