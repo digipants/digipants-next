@@ -1,365 +1,129 @@
-// app/services/digital-marketing/page.tsx
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Target, BarChart3, Users, ArrowUpRight, Linkedin } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, BarChart3, MousePointerClick, Search, Target } from "lucide-react";
 import JsonLd from "@/components/seo/JsonLd";
-import AnimatedSection from "@/components/animate/AnimatedSection";
-import { link } from "fs";
+import { projects, type Project } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: "Digital Marketing — DigiPants",
+  title: "Digital Marketing & Growth | DigiPants",
   description:
-    "Performance marketing across Google and Meta with CRO, analytics, and experimentation. Ship fast, measure everything, scale winners.",
+    "DigiPants connects paid acquisition, technical SEO, landing-page optimization, and analytics to create a clearer, measurable growth program.",
   alternates: { canonical: "https://digipants.com/services/digital-marketing/" },
   openGraph: {
-    title: "Digital Marketing — DigiPants",
+    title: "Digital Marketing & Growth | DigiPants",
     description:
-      "Google & Meta Ads, CRO, analytics pipelines, and experiment‑driven growth.",
+      "Paid acquisition, search visibility, conversion optimization, and analytics built around meaningful measurement.",
     url: "https://digipants.com/services/digital-marketing/",
     siteName: "DigiPants",
-    images: [
-      {
-        url: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
-        width: 1200,
-        height: 630,
-        alt: "DigiPants Digital Marketing",
-      },
-    ],
     type: "website",
+    images: [{ url: "https://digipants.com/vidyanju.webp", width: 1920, height: 1038, alt: "Vidyanju e-commerce experience" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Digital Marketing — DigiPants",
-    description:
-      "Full‑funnel performance marketing with clear roadmaps and reporting.",
-    images: [
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
-    ],
+    title: "Digital Marketing & Growth | DigiPants",
+    description: "Paid acquisition, SEO, conversion optimization, and analytics from DigiPants.",
+    images: ["https://digipants.com/vidyanju.webp"],
   },
-  keywords: [
-    "digital marketing",
-    "performance marketing",
-    "google ads",
-    "meta ads",
-    "conversion rate optimization",
-    "analytics",
-    "server‑side tracking",
-  ],
+  keywords: ["digital marketing", "Google Ads", "Meta Ads", "technical SEO", "conversion rate optimization", "GA4", "Google Tag Manager"],
 };
 
-const breadcrumbSchema = {
+const BREADCRUMB_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Home",
-      item: "https://digipants.com/",
-    },
-    {
-      "@type": "ListItem",
-      position: 2,
-      name: "Services",
-      item: "https://digipants.com/services/",
-    },
-    {
-      "@type": "ListItem",
-      position: 3,
-      name: "Digital Marketing",
-      item: "https://digipants.com/services/digital-marketing/",
-    },
+    { "@type": "ListItem", position: 1, name: "Home", item: "https://digipants.com/" },
+    { "@type": "ListItem", position: 2, name: "Services", item: "https://digipants.com/services/" },
+    { "@type": "ListItem", position: 3, name: "Digital Marketing", item: "https://digipants.com/services/digital-marketing/" },
   ],
 } as const;
 
-function Container({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
-  );
+const GROWTH_AREAS = [
+  { icon: Target, title: "Paid acquisition", copy: "Plan and manage Google and Meta campaigns around defined audiences, offers, and business priorities." },
+  { icon: Search, title: "Search visibility", copy: "Strengthen technical SEO and on-page foundations so useful content is easier for people and search engines to navigate." },
+  { icon: MousePointerClick, title: "Landing experience & CRO", copy: "Review the journey from ad or search result to action, then prioritize evidence-led improvements to page clarity and conversion paths." },
+  { icon: BarChart3, title: "Analytics & reporting", copy: "Use GA4 and Google Tag Manager to structure measurement, check key events, and communicate what the available data can—and cannot—tell us." },
+];
+
+const PROCESS = [
+  { title: "Understand", copy: "Review goals, audiences, current channels, landing pages, tracking, and available evidence." },
+  { title: "Set direction", copy: "Agree on channel priorities, measurement needs, and a focused set of tests and improvements." },
+  { title: "Launch & learn", copy: "Implement campaigns and site changes in reviewable steps, checking tracking and user journeys." },
+  { title: "Review & refine", copy: "Report on observed signals, surface uncertainty, and adjust priorities based on what the data supports." },
+];
+
+function selectProjects(slugs: string[]) {
+  return slugs.map((slug) => projects.find((project) => project.slug === slug)).filter((project): project is Project => Boolean(project));
 }
 
-function Section({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="scroll-mt-24 py-12 md:py-16">
-      <Container>{children}</Container>
-    </section>
-  );
-}
+const FEATURED_WORK = selectProjects(["pearlytots", "upscale-hotel", "zescher"]);
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
-    <div
-      className={`rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-sm shadow-sm ${className}`}
-    >
-      {children}
+    <div className="max-w-3xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">{eyebrow}</p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">{title}</h2>
+      <p className="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">{description}</p>
     </div>
   );
 }
 
-const PROCESS: { title: string; desc: string }[] = [
-  {
-    title: "Audit & Goals",
-    desc: "Accounts, tracking, creative, and funnel. Define KPIs and constraints.",
-  },
-  {
-    title: "Strategy & Plan",
-    desc: "Audience, offers, and channel mix with a 90‑day roadmap.",
-  },
-  {
-    title: "Creative & LPs",
-    desc: "Concept matrix, UGC iterations, and landing pages built to convert.",
-  },
-  {
-    title: "Launch",
-    desc: "Capped budgets, control groups, and clean campaign structures.",
-  },
-  {
-    title: "Optimize",
-    desc: "Daily checks, A/B tests, audience splits, and bid/creative tweaks.",
-  },
-  {
-    title: "Scale & Report",
-    desc: "Roll winners, budget ramp, and dashboards for decision‑makers.",
-  },
-];
-
-const TOOLS = [
-  "Google Ads (Search, PMax)",
-  "Meta Ads",
-  "Klaviyo",
-  "Shopify",
-  "GA4",
-  "GTM",
-  "Conversion API / Server‑side",
-  "Looker Studio",
-  "Hotjar",
-  "VWO / Optimizely",
-];
-
-const TEAM = [
-  {
-    name: "Bhupendra Kumar",
-    role: "Growth & Performance",
-    img: "/bhupendra.jpg",
-    blurb:
-      "Leads acquisition strategy, analytics, and experimentation cadence.",
-    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
-  },
-  {
-    name: "Aman",
-    role: "Frontend Engineer (React/Next.js)",
-    img: "/Aman.jpeg",
-    blurb: "Builds UI components, forms, and interactions with TypeScript.",
-    linkedin: "https://www.linkedin.com/in/aman-kharwar-0a6843212/",
-  },
-  {
-    name: "Parul",
-    role: "QA & Automation",
-    img: "/Parul.jpeg",
-    blurb: "Regression, E2E flows, and performance checks before each release.",
-    linkedin: "https://www.linkedin.com/in/parul-maurya-3951b22b1/",
-  },
-  {
-    name: "Kshama",
-    role: "Project Ops",
-    img: "/Kshama.jpg",
-    blurb: "Schedules, status, and documentation to keep shipping on time.",
-    linkedin: "https://www.linkedin.com/in/kshama-tiwari-138903231/",
-  },
-];
+function ProjectCard({ project }: { project: Project }) {
+  return (
+    <Link href={`/work/${project.slug}/`} className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white outline-none transition hover:-translate-y-1 hover:border-emerald-700/30 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-400/30 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950">
+      <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100 dark:bg-zinc-800"><Image src={project.img} alt={`${project.title} project`} fill sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" /></div>
+      <div className="p-5"><span className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">{project.tag}</span><h3 className="mt-2 text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">{project.title}</h3><p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{project.summary}</p><span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">View project <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span></div>
+    </Link>
+  );
+}
 
 export default function DigitalMarketingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
-      <JsonLd data={breadcrumbSchema} />
-
-      {/* Hero */}
-      <AnimatedSection>
-        <Section>
-          <div className="grid gap-8 md:grid-cols-2 items-center">
-            <div>
-              <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
-                Digital Marketing
-              </h1>
-              <p className="mt-4 text-lg text-zinc-700 dark:text-zinc-300 max-w-xl">
-                Performance marketing that compounds: Google & Meta Ads, CRO,
-                analytics, and clear reporting to scale what works.
-              </p>
-              <div className="mt-8 flex gap-3">
-                <Link
-                  href="/pricing/"
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                >
-                  See pricing
-                </Link>
-                <Link
-                  href="/contact-us/"
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5"
-                >
-                  Start a project
-                </Link>
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 shadow-sm">
-              <img
-                src="https://images.unsplash.com/photo-1523961131990-5ea7c61b2107?q=80&w=1400&auto=format&fit=crop"
-                alt="Campaign planning and analytics"
-                className="w-full h-full object-cover"
-              />
+    <main className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <JsonLd data={BREADCRUMB_SCHEMA} />
+      <section className="border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 lg:px-8 lg:py-24">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">Digital marketing & growth</p>
+            <h1 className="mt-5 text-5xl font-bold leading-[1.02] tracking-[-0.04em] text-zinc-950 sm:text-6xl dark:text-white">Make growth easier to understand.</h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">Bring paid acquisition, search visibility, landing-page experience, and analytics into one considered program. We help teams decide what to measure, what to improve, and what to test next—without promising outcomes the evidence cannot support.</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href="/contact-us/" className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950">Discuss your growth goals <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/services/" className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold transition hover:border-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:border-zinc-700 dark:hover:border-zinc-300 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950">Explore all services</Link>
             </div>
           </div>
-        </Section>
-      </AnimatedSection>
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="relative aspect-[16/10] overflow-hidden rounded-xl"><Image src="/vidyanju.webp" alt="Vidyanju e-commerce storefront" fill priority sizes="(max-width: 1023px) 100vw, 55vw" className="object-cover" /></div>
+            <div className="flex items-center justify-between gap-4 px-3 py-3"><span className="text-sm font-semibold text-zinc-900 dark:text-white">Selected commerce experience</span><span className="text-xs text-zinc-500 dark:text-zinc-400">Vidyanju</span></div>
+          </div>
+        </div>
+      </section>
 
-      {/* Process */}
-      <AnimatedSection>
-        <Section>
-          <div className="flex items-end justify-between gap-4 mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Target className="w-5 h-5" /> Process
-            </h2>
-            <a
-              href="#tools"
-              className="text-sm inline-flex items-center gap-1 hover:underline"
-            >
-              Tools <ArrowUpRight className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {PROCESS.map((p) => (
-              <Card key={p.title} className="p-6 h-full">
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                  Step
-                </div>
-                <div className="mt-1 font-semibold">{p.title}</div>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                  {p.desc}
-                </p>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      </AnimatedSection>
+      <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 md:py-20 lg:px-8">
+        <SectionHeading eyebrow="Connected growth disciplines" title="A joined-up view of the customer journey" description="Campaigns work best when the destination, measurement, and learning loop receive the same attention as the channel itself." />
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{GROWTH_AREAS.map(({ icon: Icon, title, copy }) => <article key={title} className="rounded-2xl border border-zinc-200 p-6 transition hover:border-emerald-700/30 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:border-emerald-400/30 dark:hover:bg-zinc-900"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300"><Icon className="h-5 w-5" aria-hidden="true" /></div><h3 className="mt-5 text-lg font-semibold text-zinc-950 dark:text-white">{title}</h3><p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{copy}</p></article>)}</div>
+      </section>
 
-      {/* Tools */}
-      <AnimatedSection id="tools">
-        <Section>
-          <div className="flex items-end justify-between gap-4 mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" /> Tools & Channels
-            </h2>
-            <a
-              href="#team"
-              className="text-sm inline-flex items-center gap-1 hover:underline"
-            >
-              Team <ArrowUpRight className="w-4 h-4" />
-            </a>
-          </div>
-          <Card className="p-6">
-            <div className="flex flex-wrap gap-2">
-              {TOOLS.map((t) => (
-                <span
-                  key={t}
-                  className="text-xs rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          </Card>
-        </Section>
-      </AnimatedSection>
+      <section className="border-y border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/30">
+        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 md:py-20 lg:px-8">
+          <SectionHeading eyebrow="Working approach" title="Measure carefully. Improve deliberately." description="The right plan depends on your starting point. We make assumptions visible, validate the measurement, and prioritize the work that can be assessed." />
+          <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{PROCESS.map((step, index) => <li key={step.title} className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950"><span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">0{index + 1}</span><h3 className="mt-3 font-semibold text-zinc-950 dark:text-white">{step.title}</h3><p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{step.copy}</p></li>)}</ol>
+          <div className="mt-8 flex flex-wrap gap-2" aria-label="Measurement and channel areas"><span className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">Google Ads</span><span className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">Meta Ads</span><span className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">Technical SEO</span><span className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">GA4</span><span className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">Google Tag Manager</span></div>
+        </div>
+      </section>
 
-      {/* Team */}
-      <AnimatedSection id="team">
-        <Section>
-          <div className="flex items-end justify-between gap-4">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Users className="w-5 h-5" /> Growth Team
-            </h2>
-            <Link
-              href="/contact-us/"
-              className="text-sm font-medium hover:opacity-80"
-            >
-              Work with us →
-            </Link>
-          </div>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            {TEAM.map((m) => (
-              <Card key={m.name}>
-                <div className="p-5">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={m.img}
-                      alt={m.name}
-                      className="h-16 w-16 rounded-xl object-cover border border-zinc-200/60 dark:border-zinc-800/60"
-                    />
-                    <div>
-                      <div className="font-semibold">{m.name}</div>
-                      <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {m.role}
-                      </div>
-                    </div>
-                    <a
-                      href={m.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`${m.name} on LinkedIn`}
-                      className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
-                    >
-                      <Linkedin className="h-5 w-5" />
-                    </a>
-                  </div>
-                  <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-                    {m.blurb}
-                  </p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      </AnimatedSection>
+      <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 md:py-20 lg:px-8">
+        <SectionHeading eyebrow="Selected work" title="Growth work shaped around the business" description="Explore examples from commerce and hospitality. Each project has its own context; these links are not a promise of a particular result for another business." />
+        <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{FEATURED_WORK.map((project) => <ProjectCard key={project.slug} project={project} />)}</div>
+        <Link href="/work/" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-zinc-900 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-white dark:hover:text-emerald-300">View all work <ArrowRight className="h-4 w-4" /></Link>
+      </section>
 
-      {/* CTA */}
-      <Section>
-        <Card>
-          <div className="p-6 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                Let’s grow
-              </div>
-              <h3 className="mt-1 text-2xl font-extrabold">
-                Ship experiments, measure ruthlessly, scale winners.
-              </h3>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-xl">
-                Share your goals and constraints. We’ll propose a plan and start
-                with the quickest revenue lift.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Link
-                href="/contact-us/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-              >
-                Start a project
-              </Link>
-              <Link
-                href="/services/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5"
-              >
-                See services
-              </Link>
-            </div>
-          </div>
-        </Card>
-      </Section>
-    </div>
+      <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 md:pb-20 lg:px-8">
+        <div className="flex flex-col gap-6 rounded-3xl bg-zinc-950 p-7 text-white sm:p-10 md:flex-row md:items-center md:justify-between dark:bg-zinc-900">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Start with a useful conversation</p><h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Clear goals. Honest measurement. Better decisions.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300">Share your current channels, questions, and constraints. We can help you identify a sensible next step.</p></div>
+          <Link href="/contact-us/" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-4 focus-visible:ring-offset-zinc-950">Talk to DigiPants <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      </section>
+    </main>
   );
 }
-
