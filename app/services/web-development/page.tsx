@@ -115,6 +115,19 @@ export default function WebDevelopmentPage() {
       </section>
 
       <section className="border-y border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/30">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-12 sm:px-6 md:flex-row md:items-center md:justify-between md:py-14 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">Technology & integrations</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">A practical, project-fit stack</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">Technology choices vary with the product. These tools appear in verified DigiPants project work.</p>
+          </div>
+          <ul className="flex flex-wrap gap-2" aria-label="Technologies used in DigiPants projects">
+            {["Next.js", "React", "TypeScript", "Tailwind CSS"].map((technology) => <li key={technology} className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">{technology}</li>)}
+          </ul>
+        </div>
+      </section>
+
+      <section className="border-y border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/30">
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 md:py-20 lg:px-8">
           <SectionHeading eyebrow="How we work" title="A focused path from idea to release" description="A collaborative process keeps decisions visible and delivery grounded in your goals, constraints, and feedback." />
           <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{PROCESS.map((step, index) => <li key={step.title} className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950"><span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">0{index + 1}</span><h3 className="mt-3 font-semibold text-zinc-950 dark:text-white">{step.title}</h3><p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{step.copy}</p></li>)}</ol>
