@@ -5,6 +5,7 @@ type Project = {
   tag: string;
   img: string;
   imagePosition?: string;
+  liveLinks?: { label: string; url: string }[];
   caseStudy: boolean;
   cover?:
     | "aegis-protection"
@@ -27,6 +28,13 @@ const projects: Project[] = [
     summary: "AI-assisted web protection platform with URL analysis, a browser extension, and mobile applications.",
     tag: "Cybersecurity",
     img: "/aegisprotection.webp",
+    liveLinks: [
+      { label: "Explore Live App", url: "https://aegis-us.online/" },
+      {
+        label: "View Chrome Extension",
+        url: "https://chromewebstore.google.com/detail/aegis-browser-protection/biojblmjnfaannknegcgmfbmlbjaooki",
+      },
+    ],
     caseStudy: true,
     cover: "aegis-protection",
   },
@@ -46,6 +54,9 @@ const projects: Project[] = [
     summary: "Food ordering website for a Lucknow-based kitchen offering pickup and delivery.",
     tag: "FoodTech",
     img: "/nectarkitchen.webp",
+    liveLinks: [
+      { label: "Visit Live Site", url: "https://nectarkitchen.in/" },
+    ],
     caseStudy: true,
     cover: "nectar-kitchen",
   },
@@ -56,6 +67,9 @@ const projects: Project[] = [
       "A digital presence for Educatia Welfare Trust, designed to communicate its mission and connect communities with opportunities in education and social development.",
     tag: "Social Impact",
     img: "/educatia.webp",
+    liveLinks: [
+      { label: "Visit Live Site", url: "https://educatiawelfaretrust.org/" },
+    ],
     caseStudy: true,
     cover: "educatia",
   },
@@ -66,6 +80,9 @@ const projects: Project[] = [
     tag: "E-commerce",
     img: "/vidyanju.webp",
     imagePosition: "left center",
+    liveLinks: [
+      { label: "Visit Live Site", url: "https://vidyanju.store/" },
+    ],
     caseStudy: true,
     cover: "vidyanju",
   },
@@ -86,6 +103,9 @@ const projects: Project[] = [
       "Smart cloud kitchen in Lucknow offering meal plans, one-off meals, delivery, dine-in, and WhatsApp-first ordering.",
     tag: "FoodTech",
     img: "/aikitchen.webp",
+    liveLinks: [
+      { label: "Visit Live Site", url: "https://aikitchen.co/" },
+    ],
     caseStudy: true,
     cover: "ai-kitchen",
   },
@@ -96,6 +116,12 @@ const projects: Project[] = [
       "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
     tag: "D2C",
     img: "https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80",
+    liveLinks: [
+      {
+        label: "View on Google Play",
+        url: "https://play.google.com/store/apps/details?id=co.shopney.pearlytots",
+      },
+    ],
     caseStudy: true,
     cover: "pearlytots",
   },

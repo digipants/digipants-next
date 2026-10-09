@@ -242,6 +242,20 @@ export default function Page() {
             >
               Start a project
             </Link>
+            {proj.liveLinks?.map((link) => (
+              <a
+                key={link.url}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/30 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10 dark:focus-visible:ring-emerald-300"
+              >
+                {link.label}
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
+              </a>
+            ))}
           </div>
         </Container>
       </Section>
