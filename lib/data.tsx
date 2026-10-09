@@ -4,6 +4,7 @@ type Project = {
   summary: string;
   tag: string;
   img: string;
+  imagePosition?: string;
   caseStudy: boolean;
   cover?:
     | "aegis-protection"
@@ -25,7 +26,7 @@ const projects: Project[] = [
     title: "AegisProtection — AI-Powered Digital Safety",
     summary: "AI-assisted web protection platform with URL analysis, a browser extension, and mobile applications.",
     tag: "Cybersecurity",
-    img: "/Screenshot 2026-10-09 at 5.08.01 PM.png",
+    img: "/aegisprotection.webp",
     caseStudy: true,
     cover: "aegis-protection",
   },
@@ -34,7 +35,8 @@ const projects: Project[] = [
     title: "AegisTrade — Algorithmic Trading Intelligence",
     summary: "Algorithmic trading research platform for strategy evaluation, risk controls, and live-shadow monitoring.",
     tag: "FinTech",
-    img: "/Screenshot 2026-10-09 at 5.05.42 PM.png",
+    img: "/aegistrade.webp",
+    imagePosition: "left center",
     caseStudy: true,
     cover: "aegis-trade",
   },
@@ -43,7 +45,7 @@ const projects: Project[] = [
     title: "NectarKitchen — Digital-First Food Ordering",
     summary: "Food ordering website for a Lucknow-based kitchen offering pickup and delivery.",
     tag: "FoodTech",
-    img: "/Screenshot 2026-10-09 at 5.08.26 PM.png",
+    img: "/nectarkitchen.webp",
     caseStudy: true,
     cover: "nectar-kitchen",
   },
@@ -53,7 +55,7 @@ const projects: Project[] = [
     summary:
       "A digital presence for Educatia Welfare Trust, designed to communicate its mission and connect communities with opportunities in education and social development.",
     tag: "Social Impact",
-    img: "/Screenshot 2026-10-09 at 5.06.12 PM.png",
+    img: "/educatia.webp",
     caseStudy: true,
     cover: "educatia",
   },
@@ -62,7 +64,8 @@ const projects: Project[] = [
     title: "Vidyanju — Premium Gifting & E-commerce",
     summary: "Premium gifting e-commerce platform with curated hampers, bespoke requests, and local Lucknow fulfilment.",
     tag: "E-commerce",
-    img: "/Screenshot 2026-10-09 at 5.06.23 PM.png",
+    img: "/vidyanju.webp",
+    imagePosition: "left center",
     caseStudy: true,
     cover: "vidyanju",
   },
@@ -71,7 +74,8 @@ const projects: Project[] = [
     title: "ReputationDesk — AI-Powered Reputation Intelligence",
     summary: "AI-assisted intelligence and online reputation monitoring platform with source collection, narrative analysis, and human review workflows.",
     tag: "AI Intelligence",
-    img: "/Screenshot 2026-10-09 at 5.08.48 PM.png",
+    img: "/reputationdesk.webp",
+    imagePosition: "left center",
     caseStudy: true,
     cover: "reputation-desk",
   },
@@ -81,7 +85,7 @@ const projects: Project[] = [
     summary:
       "Smart cloud kitchen in Lucknow offering meal plans, one-off meals, delivery, dine-in, and WhatsApp-first ordering.",
     tag: "FoodTech",
-    img: "/Screenshot 2026-10-09 at 5.06.34 PM.png",
+    img: "/aikitchen.webp",
     caseStudy: true,
     cover: "ai-kitchen",
   },

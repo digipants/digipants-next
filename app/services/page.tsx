@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -28,9 +29,9 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "https://digipants.com/Screenshot%202026-10-09%20at%205.08.01%E2%80%AFPM.png",
-        width: 1200,
-        height: 630,
+        url: "https://digipants.com/aegisprotection.webp",
+        width: 1920,
+        height: 1038,
         alt: "AegisProtection interface by DigiPants",
       },
     ],
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
     description:
       "AI, custom software, web and e-commerce, and digital growth services.",
     images: [
-      "https://digipants.com/Screenshot%202026-10-09%20at%205.08.01%E2%80%AFPM.png",
+      "https://digipants.com/aegisprotection.webp",
     ],
   },
   keywords: [
@@ -162,10 +163,6 @@ function selectProjects(slugs: string[]) {
     .filter((project): project is Project => Boolean(project));
 }
 
-function projectImage(project: Project) {
-  return encodeURI(project.img);
-}
-
 function SectionHeading({
   eyebrow,
   title,
@@ -238,15 +235,25 @@ export default function ServicesPage() {
                       index === 0 ? "sm:col-span-2" : ""
                     }`}
                   >
-                    <img
-                      src={projectImage(project)}
-                      alt={`${project.title} interface`}
-                      className={`w-full rounded-xl object-cover ${
+                    <div
+                      className={`relative w-full overflow-hidden rounded-xl ${
                         index === 0 ? "aspect-[16/8]" : "aspect-[16/10]"
                       }`}
-                      loading={index === 0 ? "eager" : "lazy"}
-                      fetchPriority={index === 0 ? "high" : "auto"}
-                    />
+                    >
+                      <Image
+                        src={project.img}
+                        alt={`${project.title} interface`}
+                        fill
+                        priority={index === 0}
+                        sizes={
+                          index === 0
+                            ? "(min-width: 1024px) 54vw, 100vw"
+                            : "(min-width: 1024px) 26vw, 50vw"
+                        }
+                        style={{ objectPosition: project.imagePosition }}
+                        className="object-cover"
+                      />
+                    </div>
                     <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-3">
                       <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                         {project.title.split(" — ")[0]}

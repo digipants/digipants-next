@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -93,22 +94,20 @@ function selectProjects(slugs: string[]) {
     .filter((project): project is Project => Boolean(project));
 }
 
-function projectImage(project: Project) {
-  return encodeURI(project.img);
-}
-
 function ProjectCard({ project }: { project: Project }) {
   return (
     <Link
       href={`/work/${project.slug}/`}
       className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white outline-none transition duration-300 hover:-translate-y-1 hover:border-emerald-700/30 hover:shadow-xl hover:shadow-zinc-900/5 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 motion-reduce:transform-none motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-400/30 dark:hover:shadow-black/20 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
     >
-      <div className="aspect-[16/10] overflow-hidden border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950">
-        <img
-          src={projectImage(project)}
+      <div className="relative aspect-[16/10] overflow-hidden border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950">
+        <Image
+          src={project.img}
           alt={`${project.title} interface`}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025] motion-reduce:transition-none"
-          loading="lazy"
+          fill
+          sizes="(min-width: 1024px) 29vw, (min-width: 640px) 50vw, 100vw"
+          style={{ objectPosition: project.imagePosition }}
+          className="object-cover transition duration-500 group-hover:scale-[1.025] motion-reduce:transition-none"
         />
       </div>
       <div className="flex flex-1 flex-col p-5 sm:p-6">
@@ -197,13 +196,15 @@ export default function Page() {
             <div className="relative mx-auto w-full max-w-2xl lg:max-w-none">
               <div className="absolute -left-8 top-12 h-40 w-2 rounded-full bg-emerald-600/70 dark:bg-emerald-400/70" />
               <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-3 shadow-2xl shadow-zinc-900/10 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/30">
-                <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-950 dark:border-zinc-700">
-                  <img
-                    src={projectImage(aegisProtection)}
+                <div className="relative aspect-[16/9] overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-950 dark:border-zinc-700">
+                  <Image
+                    src={aegisProtection.img}
                     alt={`${aegisProtection.title} interface`}
-                    className="aspect-[16/9] w-full object-cover"
-                    loading="eager"
-                    fetchPriority="high"
+                    fill
+                    priority
+                    sizes="(min-width: 1024px) 54vw, 100vw"
+                    style={{ objectPosition: aegisProtection.imagePosition }}
+                    className="object-cover"
                   />
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-4 px-1 pb-1">
@@ -226,12 +227,16 @@ export default function Page() {
                     key={project.slug}
                     className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20"
                   >
-                    <img
-                      src={projectImage(project)}
-                      alt={`${project.title} interface`}
-                      className="aspect-[16/10] w-full rounded-xl object-cover"
-                      loading="eager"
-                    />
+                    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl">
+                      <Image
+                        src={project.img}
+                        alt={`${project.title} interface`}
+                        fill
+                        sizes="(min-width: 1024px) 26vw, 50vw"
+                        style={{ objectPosition: project.imagePosition }}
+                        className="object-cover"
+                      />
+                    </div>
                     <p className="px-2 pb-1 pt-3 text-xs font-semibold text-zinc-800 sm:text-sm dark:text-zinc-200">
                       {project.title.split(" — ")[0]}
                     </p>
