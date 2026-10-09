@@ -12,8 +12,8 @@ import {
   Globe,
   Linkedin,
 } from "lucide-react";
+import { projects } from "@/lib/data";
 
-type Work = { title: string; tag: string; img: string; href: string };
 type Plan = {
   name: "Starter" | "Growth" | "Performance" | "Custom";
   price: string;
@@ -67,27 +67,6 @@ const SERVICES = [
     desc: "GA4, GTM, server‑side events, conversion APIs, dashboards, and audits.",
     icon: <Globe className="w-5 h-5" />,
     tags: ["ga4", "gtm", "ssr", "capi"],
-  },
-];
-
-const WORK: Work[] = [
-  {
-    title: "Upscale Hotel — More Direct, Less OTA",
-    tag: "Hotels",
-    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
-    href: "/work/upscale-hotel",
-  },
-  {
-    title: "PearlyTots — D2C Launch & Scale",
-    tag: "D2C",
-    img: "https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80",
-    href: "/work/pearlytots",
-  },
-  {
-    title: "QuickSqad — AI Support to Cut CAC",
-    tag: "AI",
-    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
-    href: "/work/quicksquad",
   },
 ];
 
@@ -345,23 +324,23 @@ export default function Page() {
           </Link>
         </div>
         <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {WORK.map((w) => (
-            <Link key={w.title} href={w.href} className="group">
+          {projects.filter((p) => p.caseStudy).slice(0, 3).map((p) => (
+            <Link key={p.slug} href={`/work/${p.slug}`} className="group">
               <Card>
                 <div className="aspect-video w-full overflow-hidden">
                   <img
-                    src={w.img}
-                    alt={w.title}
+                    src={p.img}
+                    alt={p.title}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                   />
                 </div>
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-semibold group-hover:underline">
-                      {w.title}
+                      {p.title}
                     </h3>
                     <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-                      {w.tag}
+                      {p.tag}
                     </span>
                   </div>
                   <div className="mt-3 inline-flex items-center gap-1 text-sm opacity-80">
