@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
 import type { Project } from "@/lib/data";
@@ -54,9 +55,17 @@ export function CaseStudyPage({
           </div>
         </header>
 
-        <div className={`mt-10 overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 ${project.img ? "bg-zinc-950" : details.cover}`}>
+        <div className={`relative mt-10 overflow-hidden rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 ${project.img ? "h-48 bg-zinc-950 md:h-64 lg:h-72" : details.cover}`}>
           {project.img ? (
-            <img src={project.img} alt={`${project.title} project screenshot`} className="h-48 w-full object-cover md:h-64 lg:h-72" />
+            <Image
+              src={project.img}
+              alt={`${project.title} project screenshot`}
+              fill
+              priority
+              sizes="(min-width: 1024px) 896px, 100vw"
+              style={{ objectPosition: project.imagePosition }}
+              className="object-cover"
+            />
           ) : (
             <div className="relative h-48 text-white md:h-64 lg:h-72">
               <div className={`absolute -right-8 -top-16 h-52 w-52 rounded-full blur-3xl ${details.glow}`} />

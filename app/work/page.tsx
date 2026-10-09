@@ -1,5 +1,6 @@
 // file: app/work/page.tsx
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import JsonLd from "@/components/seo/JsonLd";
 import { projects, breadcrumbWork } from "@/lib/data";
@@ -56,12 +57,35 @@ export const metadata: Metadata = {
   ],
 };
 
-function ProjectCover({ p }: { p: (typeof projects)[number] }) {
+function ProjectCover({
+  p,
+  priority = false,
+}: {
+  p: (typeof projects)[number];
+  priority?: boolean;
+}) {
   if (p.img) {
+    const isLocalImage = p.img.startsWith("/");
+
+    if (isLocalImage) {
+      return (
+        <Image
+          src={p.img}
+          alt={p.title}
+          fill
+          priority={priority}
+          sizes="(min-width: 1024px) 352px, (min-width: 640px) 50vw, 100vw"
+          style={{ objectPosition: p.imagePosition }}
+          className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+        />
+      );
+    }
+
     return (
       <img
         src={p.img}
         alt={p.title}
+        loading="lazy"
         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
       />
     );
@@ -88,11 +112,17 @@ function ProjectCover({ p }: { p: (typeof projects)[number] }) {
   );
 }
 
-function WorkCard({ p }: { p: (typeof projects)[number] }) {
+function WorkCard({
+  p,
+  priority = false,
+}: {
+  p: (typeof projects)[number];
+  priority?: boolean;
+}) {
   const content = (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 shadow-sm transition-shadow duration-300 group-hover:shadow-xl group-hover:shadow-zinc-900/10 dark:border-zinc-800/70 dark:bg-zinc-900/70 dark:group-hover:shadow-black/30">
-      <div className="aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-        <ProjectCover p={p} />
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+        <ProjectCover p={p} priority={priority} />
       </div>
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -151,8 +181,8 @@ export default function WorkIndexPage() {
           </p>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p) => (
-              <WorkCard key={p.slug} p={p} />
+            {projects.map((p, index) => (
+              <WorkCard key={p.slug} p={p} priority={index === 0} />
             ))}
           </div>
         </div>
