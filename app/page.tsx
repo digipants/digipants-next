@@ -160,8 +160,8 @@ export default function Page() {
   return (
     <div className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <section className="overflow-hidden border-b border-zinc-200 dark:border-zinc-800">
-        <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-8 lg:py-28">
-          <div className="max-w-2xl">
+        <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:items-start lg:gap-16 lg:px-8 lg:py-12">
+          <div className="max-w-2xl lg:pt-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
               AI, software, web & growth
