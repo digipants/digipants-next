@@ -1,545 +1,361 @@
-"use client";
+import type { Metadata } from "next";
 import Link from "next/link";
-import type { PropsWithChildren } from "react";
-import { motion } from "framer-motion";
 import {
-  ArrowUpRight,
-  Award,
+  ArrowRight,
+  Blocks,
+  Bot,
+  ChartNoAxesCombined,
+  Code2,
+  Compass,
+  Layers3,
   Rocket,
-  Briefcase,
-  Sparkles,
-  BookOpen,
-  Globe,
-  Linkedin,
+  ShoppingBag,
 } from "lucide-react";
-import { projects } from "@/lib/data";
+import { projects, type Project } from "@/lib/data";
 
-type Plan = {
-  name: "Starter" | "Growth" | "Performance" | "Custom";
-  price: string;
-  period?: string;
-  highlight?: boolean;
-  features: string[];
-  href: string;
-};
-type Person = {
-  name: string;
-  role: string;
-  img: string;
-  bio: string;
-  linkedin?: string;
-  href?: string;
+export const metadata: Metadata = {
+  title: "DigiPants — AI Engineering, Software & Digital Growth",
+  description:
+    "DigiPants builds AI-powered platforms, custom software, high-performance websites, e-commerce experiences, and digital growth systems.",
+  alternates: { canonical: "https://digipants.com/" },
 };
 
-const SERVICES = [
+const FEATURED_ENGINEERING = selectProjects([
+  "aegisprotection",
+  "aegistrade",
+  "reputationdesk",
+]);
+
+const SELECTED_WORK = selectProjects([
+  "vidyanju",
+  "nectarkitchen",
+  "educatia",
+  "aikitchen",
+]);
+
+const CAPABILITIES = [
   {
-    title: "Performance Marketing",
-    desc: "Google Ads (Search, PMax), Meta Ads, and landing pages engineered for ROI.",
-    icon: <Rocket className="w-5 h-5" />,
-    tags: ["google ads", "pmax", "meta", "cro"],
+    title: "AI & Automation",
+    description:
+      "Applied AI, intelligent workflows, monitoring systems, and practical automation designed around real operating needs.",
+    icon: Bot,
   },
   {
-    title: "AI Agents & Automations",
-    desc: "WhatsApp flows, on‑site assistants, lead routing, CRM workflows, and reporting.",
-    icon: <Sparkles className="w-5 h-5" />,
-    tags: ["whatsapp", "chatbots", "zapier", "make"],
+    title: "Custom Software Engineering",
+    description:
+      "Purpose-built web platforms and product foundations shaped for clear workflows, maintainability, and responsible growth.",
+    icon: Code2,
   },
   {
-    title: "E‑commerce Growth (Shopify)",
-    desc: "Store setup, product strategy, Klaviyo flows, upsells, subscriptions, LTV.",
-    icon: <Briefcase className="w-5 h-5" />,
-    tags: ["shopify", "klaviyo", "ux", "ltv"],
+    title: "Web & E-commerce",
+    description:
+      "Fast, accessible websites and commerce experiences that make discovery, ordering, and engagement feel effortless.",
+    icon: ShoppingBag,
   },
   {
-    title: "Hotel Booking Funnels",
-    desc: "Direct booking strategy: parity pages, PMax+Meta mix, OTA sync, analytics.",
-    icon: <Award className="w-5 h-5" />,
-    tags: ["hotels", "pms", "ota", "meta"],
-  },
-  {
-    title: "SEO & Content Systems",
-    desc: "Compound traffic via content clusters, internal linking, and intent mapping.",
-    icon: <BookOpen className="w-5 h-5" />,
-    tags: ["seo", "content", "clusters", "schema"],
-  },
-  {
-    title: "Analytics & Measurement",
-    desc: "GA4, GTM, server‑side events, conversion APIs, dashboards, and audits.",
-    icon: <Globe className="w-5 h-5" />,
-    tags: ["ga4", "gtm", "ssr", "capi"],
+    title: "Digital Growth & Performance",
+    description:
+      "Search, paid media, conversion strategy, and measurement systems connected to meaningful business priorities.",
+    icon: ChartNoAxesCombined,
   },
 ];
 
-const PLANS: Plan[] = [
+const PROCESS = [
   {
-    name: "Starter",
-    price: "₹75k",
-    period: "/month",
-    features: [
-      "Account & analytics setup",
-      "LP/message pass",
-      "Initial creative tests",
-      "Weekly reporting",
-    ],
-    href: "/contact-us/",
+    title: "Discover",
+    description:
+      "Understand the opportunity, users, constraints, and evidence before defining the work.",
+    icon: Compass,
   },
   {
-    name: "Growth",
-    price: "₹1.2L",
-    period: "/month",
-    highlight: true,
-    features: [
-      "Google + Meta management",
-      "2–4 A/B tests / month",
-      "Klaviyo flows",
-      "CRO backlog",
-    ],
-    href: "/contact-us/",
+    title: "Architect",
+    description:
+      "Shape the product, technical approach, and delivery plan around the decisions that matter most.",
+    icon: Layers3,
   },
   {
-    name: "Performance",
-    price: "₹2L+",
-    period: "/month",
-    features: [
-      "Creative pipeline & concept matrix",
-      "Advanced measurement (CAPI/SS)",
-      "Experimentation cadence",
-      "ROAS dashboards",
-    ],
-    href: "/contact-us/",
+    title: "Build",
+    description:
+      "Turn the plan into a focused, testable experience with close attention to quality and clarity.",
+    icon: Blocks,
   },
   {
-    name: "Custom",
-    price: "Let's talk",
-    features: [
-      "Multi-brand / markets",
-      "Custom automations & agents",
-      "Deep analytics",
-      "Ad hoc R&D",
-    ],
-    href: "/contact-us/",
+    title: "Launch & Improve",
+    description:
+      "Release responsibly, learn from real use, and improve the product where evidence supports it.",
+    icon: Rocket,
   },
 ];
 
-const SKILLS = [
-  "Google Ads (Search, PMax)",
-  "Meta Ads",
-  "SEO & Content Systems",
-  "Shopify & CRO",
-  "AI Agents (WhatsApp, Web)",
-  "Analytics (GA4/GTM/CAPI)",
-];
-
-const TEAM: Person[] = [
-  {
-    name: "Bhupendra Kumar",
-    role: "Founder, Growth & Performance",
-    img: "/bhupendra.jpg",
-    bio: "Leads acquisition strategy across Google/Meta, analytics, and CRO.",
-    href: "mailto:support@digipants.com",
-    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
-  },
-  {
-    name: "Anju Mishra",
-    role: "Ad Concepts & UGC",
-    img: "/anju.JPG",
-    bio: "Concepts, hooks, and editing to fuel creative testing.",
-    linkedin: "https://www.linkedin.com/in/anju-mishra-9232a313/",
-  },
-  {
-    name: "Ajit Rai",
-    role: "AI Agents & Data",
-    img: "/ajit.jpg",
-    bio: "WhatsApp/CRM flows, lead routing, and reporting integrations.",
-    linkedin: "https://www.linkedin.com/in/ajit-rai-1a8112287/",
-  },
-];
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-      {children}
-    </span>
-  );
+function selectProjects(slugs: string[]) {
+  return slugs
+    .map((slug) => projects.find((project) => project.slug === slug))
+    .filter((project): project is Project => Boolean(project));
 }
 
-function Section({ id, children }: { id?: string; children: React.ReactNode }) {
+function projectImage(project: Project) {
+  return encodeURI(project.img);
+}
+
+function ProjectCard({ project }: { project: Project }) {
   return (
-    <section id={id} className="scroll-mt-24 py-12 md:py-16">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        {children}
+    <Link
+      href={`/work/${project.slug}/`}
+      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white outline-none transition duration-300 hover:-translate-y-1 hover:border-emerald-700/30 hover:shadow-xl hover:shadow-zinc-900/5 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 motion-reduce:transform-none motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-400/30 dark:hover:shadow-black/20 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
+    >
+      <div className="aspect-[16/10] overflow-hidden border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950">
+        <img
+          src={projectImage(project)}
+          alt={`${project.title} interface`}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025] motion-reduce:transition-none"
+          loading="lazy"
+        />
       </div>
-    </section>
+      <div className="flex flex-1 flex-col p-5 sm:p-6">
+        <span className="w-fit rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+          {project.tag}
+        </span>
+        <h3 className="mt-4 text-lg font-semibold leading-snug tracking-tight text-zinc-950 dark:text-white">
+          {project.title}
+        </h3>
+        <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          {project.summary}
+        </p>
+        <span className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          View case study
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" />
+        </span>
+      </div>
+    </Link>
   );
 }
 
-function Container({ children }: PropsWithChildren) {
-  return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-      {children}
-    </div>
-  );
-}
-
-function Card({
-  children,
-  className = "",
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
 }: {
-  children: React.ReactNode;
-  className?: string;
+  eyebrow: string;
+  title: string;
+  description: string;
 }) {
   return (
-    <div
-      className={`rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-sm shadow-sm ${className}`}
-    >
-      {children}
+    <div className="max-w-3xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">
+        {title}
+      </h2>
+      <p className="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
+        {description}
+      </p>
     </div>
   );
 }
 
 export default function Page() {
+  const [aegisProtection, aegisTrade, reputationDesk] = FEATURED_ENGINEERING;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100">
-      <Section id="home">
-        <div className="grid gap-8 md:grid-cols-2 items-center">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/60 dark:border-zinc-700/60 px-3 py-1 text-xs">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />{" "}
-              Open for select projects
+    <div className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <section className="overflow-hidden border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-8 lg:py-28">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+              AI, software, web & growth
             </div>
-            <h1 className="mt-4 text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
-              Better, faster solutions. <br className="hidden sm:block" />
-              Growth that compounds.
+            <h1 className="mt-6 text-5xl font-bold leading-[0.98] tracking-[-0.045em] text-zinc-950 sm:text-6xl lg:text-7xl dark:text-white">
+              We Build What&apos;s Next.
             </h1>
-            <p className="mt-4 text-lg text-zinc-700 dark:text-zinc-300 max-w-xl">
-              We design growth systems—performance marketing, CRO, analytics,
-              and AI automations—so revenue lifts in weeks, not months.
+            <p className="mt-6 text-lg font-semibold tracking-tight text-zinc-800 sm:text-xl dark:text-zinc-200">
+              Intelligent Technology. Real Business Growth.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <p className="mt-4 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
+              From AI-powered platforms and custom software to high-performance
+              websites and digital growth systems, we turn ambitious ideas into
+              products that work.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/pricing/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                href="/work/"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                See pricing
+                Explore Our Work <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/contact-us/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5"
+                className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold transition hover:border-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:border-zinc-700 dark:hover:border-zinc-300 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                Start a project
+                Start a Project
               </Link>
             </div>
-            <div className="mt-8 grid grid-cols-3 gap-4 text-sm text-zinc-600 dark:text-zinc-400">
-              <div>
-                <div className="text-2xl font-extrabold">30–90d</div>
-                <div>to first lift</div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold">2–4</div>
-                <div>tests / month</div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold">0→1</div>
-                <div>to scale, fast</div>
-              </div>
-            </div>
           </div>
-          <Card className="p-4 md:p-6 self-start">
-            {/* fixed, responsive heights instead of aspect ratio */}
-            <div className="w-full h-64 sm:h-80 md:h-[520px] lg:h-[600px] rounded-xl overflow-hidden">
-              <img
-                src="https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1600&auto=format&fit=crop"
-                alt="Profile visual placeholder"
-                className="w-full h-full object-cover"
-                loading="eager"
-                fetchPriority="high"
-              />
-            </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {SKILLS.map((s) => (
-                <Badge key={s}>{s}</Badge>
-              ))}
+          {aegisProtection && aegisTrade && reputationDesk && (
+            <div className="relative mx-auto w-full max-w-2xl lg:max-w-none">
+              <div className="absolute -left-8 top-12 h-40 w-2 rounded-full bg-emerald-600/70 dark:bg-emerald-400/70" />
+              <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-3 shadow-2xl shadow-zinc-900/10 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/30">
+                <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-950 dark:border-zinc-700">
+                  <img
+                    src={projectImage(aegisProtection)}
+                    alt={`${aegisProtection.title} interface`}
+                    className="aspect-[16/9] w-full object-cover"
+                    loading="eager"
+                    fetchPriority="high"
+                  />
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-4 px-1 pb-1">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                      AegisProtection
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      AI-assisted digital safety
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-zinc-200 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    Engineering
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {[aegisTrade, reputationDesk].map((project) => (
+                  <div
+                    key={project.slug}
+                    className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20"
+                  >
+                    <img
+                      src={projectImage(project)}
+                      alt={`${project.title} interface`}
+                      className="aspect-[16/10] w-full rounded-xl object-cover"
+                      loading="eager"
+                    />
+                    <p className="px-2 pb-1 pt-3 text-xs font-semibold text-zinc-800 sm:text-sm dark:text-zinc-200">
+                      {project.title.split(" — ")[0]}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </Card>
+          )}
         </div>
-      </Section>
+      </section>
 
-      <Section id="services">
-        <Container>
-          <div className="flex items-end justify-between gap-4 mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Services
-            </h2>
-            <a
-              href="#contact"
-              className="text-sm inline-flex items-center gap-1 hover:underline"
-            >
-              Get a custom plan <ArrowUpRight className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {SERVICES.map((srv) => (
-              <motion.div
-                key={srv.title}
-                initial={{ y: 12, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
-              >
-                <Card className="p-6 h-full">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
-                      {srv.icon}
-                    </span>
-                    <h3 className="font-semibold">{srv.title}</h3>
-                  </div>
-                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-                    {srv.desc}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {srv.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="text-xs rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
-              </motion.div>
+      <section className="border-b border-zinc-200 bg-zinc-50 py-16 sm:py-20 lg:py-24 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Featured engineering"
+            title="Complex products, made clear and useful."
+            description="Selected platforms that combine thoughtful product design with responsible AI and software engineering."
+          />
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {FEATURED_ENGINEERING.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
             ))}
           </div>
-        </Container>
-      </Section>
-
-      <Section id="work">
-        <div className="flex items-end justify-between gap-4">
-          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-            Selected Work
-          </h2>
-          <Link href="/work/" className="text-sm font-medium hover:opacity-80">
-            View all →
-          </Link>
         </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {projects.filter((p) => p.caseStudy).slice(0, 3).map((p) => (
-            <Link key={p.slug} href={`/work/${p.slug}`} className="group">
-              <Card>
-                <div className="aspect-video w-full overflow-hidden">
-                  <img
-                    src={p.img}
-                    alt={p.title}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold group-hover:underline">
-                      {p.title}
-                    </h3>
-                    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-                      {p.tag}
-                    </span>
-                  </div>
-                  <div className="mt-3 inline-flex items-center gap-1 text-sm opacity-80">
-                    Read case study
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path d="M7 17L17 7M7 7h10v10" />
-                    </svg>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </Section>
+      </section>
 
-      <Section id="approach">
-        <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-          How we work
-        </h2>
-        <div className="mt-8 grid gap-6 md:grid-cols-4">
-          {[
-            [
-              "Discovery",
-              "Goals, constraints, data access. Quick win alignment.",
-            ],
-            ["Plan", "90-day roadmap with measurable milestones."],
-            ["Build & test", "Ship weekly. 2–4 experiments per month."],
-            ["Scale", "Roll winning patterns across funnels and channels."],
-          ].map(([title, copy]) => (
-            <div
-              key={title}
-              className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-5"
+      <section className="py-16 sm:py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Capabilities"
+            title="Engineering and growth, connected."
+            description="A focused mix of technical delivery, digital experience, and growth expertise for products that need more than a single discipline."
+          />
+          <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-200 sm:grid-cols-2 lg:grid-cols-4 dark:border-zinc-800 dark:bg-zinc-800">
+            {CAPABILITIES.map(({ title, description, icon: Icon }) => (
+              <article key={title} className="bg-white p-6 sm:p-7 dark:bg-zinc-950">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <h3 className="mt-6 text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                  {description}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-zinc-200 bg-zinc-50 py-16 sm:py-20 lg:py-24 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <SectionHeading
+              eyebrow="Selected work"
+              title="Digital experiences built for real use."
+              description="Commerce, food, education, and service platforms designed around clear customer journeys and practical business needs."
+            />
+            <Link
+              href="/work/"
+              className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-zinc-900 outline-none hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:text-zinc-100 dark:hover:text-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
             >
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                Step
-              </div>
-              <div className="mt-1 font-semibold">{title}</div>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                {copy}
-              </p>
-            </div>
-          ))}
+              View complete portfolio <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {SELECTED_WORK.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
+            ))}
+          </div>
         </div>
-      </Section>
+      </section>
 
-      <Section id="pricing">
-        <div className="flex items-end justify-between gap-4">
-          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-            Pricing
-          </h2>
-          <Link
-            href="/pricing/"
-            className="text-sm font-medium hover:opacity-80"
-          >
-            Full details →
-          </Link>
-        </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-4">
-          {PLANS.map((p) => (
-            <Card key={p.name}>
-              <div
-                className={`p-6 ${
-                  p.highlight ? "bg-zinc-50 dark:bg-white/5" : ""
-                }`}
-              >
+      <section className="py-16 sm:py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Our process"
+            title="From open question to working product."
+            description="A practical delivery rhythm that creates clarity early and keeps attention on the product throughout the engagement."
+          />
+          <ol className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            {PROCESS.map(({ title, description, icon: Icon }, index) => (
+              <li key={title} className="border-t border-zinc-300 pt-6 dark:border-zinc-700">
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold">{p.name}</div>
-                  {p.highlight && (
-                    <span className="text-xs rounded-full border px-2 py-0.5 border-zinc-200/70 dark:border-zinc-700/60">
-                      Popular
-                    </span>
-                  )}
+                  <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                    0{index + 1}
+                  </span>
+                  <Icon className="h-5 w-5 text-zinc-400 dark:text-zinc-500" aria-hidden="true" />
                 </div>
-                <div className="mt-3">
-                  <span className="text-3xl font-extrabold">{p.price}</span>
-                  {p.period && (
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {" "}
-                      {p.period}
-                    </span>
-                  )}
-                </div>
-                <ul className="mt-4 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2">
-                      <span className="mt-[6px] inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />{" "}
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={p.href}
-                  className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ${
-                    p.highlight
-                      ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                      : "border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5"
-                  }`}
-                >
-                  Get started
-                </Link>
-              </div>
-            </Card>
-          ))}
+                <h3 className="mt-8 text-xl font-semibold tracking-tight text-zinc-950 dark:text-white">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                  {description}
+                </p>
+              </li>
+            ))}
+          </ol>
         </div>
-      </Section>
+      </section>
 
-      <Section id="team">
-        <div className="flex items-end justify-between gap-4">
-          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-            Team
-          </h2>
+      <section className="px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
+        <div className="mx-auto flex w-full max-w-7xl flex-col justify-between gap-8 overflow-hidden rounded-3xl bg-zinc-950 px-6 py-10 text-white sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:px-14 lg:py-16 dark:bg-zinc-900 dark:ring-1 dark:ring-zinc-800">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+              Build with DigiPants
+            </p>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+              Have a serious idea worth building well?
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-300">
+              Tell us what you&apos;re trying to create, improve, or grow. We&apos;ll
+              help turn the opportunity into a focused next step.
+            </p>
+          </div>
           <Link
             href="/contact-us/"
-            className="text-sm font-medium hover:opacity-80"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-4 focus-visible:ring-offset-zinc-950"
           >
-            Work with us →
+            Start a Project <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {TEAM.map((m) => (
-            <Card key={m.name}>
-              <div className="p-5">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={m.img}
-                    alt={m.name}
-                    className="h-16 w-16 rounded-xl object-cover border border-zinc-200/60 dark:border-zinc-800/60"
-                  />
-                  <div>
-                    <div className="font-semibold">{m.name}</div>
-                    <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {m.role}
-                    </div>
-                  </div>
-                  <a
-                    href={m.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${m.name} on LinkedIn`}
-                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
-                  >
-                    <Linkedin className="h-5 w-5" />
-                  </a>
-                </div>
-                <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-                  {m.bio}
-                </p>
-                {m.href && (
-                  <Link
-                    href={m.href}
-                    className="mt-3 inline-flex items-center gap-2 text-sm font-medium hover:opacity-80"
-                  >
-                    Get in touch →
-                  </Link>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </Section>
-
-      <Section id="cta">
-        <Card>
-          <div className="p-6 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                Let’s move
-              </div>
-              <h3 className="mt-1 text-2xl font-extrabold">
-                Ship within weeks, measure ruthlessly, scale what works.
-              </h3>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-xl">
-                Send your goals and constraints. We’ll suggest a plan and start
-                with the quickest revenue lift.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Link
-                href="/contact-us/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-              >
-                Start a project
-              </Link>
-              <Link
-                href="/services/"
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5"
-              >
-                See services
-              </Link>
-            </div>
-          </div>
-        </Card>
-      </Section>
+      </section>
     </div>
   );
 }
