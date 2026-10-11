@@ -5,7 +5,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { projects } from "@/lib/data";
 import { notFound } from "next/navigation";
 
-const slug = "quicksquad";
+const slug = "upscale-hotel";
 const proj = projects.find((p) => p.slug === slug);
 
 export const metadata: Metadata = proj
@@ -19,13 +19,20 @@ export const metadata: Metadata = proj
         url: `https://digipants.com/work/${slug}/`,
         siteName: "DigiPants",
         type: "article",
-        images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
+        images: [
+          {
+            url: proj.img,
+            width: 1200,
+            height: 630,
+            alt: "Restaurant entrance with a lit display",
+          },
+        ],
       },
       twitter: {
         card: "summary_large_image",
         title: proj.title,
         description: proj.summary,
-        images: [proj.img],
+        images: [{ url: proj.img, alt: "Restaurant entrance with a lit display" }],
       },
     }
   : { title: "Case Study — DigiPants" };
@@ -97,11 +104,11 @@ export default function Page() {
           </nav>
 
           <h1 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            Upscale Hotel — More Direct, Less OTA
+            Upscale Hotel — Hotel Marketing & Booking Strategy
           </h1>
           <p className="mt-3 text-lg text-zinc-700 dark:text-zinc-300">
-            Rebuilt the funnel with PMax + Meta remarketing, added parity
-            landing pages, and automated cart‑abandon flows.
+            Campaign work included Google Performance Max, Meta remarketing,
+            parity landing pages, and cart-abandonment automation.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -120,7 +127,7 @@ export default function Page() {
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
               src="https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80"
-              alt="Upscale Hotel booking funnel and campaign overview"
+              alt="Restaurant entrance with a lit display"
               className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
@@ -134,8 +141,8 @@ export default function Page() {
               <div>
                 <h2 className="text-xl md:text-2xl font-bold">Context</h2>
                 <p className="mt-2 text-zinc-700 dark:text-zinc-300">
-                  4‑star hotel struggling with OTA dependency and low direct
-                  bookings. Goal: lift direct share while maintaining occupancy.
+                  Project scope focused on direct-booking pathways alongside
+                  online travel agency listings.
                 </p>
               </div>
               <div>
@@ -160,25 +167,16 @@ export default function Page() {
                 </ul>
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold">Results</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Key Deliverables</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+46%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      direct bookings vs prior period
-                    </div>
+                    OTA listing review and offer-parity landing pages
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">−46%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      OTA share
-                    </div>
+                    Google Performance Max and Meta remarketing campaign setup
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+27%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      ROAS from PMax
-                    </div>
+                    Email/SMS follow-up automation and campaign measurement
                   </div>
                 </div>
               </div>
@@ -194,9 +192,9 @@ export default function Page() {
               <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
                 <h3 className="font-semibold">Highlights</h3>
                 <ul className="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300 list-disc pl-5">
-                  <li>Direct bookings up by double digits.</li>
-                  <li>Reduced OTA reliance with parity pages.</li>
-                  <li>Remarketing ROI positive within weeks.</li>
+                  <li>Parity landing pages with matching offers.</li>
+                  <li>Search and remarketing campaign setup.</li>
+                  <li>Follow-up automation and conversion tracking.</li>
                 </ul>
               </div>
             </aside>
@@ -221,9 +219,3 @@ export default function Page() {
     </div>
   );
 }
-
-// Place these images in the personal site repo under public/work/upscale-hotel/
-// - og.jpg (1200x630)
-// - hero.jpg
-// - parity-page.jpg
-// - funnel.jpg

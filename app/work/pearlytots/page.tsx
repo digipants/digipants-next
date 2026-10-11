@@ -20,13 +20,20 @@ export const metadata: Metadata = proj
         url: `https://digipants.com/work/${slug}/`,
         siteName: "DigiPants",
         type: "article",
-        images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
+        images: [
+          {
+            url: proj.img,
+            width: 1200,
+            height: 630,
+            alt: "Baby resting on a woven rug",
+          },
+        ],
       },
       twitter: {
         card: "summary_large_image",
         title: proj.title,
         description: proj.summary,
-        images: [proj.img],
+        images: [{ url: proj.img, alt: "Baby resting on a woven rug" }],
       },
     }
   : { title: "Case Study — DigiPants" };
@@ -97,11 +104,11 @@ export default function Page() {
           </nav>
 
           <h1 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            PearlyTots — D2C Launch & Scale
+            PearlyTots — D2C Storefront & Campaigns
           </h1>
           <p className="mt-3 text-lg text-zinc-700 dark:text-zinc-300">
-            Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and
-            post‑purchase upsells to improve AOV & LTV.
+            Shopify storefront setup with Syncee/Zendrop, UGC creative testing,
+            paid campaigns, and post-purchase messaging and upsell flows.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -121,7 +128,7 @@ export default function Page() {
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
               src="https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80"
-              alt="PearlyTots storefront and campaign overview"
+              alt="Baby resting on a woven rug"
               className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
@@ -135,17 +142,16 @@ export default function Page() {
               <div>
                 <h2 className="text-xl md:text-2xl font-bold">Context</h2>
                 <p className="mt-2 text-zinc-700 dark:text-zinc-300">
-                  New D2C brand in the kids category. Goal: validate
-                  positioning, reach first 100 orders, and build a repeatable
-                  paid media engine.
+                  Project scope covered an online storefront and acquisition
+                  setup for a kids-category D2C brand.
                 </p>
               </div>
               <div>
                 <h2 className="text-xl md:text-2xl font-bold">Approach</h2>
                 <ul className="mt-2 space-y-2 text-zinc-700 dark:text-zinc-300 list-disc pl-5">
                   <li>
-                    Shopify setup with conversion‑oriented theme and essential
-                    apps (reviews, upsells, support).
+                    Shopify setup with a theme and essential apps for reviews,
+                    upsells, and support.
                   </li>
                   <li>
                     Catalog integration via Syncee/Zendrop and clean product
@@ -160,31 +166,22 @@ export default function Page() {
                     and bottom‑funnel capture.
                   </li>
                   <li>
-                    Klaviyo flows (browse/cart/post‑purchase) and one‑click
-                    post‑purchase offers to lift AOV/LTV.
+                    Klaviyo browse, cart, and post-purchase flows with one-click
+                    post-purchase offers.
                   </li>
                 </ul>
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold">Results</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Key Deliverables</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+21%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      CVR vs baseline
-                    </div>
+                    Shopify storefront and product catalog integration
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+64%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      AOV with post‑purchase upsell
-                    </div>
+                    UGC creative workflow and paid campaign setup
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">First 100</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      orders within launch window
-                    </div>
+                    Klaviyo lifecycle flows and post-purchase offers
                   </div>
                 </div>
               </div>
@@ -200,9 +197,9 @@ export default function Page() {
               <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
                 <h3 className="font-semibold">Highlights</h3>
                 <ul className="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300 list-disc pl-5">
-                  <li>UGC ad pipeline cut CPA variability.</li>
-                  <li>Content/offer matrix sped up learnings.</li>
-                  <li>Post‑purchase upsell lifted AOV.</li>
+                  <li>UGC creative pipeline and testing workflow.</li>
+                  <li>Content and offer matrix for campaign testing.</li>
+                  <li>Browse, cart, and post-purchase messaging flows.</li>
                 </ul>
               </div>
             </aside>
@@ -241,9 +238,3 @@ export default function Page() {
     </div>
   );
 }
-
-// Place these images in the personal site repo under public/work/pearlytots/
-// - og.jpg (1200x630)
-// - hero.jpg
-// - creative-grid.jpg
-// - funnel.jpg

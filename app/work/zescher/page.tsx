@@ -5,7 +5,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { projects } from "@/lib/data";
 import { notFound } from "next/navigation";
 
-const slug = "quicksquad";
+const slug = "zescher";
 const proj = projects.find((p) => p.slug === slug);
 
 export const metadata: Metadata = proj
@@ -19,13 +19,22 @@ export const metadata: Metadata = proj
         url: `https://digipants.com/work/${slug}/`,
         siteName: "DigiPants",
         type: "article",
-        images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
+        images: [
+          {
+            url: proj.img,
+            width: 1200,
+            height: 630,
+            alt: "Folded T-shirts with printed graphic designs",
+          },
+        ],
       },
       twitter: {
         card: "summary_large_image",
         title: proj.title,
         description: proj.summary,
-        images: [proj.img],
+        images: [
+          { url: proj.img, alt: "Folded T-shirts with printed graphic designs" },
+        ],
       },
     }
   : { title: "Case Study — DigiPants" };
@@ -95,12 +104,11 @@ export default function Page() {
           </nav>
 
           <h1 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            Zescher — POD Launch & Growth
+            Zescher — Print-on-Demand Brand & Storefront
           </h1>
           <p className="mt-3 text-lg text-zinc-700 dark:text-zinc-300">
-            Developed a print‑on‑demand brand (Zescher) with unique
-            Sanskrit‑inspired identity, streamlined design‑to‑print workflow,
-            and conversion‑optimized storefront.
+            Developed the Zescher print-on-demand brand identity, Shopify
+            storefront, and design-to-print workflow.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -119,7 +127,7 @@ export default function Page() {
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
               src="https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80"
-              alt="Zescher POD storefront and product samples"
+              alt="Folded T-shirts with printed graphic designs"
               className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
@@ -133,10 +141,9 @@ export default function Page() {
               <div>
                 <h2 className="text-xl md:text-2xl font-bold">Context</h2>
                 <p className="mt-2 text-zinc-700 dark:text-zinc-300">
-                  Zescher was envisioned as a POD brand that merges
-                  Sanskrit‑inspired naming with modern apparel and lifestyle
-                  products. Objective: launch with minimal overhead, validate
-                  demand, and scale through automation.
+                  Project scope covered a Sanskrit-inspired identity for a
+                  print-on-demand apparel and lifestyle brand, alongside its
+                  product and fulfilment workflow.
                 </p>
               </div>
               <div>
@@ -150,39 +157,28 @@ export default function Page() {
                     Implemented Shopify with Teeinblue/Printful for POD
                     automation.
                   </li>
-                  <li>Created design templates for rapid SKU expansion.</li>
+                  <li>Created reusable design templates for product listings.</li>
                   <li>
-                    Optimized storefront for conversions: clear product pages,
-                    trust badges, upsell prompts.
+                    Configured product pages with product details, trust
+                    badges, and upsell prompts.
                   </li>
                   <li>
-                    Ran test campaigns on Meta + Instagram influencers for
-                    validation.
+                    Set up test campaigns on Meta and Instagram influencer
+                    placements.
                   </li>
                 </ul>
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold">Results</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Key Deliverables</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">
-                      Launch +30 SKUs
-                    </div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      within first month
-                    </div>
+                    Brand identity system: logo, palette, typography, and icons
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+62%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      add‑to‑cart rate vs baseline
-                    </div>
+                    Shopify storefront with Teeinblue and Printful integration
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">Zero</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      inventory risk (POD model)
-                    </div>
+                    Reusable design templates for print-on-demand products
                   </div>
                 </div>
               </div>
@@ -198,30 +194,9 @@ export default function Page() {
               <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
                 <h3 className="font-semibold">Highlights</h3>
                 <ul className="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300 list-disc pl-5">
-                  <li>Unique Sanskrit‑inspired brand positioning.</li>
-                  <li>Design‑to‑print workflow allowed fast iteration.</li>
-                  <li>Low‑risk launch with POD automation stack.</li>
-                </ul>
-              </div>
-              <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                <h3 className="font-semibold">Assets</h3>
-                <ul className="mt-2 space-y-2 text-sm">
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/zescher/brand-kit.pdf"
-                    >
-                      Brand kit
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/zescher/storefront.jpg"
-                    >
-                      Storefront screenshot
-                    </a>
-                  </li>
+                  <li>Sanskrit-inspired brand identity.</li>
+                  <li>Shopify print-on-demand workflow using Teeinblue and Printful.</li>
+                  <li>Product-page details, trust badges, and upsell prompts.</li>
                 </ul>
               </div>
             </aside>
@@ -246,9 +221,3 @@ export default function Page() {
     </div>
   );
 }
-
-// Place these assets in the repo under public/work/zescher/
-// - og.jpg (1200x630)
-// - hero.jpg
-// - brand-kit.pdf
-// - storefront.jpg
