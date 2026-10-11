@@ -2,44 +2,10 @@
 "use client";
 
 import { useState } from "react";
-import { Send } from "lucide-react";
+import { ArrowRight, Send } from "lucide-react";
 
-const FORM_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID || "your-form-id";
-
-function Button({
-  children,
-  href,
-  onClick,
-  variant = "primary",
-  type = "button",
-}: {
-  children: React.ReactNode;
-  href?: string;
-  onClick?: () => void;
-  variant?: "primary" | "ghost";
-  type?: "button" | "submit" | "reset";
-}) {
-  const base =
-    "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition active:scale-[.98]";
-  const variants: Record<string, string> = {
-    primary:
-      "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm hover:opacity-90",
-    ghost:
-      "bg-transparent text-zinc-900 dark:text-white border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5",
-  };
-  const cls = `${base} ${variants[variant]}`;
-  if (href)
-    return (
-      <a href={href} className={cls} onClick={onClick}>
-        {children}
-      </a>
-    );
-  return (
-    <button className={cls} onClick={onClick} type={type}>
-      {children}
-    </button>
-  );
-}
+const inputClassName =
+  "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-400 dark:focus-visible:ring-emerald-400/30";
 
 export default function ContactForm() {
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">(
@@ -53,92 +19,98 @@ export default function ContactForm() {
     setErrMsg("");
 
     const form = e.currentTarget;
-    const data = new FormData(form);
-
-    // simple honeypot; bots fill hidden "company"
-    if ((data.get("company") as string)?.length) {
-      setStatus("ok");
-      form.reset();
-      return;
-    }
+    const formData = new FormData(form);
+    const fields = Object.fromEntries(
+      ["name", "email", "project", "budget", "timeline", "message", "company"].map(
+        (name) => [name, formData.get(name)?.toString() ?? ""],
+      ),
+    );
 
     try {
-      const res = await fetch(`https://formspree.io/f/${FORM_ID}`, {
+      const res = await fetch("/api/contact/", {
         method: "POST",
-        body: data,
-        headers: { Accept: "application/json" },
+        body: JSON.stringify(fields),
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
       });
 
-      if (res.ok) {
+      const result = await res.json().catch(() => null);
+      if (res.ok && result?.message === "Your enquiry has been submitted.") {
         setStatus("ok");
         form.reset();
       } else {
-        const j = await res.json().catch(() => null);
-        setErrMsg(j?.errors?.[0]?.message || "Something went wrong.");
+        setErrMsg(typeof result?.error === "string" ? result.error : "We couldn’t send your enquiry. Please try again.");
         setStatus("error");
       }
     } catch {
-      setErrMsg("Network error. Please try again.");
+      setErrMsg(
+        "A network issue prevented sending. Please try again or email support@digipants.com."
+      );
       setStatus("error");
     }
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
-          <span>Name</span>
+          <span>Name <span aria-hidden="true" className="text-emerald-700 dark:text-emerald-400">*</span><span className="sr-only"> (required)</span></span>
           <input
             name="name"
             required
-            className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+            autoComplete="name"
+            className={inputClassName}
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span>Email</span>
+          <span>Email <span aria-hidden="true" className="text-emerald-700 dark:text-emerald-400">*</span><span className="sr-only"> (required)</span></span>
           <input
             type="email"
             name="email"
             required
-            className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+            autoComplete="email"
+            className={inputClassName}
           />
         </label>
       </div>
 
       <label className="grid gap-1 text-sm">
-        <span>Project</span>
+        <span>Project or service</span>
         <input
           name="project"
-          placeholder="e.g. Shopify growth, hotel bookings, AI support bot"
-          className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+          placeholder="AI, software, web, commerce, or growth"
+          className={inputClassName}
         />
       </label>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
-          <span>Budget</span>
+          <span>Budget (optional)</span>
           <input
             name="budget"
             placeholder="₹1–5L"
-            className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+            className={inputClassName}
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span>Timeline</span>
+          <span>Timeline (optional)</span>
           <input
             name="timeline"
             placeholder="4–8 weeks"
-            className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+            className={inputClassName}
           />
         </label>
       </div>
 
       <label className="grid gap-1 text-sm">
-        <span>Message</span>
+        <span>Message <span aria-hidden="true" className="text-emerald-700 dark:text-emerald-400">*</span><span className="sr-only"> (required)</span></span>
         <textarea
           name="message"
           rows={4}
-          className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
+          required
+          className={inputClassName}
         />
       </label>
 
@@ -149,20 +121,28 @@ export default function ContactForm() {
         tabIndex={-1}
         autoComplete="off"
         className="hidden"
+        aria-hidden="true"
       />
 
-      <Button type="submit">
-        {status === "sending" ? "Sending…" : "Send"}{" "}
-        <Send className="w-4 h-4" />
-      </Button>
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
+      >
+        {status === "sending" ? "Sending…" : "Send enquiry"}
+        {status === "sending" ? <Send className="h-4 w-4 animate-pulse" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+      </button>
 
       {status === "ok" && (
-        <p className="text-sm text-emerald-500">
-          Thanks! We’ll reply within 24 hours.
+        <p className="text-sm text-emerald-800 dark:text-emerald-300" role="status" aria-live="polite">
+          Thanks—your enquiry has been submitted.
         </p>
       )}
       {status === "error" && (
-        <p className="text-sm text-rose-500">{errMsg || "Please try again."}</p>
+        <p className="text-sm text-rose-700 dark:text-rose-300" role="alert" aria-live="assertive">
+          {errMsg || "We couldn’t send your enquiry."} Please try again, or email{" "}
+          <a className="font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 dark:focus-visible:ring-rose-300" href="mailto:support@digipants.com">support@digipants.com</a>.
+        </p>
       )}
     </form>
   );
