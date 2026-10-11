@@ -19,13 +19,20 @@ export const metadata: Metadata = proj
         url: `https://digipants.com/work/${slug}/`,
         siteName: "DigiPants",
         type: "article",
-        images: [{ url: proj.img, width: 1200, height: 630, alt: proj.title }],
+        images: [
+          {
+            url: proj.img,
+            width: 1200,
+            height: 630,
+            alt: "People working in a shared office",
+          },
+        ],
       },
       twitter: {
         card: "summary_large_image",
         title: proj.title,
         description: proj.summary,
-        images: [proj.img],
+        images: [{ url: proj.img, alt: "People working in a shared office" }],
       },
     }
   : { title: "Case Study — DigiPants" };
@@ -95,18 +102,19 @@ export default function Page() {
           </nav>
 
           <h1 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            quicksquad — AI Support to Cut CAC
+            quicksquad — AI Support & Lead Triage
           </h1>
           <p className="mt-3 text-lg text-zinc-700 dark:text-zinc-300">
-            Built an AI triage bot and revamped landing UX for clarity and
-            faster resolution; improved trust and lead quality.
+            Implemented an AI triage bot and updated landing-page messaging,
+            analytics events, and CRM follow-up workflows for an inbound
+            support funnel.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
             <Badge>AI Support</Badge>
             <Badge>Chatbot</Badge>
             <Badge>Landing UX</Badge>
-            <Badge>Lead Quality</Badge>
+            <Badge>Lead Routing</Badge>
             <Badge>Automation</Badge>
             <Badge>Analytics</Badge>
           </div>
@@ -118,7 +126,7 @@ export default function Page() {
           <div className="rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60">
             <img
               src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80"
-              alt="quicksquad AI support bot and landing UX overview"
+              alt="People working in a shared office"
               className="w-full h-48 object-cover md:h-64 lg:h-72"
             />
           </div>
@@ -132,9 +140,8 @@ export default function Page() {
               <div>
                 <h2 className="text-xl md:text-2xl font-bold">Context</h2>
                 <p className="mt-2 text-zinc-700 dark:text-zinc-300">
-                  Support-heavy inbound funnel with slow response times and
-                  unclear value messaging. Goal: reduce time to first response,
-                  filter and route leads, and lower CAC.
+                  Project scope covered intent capture, enquiry routing, and
+                  landing-page messaging for an inbound support funnel.
                 </p>
               </div>
               <div>
@@ -156,25 +163,16 @@ export default function Page() {
                 </ul>
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold">Results</h2>
+                <h2 className="text-xl md:text-2xl font-bold">Key Deliverables</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">−75%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      time to first response
-                    </div>
+                    AI triage flow for intent capture and human handoff
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">+67%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      qualified lead rate
-                    </div>
+                    Landing-page messaging, social proof, FAQs, and CTA updates
                   </div>
                   <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                    <div className="text-3xl font-extrabold">−37%</div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                      CAC
-                    </div>
+                    Analytics events and CRM follow-up automation
                   </div>
                 </div>
               </div>
@@ -190,30 +188,9 @@ export default function Page() {
               <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
                 <h3 className="font-semibold">Highlights</h3>
                 <ul className="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300 list-disc pl-5">
-                  <li>Faster triage with context passed to agents.</li>
-                  <li>Clearer offer & social proof reduced bounce.</li>
-                  <li>Better qualification improved downstream ROAS.</li>
-                </ul>
-              </div>
-              <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                <h3 className="font-semibold">Assets</h3>
-                <ul className="mt-2 space-y-2 text-sm">
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/quicksquad/bot-flow.jpg"
-                    >
-                      Bot flow
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/quicksquad/landing-before-after.jpg"
-                    >
-                      Landing before/after
-                    </a>
-                  </li>
+                  <li>Intent capture and human handoff with enquiry context.</li>
+                  <li>Landing-page messaging, FAQs, and CTA updates.</li>
+                  <li>Analytics events and CRM follow-up workflows.</li>
                 </ul>
               </div>
             </aside>
@@ -238,9 +215,3 @@ export default function Page() {
     </div>
   );
 }
-
-// Place these images in the personal site repo under public/work/quicksquad/
-// - og.jpg (1200x630)
-// - hero.jpg
-// - bot-flow.jpg
-// - landing-before-after.jpg

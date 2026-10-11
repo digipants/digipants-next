@@ -111,9 +111,9 @@ const projects: Project[] = [
   },
   {
     slug: "pearlytots",
-    title: "PearlyTots — D2C Launch & Scale",
+    title: "PearlyTots — D2C Storefront & Campaigns",
     summary:
-      "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
+      "Shopify storefront and catalog setup, UGC creative testing, paid campaigns, and post-purchase messaging and upsell flows.",
     tag: "D2C",
     img: "https://images.unsplash.com/photo-1649937365218-1316528fe149?q=80&w=2083&auto=format&fit=crop&w=1600&q=80",
     liveLinks: [
@@ -127,9 +127,9 @@ const projects: Project[] = [
   },
   {
     slug: "upscale-hotel",
-    title: "Upscale Hotel — More Direct, Less OTA",
+    title: "Upscale Hotel — Hotel Marketing & Booking Strategy",
     summary:
-      "PMax + Meta remarketing, parity landing pages, and automations to lift direct bookings.",
+      "Google Performance Max and Meta remarketing campaigns, parity landing pages, booking follow-up automation, and campaign measurement.",
     tag: "Hotels",
     img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
     caseStudy: true,
@@ -137,9 +137,9 @@ const projects: Project[] = [
   },
   {
     slug: "quicksquad",
-    title: "quicksquad — AI Support to Cut CAC",
+    title: "quicksquad — AI Support & Lead Triage",
     summary:
-      "AI triage bot + landing UX revamp to improve trust, lead quality, and lower CAC.",
+      "AI triage bot, landing-page updates, analytics events, and CRM follow-up workflows for an inbound support funnel.",
     tag: "AI",
     img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
     caseStudy: true,
@@ -147,9 +147,9 @@ const projects: Project[] = [
   },
   {
     slug: "zescher",
-    title: "Zescher — POD Launch & Growth",
+    title: "Zescher — Print-on-Demand Brand & Storefront",
     summary:
-      "Sanskrit‑inspired POD brand with automated design‑to‑print workflow and a conversion‑optimized storefront.",
+      "Sanskrit-inspired brand identity, Shopify storefront, and print-on-demand workflow using Teeinblue and Printful.",
     tag: "POD",
     img: "https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80",
     caseStudy: true,
