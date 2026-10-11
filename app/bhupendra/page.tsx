@@ -29,9 +29,11 @@ export default function FounderPage() {
               Engineering, product building, and digital growth.
             </p>
             <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
-              I lead DigiPants, where the work spans software and AI-assisted
-              platforms, e-commerce, and digital experiences built around
-              practical business needs.
+              My path into product building grew from hands-on work in outdoor
+              advertising, digital marketing, and web development. Today, I
+              bring that mix of communication and technology to practical
+              software and AI products—starting with the problem, building
+              thoughtfully, and keeping people in the loop.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
