@@ -1,5 +1,10 @@
 export const ANALYTICS_MEASUREMENT_ID = "G-RGELLSWQWR";
 export const ANALYTICS_CONSENT_KEY = "digipants.analytics-consent";
+const GA_COOKIE_NAMES = [
+  "_ga",
+  `_ga_${ANALYTICS_MEASUREMENT_ID.slice(2)}`,
+];
+const SITE_COOKIE_DOMAIN = "digipants.com";
 
 export type AnalyticsConsent = "accepted" | "rejected";
 let sessionConsent: AnalyticsConsent | null = null;
@@ -56,6 +61,25 @@ function initializeAnalytics() {
   }
 }
 
+function clearAnalyticsCookies() {
+  if (typeof document === "undefined") return;
+
+  const hostname = window.location.hostname.toLowerCase();
+  const isDigiPantsDomain =
+    hostname === SITE_COOKIE_DOMAIN || hostname.endsWith(`.${SITE_COOKIE_DOMAIN}`);
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+
+  for (const name of GA_COOKIE_NAMES) {
+    const cookie = `${name}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax${secure}`;
+    document.cookie = cookie;
+
+    if (isDigiPantsDomain) {
+      document.cookie = `${cookie}; Domain=${SITE_COOKIE_DOMAIN}`;
+      document.cookie = `${cookie}; Domain=.${SITE_COOKIE_DOMAIN}`;
+    }
+  }
+}
+
 export function setAnalyticsConsent(consent: AnalyticsConsent) {
   const wasAccepted = hasAnalyticsConsent();
   sessionConsent = consent;
@@ -73,12 +97,14 @@ export function setAnalyticsConsent(consent: AnalyticsConsent) {
   }
 
   window[`ga-disable-${ANALYTICS_MEASUREMENT_ID}`] = true;
+  clearAnalyticsCookies();
 }
 
 export function clearAnalyticsConsent() {
   sessionConsent = null;
   lastTrackedPath = null;
   window[`ga-disable-${ANALYTICS_MEASUREMENT_ID}`] = true;
+  clearAnalyticsCookies();
   try {
     window.localStorage.removeItem(ANALYTICS_CONSENT_KEY);
   } catch {

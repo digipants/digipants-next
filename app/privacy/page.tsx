@@ -138,7 +138,9 @@ export default function PrivacyPage() {
             choice is stored in this browser so it applies on return visits.
             Open “Privacy settings” at the bottom of any page to change your
             choice or withdraw consent; withdrawing stops future analytics
-            events. Clearing browser storage also removes the saved choice.
+            events and removes this integration’s standard Google Analytics
+            cookies on this site where browser cookie rules allow. Clearing
+            browser storage also removes the saved choice.
           </p>
 
           <h2 id="ads" className="scroll-mt-24">
