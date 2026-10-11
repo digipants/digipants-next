@@ -199,27 +199,6 @@ export default function Page() {
                   <li>Remarketing ROI positive within weeks.</li>
                 </ul>
               </div>
-              <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                <h3 className="font-semibold">Assets</h3>
-                <ul className="mt-2 space-y-2 text-sm">
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/upscale-hotel/parity-page.jpg"
-                    >
-                      Parity page sample
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/upscale-hotel/funnel.jpg"
-                    >
-                      Funnel map
-                    </a>
-                  </li>
-                </ul>
-              </div>
             </aside>
           </div>
 

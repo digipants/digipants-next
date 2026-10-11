@@ -205,27 +205,6 @@ export default function Page() {
                   <li>Post‑purchase upsell lifted AOV.</li>
                 </ul>
               </div>
-              <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 p-4">
-                <h3 className="font-semibold">Assets</h3>
-                <ul className="mt-2 space-y-2 text-sm">
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/pearlytots/creative-grid.jpg"
-                    >
-                      Creative grid
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:underline"
-                      href="/work/pearlytots/funnel.jpg"
-                    >
-                      Funnel map
-                    </a>
-                  </li>
-                </ul>
-              </div>
             </aside>
           </div>
 
