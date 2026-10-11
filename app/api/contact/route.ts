@@ -123,7 +123,20 @@ function sameOrigin(request: Request) {
   if (!origin) return true;
 
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const requestUrl = new URL(request.url);
+    const expectedOrigins = new Set([requestUrl.origin]);
+    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const requestHost = request.headers.get("host")?.trim();
+    const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const protocol = forwardedProtocol || requestUrl.protocol.slice(0, -1);
+
+    for (const host of [forwardedHost, requestHost]) {
+      if (host && !/[\r\n]/.test(host) && /^https?$/i.test(protocol)) {
+        expectedOrigins.add(new URL(`${protocol}://${host}`).origin);
+      }
+    }
+
+    return expectedOrigins.has(new URL(origin).origin);
   } catch {
     return false;
   }

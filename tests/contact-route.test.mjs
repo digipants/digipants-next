@@ -19,8 +19,8 @@ function setTestEmailConfig() {
   process.env.EMAIL_FROM = "DigiPants <enquiries@example.test>";
 }
 
-function request(body, { ip = crypto.randomUUID(), headers = {} } = {}) {
-  return new Request("https://digipants.test/api/contact/", {
+function request(body, { ip = crypto.randomUUID(), headers = {}, url = "https://digipants.test/api/contact/" } = {}) {
+  return new Request(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -135,4 +135,24 @@ test("rejects cross-origin submissions", async (t) => {
     request(JSON.stringify(validFields()), { headers: { origin: "https://attacker.example" } }),
   );
   assert.equal(response.status, 403);
+});
+
+test("accepts the public Netlify alias origin when the server URL is deploy-specific", async (t) => {
+  t.after(restoreEnvironment);
+  setTestEmailConfig();
+  globalThis.fetch = async () => {
+    assert.fail("Invalid fields must not reach Resend");
+  };
+
+  const response = await POST(
+    request(JSON.stringify(validFields({ email: "invalid" })), {
+      url: "https://deploy-id--digipants.netlify.app/api/contact/",
+      headers: {
+        origin: "https://deploy-preview-25--digipants.netlify.app",
+        "x-forwarded-host": "deploy-preview-25--digipants.netlify.app",
+        "x-forwarded-proto": "https",
+      },
+    }),
+  );
+  assert.equal(response.status, 400);
 });
