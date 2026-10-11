@@ -90,7 +90,7 @@ export default function ContactForm() {
           <span>Budget (optional)</span>
           <input
             name="budget"
-            placeholder="₹1–5L"
+            placeholder="Your approximate budget"
             className={inputClassName}
           />
         </label>
@@ -98,7 +98,7 @@ export default function ContactForm() {
           <span>Timeline (optional)</span>
           <input
             name="timeline"
-            placeholder="4–8 weeks"
+            placeholder="Your preferred timeline"
             className={inputClassName}
           />
         </label>
