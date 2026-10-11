@@ -52,7 +52,7 @@ export default function FounderPage() {
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-zinc-600 dark:text-zinc-400">
               <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4" />Lucknow, India</span>
               <a className="inline-flex items-center gap-2 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:text-emerald-300" href="mailto:support@digipants.com"><Mail className="h-4 w-4" />support@digipants.com</a>
-              <a className="inline-flex items-center gap-2 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:text-emerald-300" href="tel:+919511117747"><Phone className="h-4 w-4" />+91-9511-11-7747</a>
+              <a className="inline-flex items-center gap-2 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:text-emerald-300" href="tel:+917317275160"><Phone className="h-4 w-4" />+91 73172 75160</a>
             </div>
             <div className="mt-6 flex gap-4">
               <a className="rounded-md text-zinc-600 transition hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-300" aria-label="LinkedIn profile" href="https://www.linkedin.com/in/bhupendraprofile/"><Linkedin className="h-5 w-5" /></a>
