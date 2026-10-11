@@ -82,8 +82,8 @@ const HERO_PROJECTS = selectProjects([
 const SERVICE_PILLARS = [
   {
     title: "AI & Automation",
-    href: "/contact-us/",
-    cta: "Discuss AI & automation",
+    href: "/services/ai-software/",
+    cta: "Explore AI engineering",
     description:
       "Practical AI systems that support analysis, decision-making, and repeatable workflows without hiding important judgment behind automation.",
     capabilities: [
@@ -96,8 +96,8 @@ const SERVICE_PILLARS = [
   },
   {
     title: "Custom Software Engineering",
-    href: "/contact-us/",
-    cta: "Discuss custom software",
+    href: "/services/ai-software/",
+    cta: "Explore custom software",
     description:
       "Purpose-built platforms shaped around the product, users, and operating model instead of forcing the work into a generic template.",
     capabilities: [

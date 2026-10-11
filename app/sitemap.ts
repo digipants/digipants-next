@@ -5,6 +5,7 @@ const siteUrl = "https://digipants.com";
 const publicRoutes = [
   "/",
   "/services/",
+  "/services/ai-software/",
   "/services/web-development/",
   "/services/digital-marketing/",
   "/pricing/",
