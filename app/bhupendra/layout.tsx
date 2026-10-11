@@ -14,10 +14,10 @@ export const metadata: Metadata = {
     siteName: "DigiPants",
     images: [
       {
-        url: "/aegisprotection.webp",
-        width: 1920,
-        height: 1038,
-        alt: "AegisProtection digital safety platform by DigiPants",
+        url: "/bhupendra-og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Bhupendra Kumar, founder of DigiPants",
       },
     ],
     locale: "en_IN",
@@ -30,10 +30,10 @@ export const metadata: Metadata = {
       "Meet Bhupendra Kumar, founder of DigiPants, building software, digital products, and growth-focused web experiences.",
     images: [
       {
-        url: "/aegisprotection.webp",
-        width: 1920,
-        height: 1038,
-        alt: "AegisProtection digital safety platform by DigiPants",
+        url: "/bhupendra-og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Bhupendra Kumar, founder of DigiPants",
       },
     ],
   },
