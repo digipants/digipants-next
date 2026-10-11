@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Send } from "lucide-react";
+import { submitContactEnquiry } from "@/lib/contact-enquiry";
 
 const inputClassName =
   "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-400 dark:focus-visible:ring-emerald-400/30";
@@ -26,28 +27,12 @@ export default function ContactForm() {
       ),
     );
 
-    try {
-      const res = await fetch("/api/contact/", {
-        method: "POST",
-        body: JSON.stringify(fields),
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      });
-
-      const result = await res.json().catch(() => null);
-      if (res.ok && result?.message === "Your enquiry has been submitted.") {
-        setStatus("ok");
-        form.reset();
-      } else {
-        setErrMsg(typeof result?.error === "string" ? result.error : "We couldn’t send your enquiry. Please try again.");
-        setStatus("error");
-      }
-    } catch {
-      setErrMsg(
-        "A network issue prevented sending. Please try again or email support@digipants.com."
-      );
+    const result = await submitContactEnquiry(fields);
+    if (result.success) {
+      setStatus("ok");
+      form.reset();
+    } else {
+      setErrMsg(result.error);
       setStatus("error");
     }
   }

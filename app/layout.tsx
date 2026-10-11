@@ -3,6 +3,7 @@ import "./../styles/globals.css";
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import AnalyticsConsent from "@/components/analytics/AnalyticsConsent";
 import { Poppins, Inter } from "next/font/google";
 
 export const metadata: Metadata = {
@@ -99,6 +100,7 @@ export default function RootLayout({
         <Header />
         <main>{children}</main>
         <Footer />
+        <AnalyticsConsent />
       </body>
     </html>
   );
