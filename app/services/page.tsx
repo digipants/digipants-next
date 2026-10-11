@@ -82,6 +82,8 @@ const HERO_PROJECTS = selectProjects([
 const SERVICE_PILLARS = [
   {
     title: "AI & Automation",
+    href: "/contact-us/",
+    cta: "Discuss AI & automation",
     description:
       "Practical AI systems that support analysis, decision-making, and repeatable workflows without hiding important judgment behind automation.",
     capabilities: [
@@ -94,6 +96,8 @@ const SERVICE_PILLARS = [
   },
   {
     title: "Custom Software Engineering",
+    href: "/contact-us/",
+    cta: "Discuss custom software",
     description:
       "Purpose-built platforms shaped around the product, users, and operating model instead of forcing the work into a generic template.",
     capabilities: [
@@ -106,6 +110,8 @@ const SERVICE_PILLARS = [
   },
   {
     title: "Web Development & E-commerce",
+    href: "/services/web-development/",
+    cta: "Explore web development",
     description:
       "Accessible websites and commerce experiences that make discovery, enquiry, ordering, and fulfilment clear across devices.",
     capabilities: [
@@ -118,6 +124,8 @@ const SERVICE_PILLARS = [
   },
   {
     title: "Digital Growth & Performance",
+    href: "/services/digital-marketing/",
+    cta: "Explore digital growth",
     description:
       "Acquisition and measurement systems that connect campaign activity with landing experiences and useful business signals.",
     capabilities: [
@@ -277,7 +285,7 @@ export default function ServicesPage() {
           />
           <div className="mt-10 grid gap-6 lg:grid-cols-2">
             {SERVICE_PILLARS.map(
-              ({ title, description, capabilities, icon: Icon }) => (
+              ({ title, href, cta, description, capabilities, icon: Icon }) => (
                 <article
                   key={title}
                   className="rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8 dark:border-zinc-800 dark:bg-zinc-950"
@@ -299,55 +307,16 @@ export default function ServicesPage() {
                       </li>
                     ))}
                   </ul>
+                  <Link
+                    href={href}
+                    className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 outline-none transition hover:gap-3 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:text-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
+                  >
+                    {cta}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                 </article>
               ),
             )}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 sm:py-20 lg:py-24">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Focused services"
-            title="Explore the established service practices."
-            description="Go deeper into the two dedicated service areas already documented on the DigiPants site."
-          />
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
-            <Link
-              href="/services/web-development/"
-              className="group rounded-2xl border border-zinc-200 p-6 outline-none transition hover:border-emerald-700/30 hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 sm:p-8 dark:border-zinc-800 dark:hover:border-emerald-400/30 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
-            >
-              <Code2 className="h-6 w-6 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
-              <h3 className="mt-6 text-xl font-semibold tracking-tight">
-                Web Development
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                Websites and web applications built around responsive UX,
-                accessibility, integrations, and maintainable delivery.
-              </p>
-              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
-                Explore web development
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" />
-              </span>
-            </Link>
-            <Link
-              href="/services/digital-marketing/"
-              className="group rounded-2xl border border-zinc-200 p-6 outline-none transition hover:border-emerald-700/30 hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 sm:p-8 dark:border-zinc-800 dark:hover:border-emerald-400/30 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
-            >
-              <ChartNoAxesCombined className="h-6 w-6 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
-              <h3 className="mt-6 text-xl font-semibold tracking-tight">
-                Digital Marketing
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                Google Ads, Meta Ads, SEO, CRO, analytics, and reporting shaped
-                into a practical digital growth system.
-              </p>
-              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
-                Explore digital marketing
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" />
-              </span>
-            </Link>
           </div>
         </div>
       </section>
