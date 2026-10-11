@@ -106,12 +106,13 @@ export default function PrivacyPage() {
               role, project details you submit via forms or email.
             </li>
             <li>
-              <strong>Usage data:</strong> pages viewed, referrers, device and
-              browser info, approximate location.
+              <strong>Optional analytics:</strong> page paths, contact-link
+              intent, and successful enquiry events if you accept analytics.
             </li>
             <li>
-              <strong>Cookies/identifiers:</strong> to remember preferences and
-              measure performance.
+              <strong>Cookies/identifiers:</strong> your analytics choice is
+              stored in this browser; Google Analytics may use its own cookies
+              after you accept.
             </li>
           </ul>
 
@@ -124,29 +125,36 @@ export default function PrivacyPage() {
               request.
             </li>
             <li>To operate, secure, and improve our website and offerings.</li>
-            <li>
-              To perform analytics, advertising measurement, and prevent abuse.
-            </li>
+            <li>To measure site use when you have accepted optional analytics.</li>
           </ul>
 
           <h2 id="cookies" className="scroll-mt-24">
             Cookies & tracking
           </h2>
           <p>
-            We use cookies and similar technologies for essential operations,
-            performance measurement, and (where enabled) advertising. You can
-            control cookies in your browser settings. Blocking some cookies may
-            impact site functionality.
+            Essential site functionality works without analytics. Optional
+            Google Analytics is loaded only after you choose “Accept” in the
+            analytics prompt. Choosing “Reject” keeps analytics disabled. Your
+            choice is stored in this browser so it applies on return visits.
+            Open “Privacy settings” at the bottom of any page to change your
+            choice or withdraw consent; withdrawing stops future analytics
+            events and removes this integration’s standard Google Analytics
+            cookies on this site where browser cookie rules allow. Clearing
+            browser storage also removes the saved choice.
           </p>
 
           <h2 id="ads" className="scroll-mt-24">
             Advertising & analytics
           </h2>
           <p>
-            We may use analytics and ad platforms (e.g., Google, Meta) to
-            understand website performance and the effectiveness of our
-            marketing. These platforms may set their own cookies and receive
-            limited pseudonymous data per their policies.
+            If you accept optional analytics, Google Analytics measures page
+            visits, contact-link intent, and successfully submitted enquiries.
+            Analytics events do not include the values entered into the contact
+            form. Google Analytics may also process events enabled in the web
+            stream’s automatic measurement settings. If you reject or later
+            withdraw consent, no further measurement events are sent from this
+            site. Google processes data under its own terms and privacy policy.
+            DigiPants does not use this integration for advertising measurement.
           </p>
 
           <h2 id="sharing" className="scroll-mt-24">
@@ -154,11 +162,11 @@ export default function PrivacyPage() {
           </h2>
           <p>
             We do not sell personal information. We may share information with
-            service providers who process data on our behalf (hosting,
-            analytics, CRM, communications). We require them to safeguard data
-            and use it only per our instructions. We may disclose information to
-            comply with law, protect our rights, or complete a business
-            transfer.
+            service providers who process data on our behalf, including hosting
+            and communications providers. If you accept analytics, Google
+            processes the measurement data under its own terms and privacy
+            policy. We may disclose information to comply with law, protect our
+            rights, or complete a business transfer.
           </p>
 
           <h2 id="retention" className="scroll-mt-24">
