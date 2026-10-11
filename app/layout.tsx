@@ -6,38 +6,34 @@ import Footer from "@/components/layout/Footer";
 import { Poppins, Inter } from "next/font/google";
 
 export const metadata: Metadata = {
-  title: "DigiPants – Growth-Driven Digital Marketing Agency",
+  title: "DigiPants — AI Engineering, Software & Digital Growth",
   description:
-    "DigiPants helps hotels, D2C brands, and service businesses grow faster with performance marketing, CRO, AI automation, and world-class websites.",
+    "DigiPants builds AI-powered platforms, custom software, high-performance websites, e-commerce experiences, and digital growth systems.",
   keywords: [
-    "digital marketing agency",
+    "AI engineering",
+    "custom software development",
+    "web application development",
+    "web development",
+    "e-commerce development",
+    "digital growth",
+    "SEO",
     "performance marketing",
-    "CRO",
-    "conversion optimization",
-    "AI automation",
-    "hotel marketing",
-    "D2C growth",
-    "Shopify marketing",
   ],
   authors: [{ name: "DigiPants Team" }],
   creator: "DigiPants",
   publisher: "DigiPants Network Pvt. Ltd.",
   metadataBase: new URL("https://digipants.com"),
-  alternates: {
-    canonical: "https://digipants.com",
-  },
   openGraph: {
-    title: "DigiPants – Better, Faster Websites. Growth That Compounds.",
+    title: "DigiPants — AI Engineering, Software & Digital Growth",
     description:
-      "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
-    url: "https://digipants.com",
+      "AI-powered platforms, custom software, web and e-commerce experiences, and digital growth systems from DigiPants.",
     siteName: "DigiPants",
     images: [
       {
-        url: "/og.jpg", // make sure this exists in your /public folder
-        width: 1200,
-        height: 630,
-        alt: "DigiPants – Digital Marketing Growth Agency",
+        url: "/aegisprotection.webp",
+        width: 1920,
+        height: 1038,
+        alt: "AegisProtection web application, a DigiPants software project",
       },
     ],
     locale: "en_IN",
@@ -45,11 +41,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "DigiPants – Growth-Driven Digital Marketing Agency",
+    title: "DigiPants — AI Engineering, Software & Digital Growth",
     description:
-      "Performance marketing, CRO, AI automations, and websites for hotels, D2C, and service businesses.",
-    images: ["/og.jpg"], // same as OG image
-    creator: "@digipantstweets", // update if you have a Twitter handle
+      "AI-powered platforms, custom software, web and e-commerce experiences, and digital growth systems.",
+    images: ["/aegisprotection.webp"],
   },
   icons: {
     icon: "/favicon.ico",
