@@ -1,541 +1,122 @@
-"use client";
-import React, { useMemo, useRef } from "react";
-import type { PropsWithChildren } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Github,
-  Linkedin,
-  Mail,
-  Phone,
-  MapPin,
-  Award,
-  Rocket,
-  Briefcase,
-  Sparkles,
-  BookOpen,
-  Send,
-  ExternalLink,
-  Globe,
-} from "lucide-react";
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight, Github, Linkedin, Mail, MapPin, Phone } from "lucide-react";
+import { projects } from "@/lib/data";
 
-const PROFILE = {
-  name: "Bhupendra Kumar",
-  role: "Founder, DigiPants — Growth & Performance Marketing",
-  tagline:
-    "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
-  location: "Lucknow, India",
-  email: "support@digipants.com",
-  phone: "+91-9511-11-7747",
-  socials: {
-    linkedin: "https://www.linkedin.com/in/bhupendraprofile/",
-    github: "https://github.com/digipants",
-    website: "https://digipants.com/bhupendra",
-  },
-  ctaPrimary: "Book a Strategy Call",
-  ctaSecondary: "View Case Studies",
+export const metadata: Metadata = {
+  title: "Bhupendra Kumar — Founder, DigiPants",
+  description:
+    "Meet Bhupendra Kumar, founder of DigiPants, building software, digital products, and growth-focused web experiences.",
+  alternates: { canonical: "https://digipants.com/bhupendra/" },
 };
 
-const SERVICES = [
-  {
-    title: "Performance Marketing",
-    desc: "Google Ads (Search, PMax), Meta Ads, and landing pages engineered for ROI.",
-    icon: <Rocket className="w-5 h-5" />,
-    tags: ["google ads", "pmax", "meta", "cro"],
-  },
-  {
-    title: "AI Agents & Automations",
-    desc: "WhatsApp flows, on‑site assistants, lead routing, CRM workflows, and reporting.",
-    icon: <Sparkles className="w-5 h-5" />,
-    tags: ["whatsapp", "chatbots", "zapier", "make"],
-  },
-  {
-    title: "E‑commerce Growth (Shopify)",
-    desc: "Store setup, product strategy, Klaviyo flows, upsells, subscriptions, LTV.",
-    icon: <Briefcase className="w-5 h-5" />,
-    tags: ["shopify", "klaviyo", "ux", "ltv"],
-  },
-  {
-    title: "Hotel Booking Funnels",
-    desc: "Direct booking strategy: parity pages, PMax+Meta mix, OTA sync, analytics.",
-    icon: <Award className="w-5 h-5" />,
-    tags: ["hotels", "pms", "ota", "meta"],
-  },
-  {
-    title: "SEO & Content Systems",
-    desc: "Compound traffic via content clusters, internal linking, and intent mapping.",
-    icon: <BookOpen className="w-5 h-5" />,
-    tags: ["seo", "content", "clusters", "schema"],
-  },
-  {
-    title: "Analytics & Measurement",
-    desc: "GA4, GTM, server‑side events, conversion APIs, dashboards, and audits.",
-    icon: <Globe className="w-5 h-5" />,
-    tags: ["ga4", "gtm", "ssr", "capi"],
-  },
-];
+const recentProjects = projects.slice(0, 7);
 
-const CASE_STUDIES = [
-  {
-    title: "Upscale Hotel — More Direct, Less OTA",
-    metric: "Direct bookings up",
-    summary:
-      "Rebuilt the funnel with PMax + Meta remarketing, added parity landing pages, and automated cart‑abandon flows.",
-    link: "/work/upscale-hotel",
-    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    title: "PearlyTots — D2C Launch & Scale",
-    metric: "CVR trending ↑",
-    summary:
-      "Shopify launch with Syncee/Zendrop, creative testing, UGC ads, and post‑purchase upsells to improve AOV & LTV.",
-    link: "/work/pearlytots",
-    img: "https://images.unsplash.com/photo-1641911545942-953fb22eab8a?q=80&w=987&auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    title: "quicksquad — AI Support to Cut CAC",
-    metric: "Lower acquisition cost",
-    summary:
-      "Built an AI triage bot and revamped landing UX for clarity and faster resolution; improved trust and lead quality.",
-    link: "/work/quicksquad",
-    img: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
-  },
-  {
-    title: "Zescher — POD Launch & Growth",
-    metric: "360° brand launch",
-    summary:
-      "Sanskrit‑inspired POD brand with automated design‑to‑print workflow and a conversion‑optimized storefront.",
-    link: "/work/zescher",
-    img: "https://images.unsplash.com/photo-1628071711153-d0204a351a6e?q=80&w=2120&auto=format&fit=crop&w=1600&q=80",
-  },
-];
-
-const SKILLS = [
-  "Google Ads (Search, PMax)",
-  "Meta Ads",
-  "SEO & Content Systems",
-  "Shopify & CRO",
-  "AI Agents (WhatsApp, Web)",
-  "Analytics (GA4/GTM/CAPI)",
-];
-
-function Section({ id, children }: PropsWithChildren<{ id: string }>) {
+export default function FounderPage() {
   return (
-    <section id={id} className="scroll-mt-24 py-20 md:py-28">
-      {children}
-    </section>
-  );
-}
-
-function Container({ children }: PropsWithChildren) {
-  return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-      {children}
-    </div>
-  );
-}
-
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-sm shadow-sm ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium border-zinc-200/70 dark:border-zinc-700/60">
-      {children}
-    </span>
-  );
-}
-
-function Button({
-  children,
-  href,
-  onClick,
-  variant = "primary",
-}: {
-  children: React.ReactNode;
-  href?: string;
-  onClick?: () => void;
-  variant?: "primary" | "ghost";
-}) {
-  const base =
-    "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition active:scale-[.98]";
-  const variants: Record<string, string> = {
-    primary:
-      "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm hover:opacity-90",
-    ghost:
-      "bg-transparent text-zinc-900 dark:text-white border border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-50/60 dark:hover:bg-white/5",
-  };
-  const cls = `${base} ${variants[variant]}`;
-  if (href)
-    return (
-      <a href={href} className={cls} onClick={onClick}>
-        {children}
-      </a>
-    );
-  return (
-    <button className={cls} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
-export default function bhupendraPage() {
-  const heroRef = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.98]);
-  const opacity = useTransform(scrollYProgress, [0, 1], [1, 0.5]);
-  const year = useMemo(() => new Date().getFullYear(), []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black text-zinc-900 dark:text-zinc-100 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900">
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -top-24 left-1/2 h-64 w-[40rem] -translate-x-1/2 rounded-full bg-gradient-to-br from-indigo-400/30 via-fuchsia-400/30 to-emerald-400/30 blur-3xl dark:from-indigo-500/10 dark:via-fuchsia-500/10 dark:to-emerald-500/10" />
-      </div>
-      <Section id="home">
-        <Container>
-          <motion.div
-            ref={heroRef}
-            style={{ scale, opacity }}
-            className="grid items-center gap-10 md:grid-cols-2"
-          >
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/60 dark:border-zinc-700/60 px-3 py-1 text-xs mb-5">
-                <Award className="w-4 h-4" /> Available for select consulting in{" "}
-                {year}
-              </div>
-              <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
-                {PROFILE.name}
-              </h1>
-              <p className="mt-3 text-lg md:text-xl text-zinc-700 dark:text-zinc-300">
-                {PROFILE.role}
-              </p>
-              <p className="mt-4 text-zinc-600 dark:text-zinc-400 max-w-prose">
-                {PROFILE.tagline}
-              </p>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <Button href="/contact-us">
-                  {PROFILE.ctaPrimary} <ArrowRight className="w-4 h-4" />
-                </Button>
-                <Button href="/work" variant="ghost">
-                  {PROFILE.ctaSecondary} <ArrowUpRight className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3 text-sm text-zinc-600 dark:text-zinc-400">
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  {PROFILE.location}
-                </span>
-                <a
-                  className="inline-flex items-center gap-1 hover:underline"
-                  href={`mailto:${PROFILE.email}`}
-                >
-                  <Mail className="w-4 h-4" />
-                  {PROFILE.email}
-                </a>
-                <a
-                  className="inline-flex items-center gap-1 hover:underline"
-                  href={`tel:${PROFILE.phone}`}
-                >
-                  <Phone className="w-4 h-4" />
-                  {PROFILE.phone}
-                </a>
-              </div>
-              <div className="mt-6 flex items-center gap-4">
-                <a
-                  className="hover:opacity-70"
-                  aria-label="LinkedIn"
-                  href={PROFILE.socials.linkedin}
-                >
-                  <Linkedin />
-                </a>
-                <a
-                  className="hover:opacity-70"
-                  aria-label="GitHub"
-                  href={PROFILE.socials.github}
-                >
-                  <Github />
-                </a>
-                <a
-                  className="hover:opacity-70"
-                  aria-label="Website"
-                  href={PROFILE.socials.website}
-                >
-                  <Globe />
-                </a>
-              </div>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 -z-10 blur-3xl rounded-full bg-gradient-to-tr from-emerald-400/30 via-indigo-400/30 to-fuchsia-400/30" />
-              <Card className="p-4 md:p-6">
-                <div
-                  className="aspect-[4/5] w-full overflow-hidden rounded-xl bg-[url('https://images.unsplash.com/photo-1544006659-f0b21884ce1d?q=80&w=1200&auto=format&fit=crop')] bg-cover bg-center"
-                  aria-label="Profile visual placeholder"
-                />
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {SKILLS.map((s) => (
-                    <Badge key={s}>{s}</Badge>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          </motion.div>
-        </Container>
-      </Section>
-
-      <Section id="services">
-        <Container>
-          <div className="flex items-end justify-between gap-4 mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Services
-            </h2>
-            <a
-              href="/contact-us"
-              className="text-sm inline-flex items-center gap-1 hover:underline"
-            >
-              Get a custom plan <ArrowUpRight className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {SERVICES.map((srv) => (
-              <motion.div
-                key={srv.title}
-                initial={{ y: 12, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
+    <main className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <section className="border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-8 lg:py-24">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+              Founder, DigiPants
+            </p>
+            <h1 className="mt-4 text-5xl font-bold leading-[0.98] tracking-[-0.045em] text-zinc-950 sm:text-6xl lg:text-7xl dark:text-white">
+              Bhupendra Kumar
+            </h1>
+            <p className="mt-6 text-xl font-semibold tracking-tight text-zinc-800 sm:text-2xl dark:text-zinc-200">
+              Engineering, product building, and digital growth.
+            </p>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
+              My path into product building grew from hands-on work in outdoor
+              advertising, digital marketing, and web development. Today, I
+              bring that mix of communication and technology to practical
+              software and AI products—starting with the problem, building
+              thoughtfully, and keeping people in the loop.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/work/"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                <Card className="p-6 h-full">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
-                      {srv.icon}
-                    </span>
-                    <h3 className="font-semibold">{srv.title}</h3>
-                  </div>
-                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-                    {srv.desc}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {srv.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="text-xs rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </Container>
-      </Section>
-
-      <Section id="work">
-        <Container>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-8">
-            Selected Work
-          </h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            {CASE_STUDIES.map((cs) => (
-              <motion.a
-                key={cs.title}
-                href={cs.link}
-                className="group"
-                initial={{ y: 12, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
+                Explore selected work <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/contact-us/"
+                className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold transition hover:border-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:border-zinc-700 dark:hover:border-zinc-300 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                <Card className="overflow-hidden h-full group">
-                  <div
-                    className="aspect-video bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                    style={{ backgroundImage: `url(${cs.img})` }}
-                  />
-                  <div className="p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold group-hover:underline">
-                        {cs.title}
-                      </h3>
-                      <Badge>{cs.metric}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                      {cs.summary}
-                    </p>
-                    <div className="mt-3 inline-flex items-center gap-1 text-sm opacity-80">
-                      Read more <ExternalLink className="w-4 h-4" />
-                    </div>
-                  </div>
-                </Card>
-              </motion.a>
-            ))}
-          </div>
-        </Container>
-      </Section>
-
-      <Section id="about">
-        <Container>
-          <div className="grid gap-8 md:grid-cols-2">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-                About
-              </h2>
-              <p className="mt-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                I’m a growth‑focused marketer and builder. Over the last few
-                years I’ve helped hotels, D2C brands, and SaaS teams find
-                traction with performance marketing + solid UX. I love turning
-                messy funnels into clean, scalable systems — backed by
-                analytics, automation, and creative testing.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {SKILLS.map((s) => (
-                  <Badge key={s}>{s}</Badge>
-                ))}
-              </div>
+                Get in touch
+              </Link>
             </div>
-            <Card className="p-6">
-              <h3 className="font-semibold flex items-center gap-2">
-                <BookOpen className="w-5 h-5" /> Highlights
-              </h3>
-              <ul className="mt-3 space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
-                <li>
-                  • Built omni‑channel strategy frameworks for hotels and
-                  e‑commerce brands.
-                </li>
-                <li>
-                  • Prototyped AI support agents and WhatsApp journeys that
-                  shorten TAT.
-                </li>
-                <li>
-                  • Set up full analytics pipelines: GTM, GA4, events,
-                  conversions, LTV.
-                </li>
-              </ul>
-            </Card>
-          </div>
-        </Container>
-      </Section>
-
-      <Section id="contact">
-        <Container>
-          <Card className="p-6 md:p-10">
-            <div className="grid gap-8 md:grid-cols-2">
-              <div>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-                  Let’s build something great
-                </h2>
-                <p className="mt-3 text-zinc-600 dark:text-zinc-400">
-                  Tell me about your project. I’ll reply within 24 hours.
-                </p>
-                <div className="mt-6 space-y-3 text-sm">
-                  <div className="inline-flex items-center gap-2">
-                    <Mail className="w-4 h-4" /> {PROFILE.email}
-                  </div>
-                  <div className="inline-flex items-center gap-2">
-                    <Phone className="w-4 h-4" /> {PROFILE.phone}
-                  </div>
-                  <div className="inline-flex items-center gap-2">
-                    <MapPin className="w-4 h-4" /> {PROFILE.location}
-                  </div>
-                </div>
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget as HTMLFormElement);
-                  const subject = encodeURIComponent(
-                    `New inquiry from ${fd.get("name")}`
-                  );
-                  const body = encodeURIComponent(`Project: ${fd.get("project")}
-Budget: ${fd.get("budget")}
-Timeline: ${fd.get("timeline")}
-
-Message:
-${fd.get("message")}
-
-— ${fd.get("name")} (${fd.get("email")})`);
-                  window.location.href = `mailto:${PROFILE.email}?subject=${subject}&body=${body}`;
-                }}
-                className="space-y-4"
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-1 text-sm">
-                    <span>Name</span>
-                    <input
-                      name="name"
-                      required
-                      className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm">
-                    <span>Email</span>
-                    <input
-                      type="email"
-                      name="email"
-                      required
-                      className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                    />
-                  </label>
-                </div>
-                <label className="grid gap-1 text-sm">
-                  <span>Project</span>
-                  <input
-                    name="project"
-                    placeholder="e.g. Shopify growth, hotel bookings, AI support bot"
-                    className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                  />
-                </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-1 text-sm">
-                    <span>Budget</span>
-                    <input
-                      name="budget"
-                      placeholder="₹1–5L"
-                      className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm">
-                    <span>Timeline</span>
-                    <input
-                      name="timeline"
-                      placeholder="4–8 weeks"
-                      className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                    />
-                  </label>
-                </div>
-                <label className="grid gap-1 text-sm">
-                  <span>Message</span>
-                  <textarea
-                    name="message"
-                    rows={4}
-                    className="rounded-xl border border-zinc-300/70 dark:border-zinc-700/60 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white"
-                  />
-                </label>
-                <Button>
-                  Send <Send className="w-4 h-4" />
-                </Button>
-              </form>
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-zinc-600 dark:text-zinc-400">
+              <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4" />Lucknow, India</span>
+              <a className="inline-flex items-center gap-2 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:text-emerald-300" href="mailto:support@digipants.com"><Mail className="h-4 w-4" />support@digipants.com</a>
+              <a className="inline-flex items-center gap-2 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:text-emerald-300" href="tel:+919511117747"><Phone className="h-4 w-4" />+91-9511-11-7747</a>
             </div>
-          </Card>
-        </Container>
-      </Section>
-    </div>
+            <div className="mt-6 flex gap-4">
+              <a className="rounded-md text-zinc-600 transition hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-300" aria-label="LinkedIn profile" href="https://www.linkedin.com/in/bhupendraprofile/"><Linkedin className="h-5 w-5" /></a>
+              <a className="rounded-md text-zinc-600 transition hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-300" aria-label="DigiPants on GitHub" href="https://github.com/digipants"><Github className="h-5 w-5" /></a>
+              <a className="rounded-md text-zinc-600 transition hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-300" aria-label="DigiPants website" href="https://digipants.com/"><ArrowUpRight className="h-5 w-5" /></a>
+            </div>
+          </div>
+
+          <div className="relative flex min-h-72 items-end overflow-hidden rounded-3xl bg-zinc-950 p-7 text-white sm:min-h-96 sm:p-10 dark:bg-zinc-900">
+            <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/30 via-zinc-900 to-zinc-950 dark:via-zinc-900 dark:to-zinc-950" />
+            <div aria-hidden="true" className="absolute right-[-4rem] top-[-5rem] h-64 w-64 rounded-full border border-emerald-300/20 sm:h-80 sm:w-80" />
+            <div aria-hidden="true" className="absolute right-[-1rem] top-[-2rem] h-48 w-48 rounded-full border border-emerald-300/20 sm:h-64 sm:w-64" />
+            <div className="relative max-w-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">DigiPants</p>
+              <p className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Turning ideas into useful digital products.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 sm:py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">Selected work</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">A cross-section of DigiPants projects.</h2>
+              <p className="mt-4 text-base leading-7 text-zinc-600 dark:text-zinc-400">Product and web work across digital safety, research, food, education, commerce, and intelligence.</p>
+            </div>
+            <Link className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-zinc-900 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-zinc-100 dark:hover:text-emerald-300" href="/work/">View complete portfolio <ArrowRight className="h-4 w-4" /></Link>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {recentProjects.map((project) => {
+              const card = (
+                <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-emerald-700/30 hover:shadow-xl hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-400/30 dark:hover:shadow-black/20">
+                  <div className="relative aspect-[16/10] overflow-hidden border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950">
+                    <Image src={project.img} alt={`${project.title} project`} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" style={{ objectPosition: project.imagePosition }} className="object-cover transition duration-500 group-hover:scale-[1.025] motion-reduce:transition-none" />
+                  </div>
+                  <div className="flex flex-1 flex-col p-5 sm:p-6">
+                    <span className="w-fit rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">{project.tag}</span>
+                    <h3 className="mt-4 text-lg font-semibold leading-snug tracking-tight text-zinc-950 dark:text-white">{project.title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{project.summary}</p>
+                    <span className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{project.caseStudy ? "View case study" : "Portfolio project"}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" /></span>
+                  </div>
+                </article>
+              );
+
+              return project.caseStudy ? (
+                <Link key={project.slug} href={`/work/${project.slug}/`} className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950">{card}</Link>
+              ) : <div key={project.slug}>{card}</div>;
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-zinc-200 py-14 dark:border-zinc-800 sm:py-16">
+        <div className="mx-auto flex w-full max-w-7xl flex-col justify-between gap-6 px-4 sm:px-6 md:flex-row md:items-center lg:px-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">Connect</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">Have a product or digital project in mind?</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">Contact DigiPants to start a conversation.</p>
+          </div>
+          <Link href="/contact-us/" className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950">Start a project <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      </section>
+    </main>
   );
 }

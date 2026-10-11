@@ -16,6 +16,7 @@ const NAV = [
   { id: "home", label: "Home", href: "/" },
   { id: "services", label: "Services", href: "/services/" },
   { id: "work", label: "Work", href: "/work/" },
+  { id: "founder", label: "Founder", href: "/bhupendra/" },
   { id: "pricing", label: "Pricing", href: "/pricing/" },
 ];
 
@@ -102,14 +103,14 @@ export default function Page() {
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
             DigiPants
           </a>
-          <nav className="hidden md:flex items-center gap-6">
+          <nav aria-label="Main navigation" className="hidden md:flex items-center gap-6">
             {NAV.map((n) => {
               let href = `/${n.id}`;
               return (
                 <a
                   key={n.id}
                   href={n.href}
-                  className="text-sm font-medium hover:opacity-70"
+                  className="rounded-sm text-sm font-medium hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:focus-visible:ring-emerald-400"
                 >
                   {n.label}
                 </a>
@@ -149,9 +150,11 @@ export default function Page() {
               )}
             </Button>
             <button
-              className="p-2"
+              className="rounded-xl p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:focus-visible:ring-emerald-400"
               onClick={() => setMenuOpen((s) => !s)}
               aria-label="Toggle menu"
+              aria-expanded={menuOpen}
+              aria-controls="mobile-navigation"
             >
               {menuOpen ? (
                 <X className="w-6 h-6" />
@@ -162,12 +165,12 @@ export default function Page() {
           </div>
         </div>
         {menuOpen && (
-          <div className="md:hidden pb-4 flex flex-col gap-2">
+          <nav id="mobile-navigation" aria-label="Mobile navigation" className="md:hidden pb-4 flex flex-col gap-2">
             {NAV.map((n) => (
               <a
                 key={n.id}
                 href={n.href}
-                className="py-2"
+                className="flex min-h-11 items-center rounded-lg px-2 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:bg-zinc-800 dark:focus-visible:ring-emerald-400"
                 onClick={() => setMenuOpen(false)}
               >
                 {n.label}
@@ -175,12 +178,12 @@ export default function Page() {
             ))}
             <a
               href="/contact-us"
-              className="py-2"
+              className="flex min-h-11 items-center rounded-lg px-2 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:hover:bg-zinc-800 dark:focus-visible:ring-emerald-400"
               onClick={() => setMenuOpen(false)}
             >
               Contact
             </a>
-          </div>
+          </nav>
         )}
       </Container>
     </header>

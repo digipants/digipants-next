@@ -5,14 +5,21 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://digipants.com"),
   title: "Bhupendra Kumar — Founder, DigiPants",
   description:
-    "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
+    "Meet Bhupendra Kumar, founder of DigiPants, building software, digital products, and growth-focused web experiences.",
   openGraph: {
     title: "Bhupendra Kumar — Founder, DigiPants",
     description:
-      "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
-    url: "/",
+      "Meet Bhupendra Kumar, founder of DigiPants, building software, digital products, and growth-focused web experiences.",
+    url: "/bhupendra/",
     siteName: "DigiPants",
-    images: [{ url: "/bhupendra/og.jpg", width: 1200, height: 630 }],
+    images: [
+      {
+        url: "/aegisprotection.webp",
+        width: 1920,
+        height: 1038,
+        alt: "AegisProtection digital safety platform by DigiPants",
+      },
+    ],
     locale: "en_IN",
     type: "website",
   },
@@ -20,8 +27,15 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Bhupendra Kumar — Founder, DigiPants",
     description:
-      "Driving revenue with Google/Meta Ads, CRO, and AI automations for hotels, D2C brands, and service businesses.",
-    images: ["/bhupendra/og.jpg"],
+      "Meet Bhupendra Kumar, founder of DigiPants, building software, digital products, and growth-focused web experiences.",
+    images: [
+      {
+        url: "/aegisprotection.webp",
+        width: 1920,
+        height: 1038,
+        alt: "AegisProtection digital safety platform by DigiPants",
+      },
+    ],
   },
 };
 
