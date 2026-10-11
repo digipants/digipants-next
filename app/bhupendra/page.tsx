@@ -61,14 +61,16 @@ export default function FounderPage() {
             </div>
           </div>
 
-          <div className="relative flex min-h-72 items-end overflow-hidden rounded-3xl bg-zinc-950 p-7 text-white sm:min-h-96 sm:p-10 dark:bg-zinc-900">
-            <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/30 via-zinc-900 to-zinc-950 dark:via-zinc-900 dark:to-zinc-950" />
-            <div aria-hidden="true" className="absolute right-[-4rem] top-[-5rem] h-64 w-64 rounded-full border border-emerald-300/20 sm:h-80 sm:w-80" />
-            <div aria-hidden="true" className="absolute right-[-1rem] top-[-2rem] h-48 w-48 rounded-full border border-emerald-300/20 sm:h-64 sm:w-64" />
-            <div className="relative max-w-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">DigiPants</p>
-              <p className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Turning ideas into useful digital products.</p>
-            </div>
+          <div className="relative mx-auto aspect-[5/6] w-full max-w-[480px] overflow-hidden rounded-3xl bg-zinc-100 shadow-xl shadow-zinc-900/10 ring-1 ring-zinc-900/10 dark:bg-zinc-900 dark:ring-white/10 lg:ml-auto">
+            <Image
+              src="/founder-bhupendra.webp"
+              alt="Portrait of Bhupendra Kumar, founder of DigiPants"
+              fill
+              priority
+              sizes="(min-width: 1024px) 40vw, (min-width: 640px) 60vw, 100vw"
+              style={{ objectPosition: "center 32%" }}
+              className="object-cover"
+            />
           </div>
         </div>
       </section>
