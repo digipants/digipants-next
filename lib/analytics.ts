@@ -12,7 +12,7 @@ let lastTrackedPath: string | null = null;
 
 declare global {
   interface Window {
-    dataLayer?: unknown[][];
+    dataLayer?: Array<IArguments | Record<string, unknown>>;
     gtag?: (...args: unknown[]) => void;
     [key: `ga-disable-${string}`]: boolean | undefined;
   }
@@ -43,7 +43,9 @@ function initializeAnalytics() {
 
   if (!window.gtag) {
     window.dataLayer = window.dataLayer || [];
-    window.gtag = (...args: unknown[]) => window.dataLayer?.push(args);
+    window.gtag = function () {
+      window.dataLayer?.push(arguments);
+    };
     window.gtag("js", new Date());
     window.gtag("config", ANALYTICS_MEASUREMENT_ID, {
       send_page_view: false,
