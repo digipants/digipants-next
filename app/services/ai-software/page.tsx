@@ -190,9 +190,8 @@ export default function AiSoftwarePage() {
             <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
               For established businesses and digital agencies worldwide, we
               build production web applications, APIs, integrations, and
-              practical AI automation from India. Our email-first process
-              documents requirements, milestone updates, and approvals by
-              email; an introductory call is optional.
+              practical AI automation from India. We review your requirements,
+              shape a tailored proposal, and agree on a clear delivery scope.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -210,7 +209,7 @@ export default function AiSoftwarePage() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Looking for a written-first engineering partner?{" "}
+              Planning a broader engineering engagement?{" "}
               <Link
                 href="/engineering-partners/"
                 className="font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-emerald-300 dark:focus-visible:ring-emerald-400"

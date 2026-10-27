@@ -191,9 +191,8 @@ export default function Page() {
               </Link>
             </div>
             <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              Email-first, async-first delivery: requirements, milestone
-              updates, and approvals are documented by email. An introductory
-              call is optional.
+              We shape each engagement around your requirements, agree clear
+              milestones, and share progress as the work moves forward.
             </p>
           </div>
 
