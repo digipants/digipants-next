@@ -93,10 +93,10 @@ const CAPABILITIES = [
 ];
 
 const PROCESS = [
-  { icon: FileText, title: "Send a written brief", description: "Share the product, workflow, goals, and constraints through the existing enquiry form." },
-  { icon: Layers3, title: "Scope assessment", description: "We review the requirements and follow up by email if anything needs clarification." },
-  { icon: Mail, title: "Tailored proposal", description: "Receive a written proposal setting out the suggested scope and next steps." },
-  { icon: Workflow, title: "Documented milestones", description: "Requirements, progress updates, reviews, and approvals stay in writing." },
+  { icon: FileText, title: "Share your project brief", description: "Tell us about the product, workflow, goals, and constraints." },
+  { icon: Layers3, title: "Review the scope", description: "We assess the requirements and clarify the details needed to shape a proposal." },
+  { icon: Mail, title: "Get a tailored proposal", description: "Review a suggested scope and the next steps for your project." },
+  { icon: Workflow, title: "Agree on milestones", description: "Set delivery milestones, review progress, and confirm approvals as work moves forward." },
 ];
 
 const FEATURED_SLUGS = ["aegisprotection", "aegistrade", "reputationdesk"];
@@ -169,8 +169,8 @@ export default function EngineeringPartnersPage() {
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
               DigiPants builds production web applications, APIs and
               integrations, and practical AI-enabled workflows for established
-              businesses and digital agencies. We work from India with written,
-              email-first delivery.
+              businesses and digital agencies. Based in India, we partner with
+              teams to shape requirements into clearly scoped engineering work.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -186,9 +186,6 @@ export default function EngineeringPartnersPage() {
                 See engineering work
               </Link>
             </div>
-            <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              No introductory call is required. Start with a written brief; we&apos;ll follow up by email.
-            </p>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -252,9 +249,9 @@ export default function EngineeringPartnersPage() {
         <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
           <div className="max-w-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">How we work</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">Written-first from brief to milestones.</h2>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">A clear path from brief to delivery.</h2>
             <p className="mt-4 text-base leading-7 text-zinc-600 dark:text-zinc-400">
-              Share your goals and constraints once. Scope, proposal, progress, and approvals are handled through clear written updates by email. No introductory call is needed.
+              Share your goals and constraints. We review the scope, prepare a tailored proposal, and agree on milestones before work begins.
             </p>
           </div>
           <ol className="grid gap-3 sm:grid-cols-2">
@@ -275,9 +272,9 @@ export default function EngineeringPartnersPage() {
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col justify-between gap-6 rounded-3xl bg-zinc-950 px-6 py-8 text-white sm:px-10 sm:py-10 lg:flex-row lg:items-center lg:px-12 dark:bg-zinc-900 dark:ring-1 dark:ring-zinc-800">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Start in writing</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Next steps</p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Have a build in mind?</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">Send the brief. We&apos;ll review the scope and reply by email.</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Share your goals and we&apos;ll review the scope and suggest next steps.</p>
           </div>
           <Link href="/contact-us/" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-4 focus-visible:ring-offset-zinc-950">
             Send your project brief <ArrowRight className="h-4 w-4" aria-hidden="true" />
