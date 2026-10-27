@@ -7,9 +7,9 @@ import AnalyticsConsent from "@/components/analytics/AnalyticsConsent";
 import { Poppins, Inter } from "next/font/google";
 
 export const metadata: Metadata = {
-  title: "DigiPants — AI Engineering, Software & Digital Growth",
+  title: "DigiPants — AI Engineering & Software Partner from India",
   description:
-    "DigiPants builds AI-powered platforms, custom software, high-performance websites, e-commerce experiences, and digital growth systems.",
+    "India-based AI engineering and software for established businesses and digital agencies worldwide: web applications, APIs, integrations, and practical automation.",
   keywords: [
     "AI engineering",
     "custom software development",
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
   publisher: "DigiPants Network Pvt. Ltd.",
   metadataBase: new URL("https://digipants.com"),
   openGraph: {
-    title: "DigiPants — AI Engineering, Software & Digital Growth",
+    title: "DigiPants — AI Engineering & Software Partner from India",
     description:
-      "AI-powered platforms, custom software, web and e-commerce experiences, and digital growth systems from DigiPants.",
+      "India-based AI engineering and software for established businesses and digital agencies worldwide.",
     siteName: "DigiPants",
     images: [
       {
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "DigiPants — AI Engineering, Software & Digital Growth",
+    title: "DigiPants — AI Engineering & Software Partner from India",
     description:
-      "AI-powered platforms, custom software, web and e-commerce experiences, and digital growth systems.",
+      "AI engineering and software for established businesses and digital agencies worldwide.",
     images: ["/aegisprotection.webp"],
   },
   icons: {
