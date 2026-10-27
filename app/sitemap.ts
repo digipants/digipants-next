@@ -6,6 +6,7 @@ const publicRoutes = [
   "/",
   "/services/",
   "/services/ai-software/",
+  "/engineering-partners/",
   "/services/web-development/",
   "/services/digital-marketing/",
   "/pricing/",
