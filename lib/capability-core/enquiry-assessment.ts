@@ -189,8 +189,8 @@ export function validateEnquiryInput(input: unknown): EnquiryValidationResult {
 function classifyEnquiry(input: EnquiryInput): EnquiryClassification {
   const searchableText = `${input.project ?? ""}\n${input.message}`.toLowerCase();
 
-  // Precedence is intentional: support, then partnership, then project.
-  if (/\b(?:support|help|bug|issue|technical)\b/.test(searchableText)) {
+  // Precedence is intentional: explicit support/bug/issue terms, then partnership, then project.
+  if (/\b(?:support|bug|issue)\b/.test(searchableText)) {
     return {
       category: "support",
       ruleSetVersion: ENQUIRY_CLASSIFICATION_RULESET_VERSION,

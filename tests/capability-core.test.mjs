@@ -206,6 +206,26 @@ test("applies documented classification precedence and the other fallback", () =
   assert.equal(other.classification.reason, "no_matching_keyword");
 });
 
+test("keeps generic help and technical wording out of support classification", () => {
+  const websiteHelp = assessEnquiry(validInput({
+    project: "Website development",
+    message: "Can you help us build a website?",
+  }));
+  assert.equal(websiteHelp.classification.category, "project");
+
+  const technicalPartnership = assessEnquiry(validInput({
+    project: "Engineering partnership",
+    message: "We are looking for a technical partnership.",
+  }));
+  assert.equal(technicalPartnership.classification.category, "partnership");
+
+  const technicalSupport = assessEnquiry(validInput({
+    message: "I need technical support with an existing app.",
+  }));
+  assert.equal(technicalSupport.classification.category, "support");
+  assert.equal(technicalSupport.classification.reason, "support_keyword");
+});
+
 test("returns stable assessments for the same input", () => {
   const input = validInput({ project: "website", budget: "Flexible" });
   const first = assessEnquiry(input);
