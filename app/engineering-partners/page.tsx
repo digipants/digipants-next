@@ -146,7 +146,7 @@ export default function EngineeringPartnersPage() {
   const featuredProjects = getFeaturedProjects();
 
   return (
-    <main className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <JsonLd data={STRUCTURED_DATA} />
 
       <nav className="mx-auto w-full max-w-7xl px-4 pt-6 text-sm text-zinc-500 sm:px-6 lg:px-8" aria-label="Breadcrumb">
@@ -248,7 +248,7 @@ export default function EngineeringPartnersPage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 md:py-18 lg:px-8">
+      <section className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 md:py-20 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
           <div className="max-w-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">How we work</p>
@@ -284,6 +284,6 @@ export default function EngineeringPartnersPage() {
           </Link>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

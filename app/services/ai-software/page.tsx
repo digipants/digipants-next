@@ -209,6 +209,15 @@ export default function AiSoftwarePage() {
                 Explore selected projects
               </Link>
             </div>
+            <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+              Looking for a written-first engineering partner?{" "}
+              <Link
+                href="/engineering-partners/"
+                className="font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-emerald-300 dark:focus-visible:ring-emerald-400"
+              >
+                See our engineering partner approach.
+              </Link>
+            </p>
           </div>
           <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="relative aspect-[16/10] overflow-hidden rounded-xl">
