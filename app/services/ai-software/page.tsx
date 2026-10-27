@@ -5,9 +5,9 @@ import { Activity, ArrowRight, Bot, Code2, Eye, Layers3, Workflow } from "lucide
 import JsonLd from "@/components/seo/JsonLd";
 import { projects, type Project } from "@/lib/data";
 
-const pageTitle = "AI Engineering & Custom Software | DigiPants";
+const pageTitle = "AI Engineering & Custom Software Partner | DigiPants";
 const pageDescription =
-  "Design and build AI-assisted products, workflow applications, monitoring tools, and custom software around real user and operating needs.";
+  "India-based AI engineering for established businesses and agencies worldwide: production web apps, APIs, integrations, and practical automation.";
 const canonicalUrl = "https://digipants.com/services/ai-software/";
 const socialImage = "https://digipants.com/aegisprotection.webp";
 
@@ -188,9 +188,11 @@ export default function AiSoftwarePage() {
               AI systems and software, shaped around real work.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
-              DigiPants designs AI-assisted products and purpose-built software
-              for analysis, monitoring, and operational workflows—with clear
-              system boundaries and human review where it matters.
+              For established businesses and digital agencies worldwide, we
+              build production web applications, APIs, integrations, and
+              practical AI automation from India. Our email-first process
+              documents requirements, milestone updates, and approvals by
+              email; an introductory call is optional.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link

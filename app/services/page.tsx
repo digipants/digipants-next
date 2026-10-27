@@ -18,12 +18,12 @@ import { projects, type Project } from "@/lib/data";
 export const metadata: Metadata = {
   title: "Services — AI Engineering, Software & Digital Growth | DigiPants",
   description:
-    "AI and automation, custom software engineering, web and e-commerce development, and digital growth services from DigiPants.",
+    "India-based AI, software, web, e-commerce, and growth services for established businesses and agencies worldwide.",
   alternates: { canonical: "https://digipants.com/services/" },
   openGraph: {
     title: "Services — AI Engineering, Software & Digital Growth | DigiPants",
     description:
-      "Focused engineering and growth services for AI products, custom software, websites, e-commerce, and digital performance.",
+      "India-based engineering and growth services for established businesses and digital agencies worldwide.",
     url: "https://digipants.com/services/",
     siteName: "DigiPants",
     type: "website",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Services — AI Engineering, Software & Digital Growth | DigiPants",
     description:
-      "AI, custom software, web and e-commerce, and digital growth services.",
+      "AI, custom software, web, e-commerce, and digital growth services for businesses and agencies worldwide.",
     images: [
       "https://digipants.com/aegisprotection.webp",
     ],
@@ -85,7 +85,7 @@ const SERVICE_PILLARS = [
     href: "/services/ai-software/",
     cta: "Explore AI engineering",
     description:
-      "Practical AI systems that support analysis, decision-making, and repeatable workflows without hiding important judgment behind automation.",
+      "AI-assisted analysis, monitoring, and practical automation designed around business workflows, with human review where it matters.",
     capabilities: [
       "AI-assisted analysis and scoring",
       "Human-review workflows",
@@ -97,9 +97,9 @@ const SERVICE_PILLARS = [
   {
     title: "Custom Software Engineering",
     href: "/services/ai-software/",
-    cta: "Explore custom software",
+    cta: "Explore software engineering",
     description:
-      "Purpose-built platforms shaped around the product, users, and operating model instead of forcing the work into a generic template.",
+      "Production web applications, APIs, and integrations designed around established businesses’ workflows and operating constraints.",
     capabilities: [
       "Product and technical architecture",
       "Dashboards and workflow applications",
@@ -212,16 +212,16 @@ export default function ServicesPage() {
               Build the right product. Grow it with intent.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
-              DigiPants brings product thinking, software engineering, digital
-              experience, and growth expertise together around one clear
-              objective: creating useful technology for real business needs.
+              From India, DigiPants offers product engineering, web, and
+              digital growth services to established businesses and agencies
+              worldwide.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/contact-us/"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                Start a Project <ArrowRight className="h-4 w-4" />
+                Discuss a project <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/work/"

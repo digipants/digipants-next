@@ -15,9 +15,9 @@ import {
 import { projects, type Project } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: "DigiPants — AI Engineering, Software & Digital Growth",
+  title: "AI Engineering & Software Partner from India | DigiPants",
   description:
-    "DigiPants builds AI-powered platforms, custom software, high-performance websites, e-commerce experiences, and digital growth systems.",
+    "India-based AI engineering for established businesses and digital agencies worldwide: production web apps, APIs, integrations, and practical automation.",
   alternates: { canonical: "https://digipants.com/" },
 };
 
@@ -163,33 +163,38 @@ export default function Page() {
           <div className="max-w-2xl lg:pt-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-              AI, software, web & growth
+              India-based engineering
             </div>
             <h1 className="mt-6 text-5xl font-bold leading-[0.98] tracking-[-0.045em] text-zinc-950 sm:text-6xl lg:text-7xl dark:text-white">
-              We Build What&apos;s Next.
+              AI engineering for established businesses.
             </h1>
             <p className="mt-6 text-lg font-semibold tracking-tight text-zinc-800 sm:text-xl dark:text-zinc-200">
-              Intelligent Technology. Real Business Growth.
+              Production software, APIs, integrations, and practical automation.
             </p>
             <p className="mt-4 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-400">
-              From AI-powered platforms and custom software to high-performance
-              websites and digital growth systems, we turn ambitious ideas into
-              products that work.
+              DigiPants partners with established businesses and digital
+              agencies worldwide, working from India to build web applications,
+              APIs and integrations, and practical business automation.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/work/"
+                href="/contact-us/"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                Explore Our Work <ArrowRight className="h-4 w-4" />
+                Discuss a project <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/contact-us/"
+                href="/work/"
                 className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold transition hover:border-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4 dark:border-zinc-700 dark:hover:border-zinc-300 dark:hover:bg-zinc-900 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-zinc-950"
               >
-                Start a Project
+                View case studies
               </Link>
             </div>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              Email-first, async-first delivery: requirements, milestone
+              updates, and approvals are documented by email. An introductory
+              call is optional.
+            </p>
           </div>
 
           {aegisProtection && aegisTrade && reputationDesk && (
