@@ -110,27 +110,72 @@ function knownRole(value: unknown): value is WorkspaceRole {
 
 /** Internal diagnostic reasons must never be exposed to untrusted clients. */
 function evaluateWorkspaceAccessUnchecked(input: unknown): WorkspaceAccessDecision {
-  if (!isRecord(input) || !isRecord(input.actor)) return { allowed: false, reason: "invalid_context" };
-  const actor = input.actor;
-  if (!validId(actor.userId) || actor.authenticated !== true || actor.status !== "active") {
+  if (!isRecord(input)) return { allowed: false, reason: "invalid_context" };
+
+  // Read each untrusted top-level property once. All checks below operate on
+  // these captured values, so accessors cannot swap identities or permissions
+  // between validation and authorization.
+  const actorInput = input.actor;
+  const grantsInput = input.grants;
+  const resourceInput = input.resource;
+  const action = input.action;
+  if (!isRecord(actorInput)) return { allowed: false, reason: "invalid_context" };
+
+  // Snapshot each actor field before validating it. In particular, don't
+  // validate a getter result and then read it again while matching a grant.
+  const actorUserId = actorInput.userId;
+  const actorAuthenticated = actorInput.authenticated;
+  const actorStatus = actorInput.status;
+  if (!validId(actorUserId) || actorAuthenticated !== true || actorStatus !== "active") {
     return { allowed: false, reason: "unauthenticated" };
   }
-  if (!Array.isArray(input.grants) || !isRecord(input.resource) || !knownAction(input.action)) {
+  if (!Array.isArray(grantsInput) || !isRecord(resourceInput) || !knownAction(action)) {
     return { allowed: false, reason: "invalid_context" };
   }
-  const resource = input.resource;
-  if (!validId(resource.tenantId) || !validId(resource.projectId) ||
-      (resource.publication !== "published" && resource.publication !== "unpublished")) {
+
+  const resourceTenantId = resourceInput.tenantId;
+  const resourceProjectId = resourceInput.projectId;
+  const resourcePublication = resourceInput.publication;
+  if (!validId(resourceTenantId) || !validId(resourceProjectId) ||
+      (resourcePublication !== "published" && resourcePublication !== "unpublished")) {
     return { allowed: false, reason: "invalid_context" };
   }
-  if (REQUIRES_PUBLICATION.has(input.action) && resource.publication !== "published") {
+  if (REQUIRES_PUBLICATION.has(action) && resourcePublication !== "published") {
     return { allowed: false, reason: "not_published" };
   }
-  const permitted = input.grants.some((grant: unknown) =>
-    isRecord(grant) && grant.status === "active" && knownRole(grant.role) &&
+
+  // Array and record accessors are untrusted too. Copy each slot and each
+  // grant field exactly once before evaluating permissions.
+  const grantCount = grantsInput.length;
+  if (!Number.isSafeInteger(grantCount) || grantCount < 0 || grantCount > 0xffff_ffff) {
+    return { allowed: false, reason: "invalid_context" };
+  }
+  const grantSnapshots: Array<{
+    userId: unknown;
+    tenantId: unknown;
+    projectId: unknown;
+    role: unknown;
+    status: unknown;
+  } | null> = [];
+  for (let index = 0; index < grantCount; index += 1) {
+    const grant = grantsInput[index] as unknown;
+    if (!isRecord(grant)) {
+      grantSnapshots.push(null);
+      continue;
+    }
+    const userId = grant.userId;
+    const tenantId = grant.tenantId;
+    const projectId = grant.projectId;
+    const role = grant.role;
+    const status = grant.status;
+    grantSnapshots.push({ userId, tenantId, projectId, role, status });
+  }
+
+  const permitted = grantSnapshots.some(grant =>
+    grant !== null && grant.status === "active" && knownRole(grant.role) &&
     validId(grant.userId) && validId(grant.tenantId) && validId(grant.projectId) &&
-    grant.userId === actor.userId && grant.tenantId === resource.tenantId &&
-    grant.projectId === resource.projectId && ROLE_ACTIONS[grant.role].includes(input.action as WorkspaceAction));
+    grant.userId === actorUserId && grant.tenantId === resourceTenantId &&
+    grant.projectId === resourceProjectId && ROLE_ACTIONS[grant.role].includes(action));
   return permitted ? { allowed: true, reason: "explicit_project_grant" } : { allowed: false, reason: "not_permitted" };
 }
 

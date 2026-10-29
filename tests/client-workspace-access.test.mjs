@@ -104,6 +104,59 @@ test('throwing accessors and proxies fail closed without escaping',()=>{
   const revokedProxy=Proxy.revocable({},{});revokedProxy.revoke();
   denied(evaluate(revokedProxy.proxy));
 });
+test('changing action getter cannot switch from a validated action to an authorized one',()=>{
+  let reads=0;
+  const input={actor,resource,grants:[grant('workspace_owner')],get action(){
+    reads+=1;
+    return reads===1?'project.read_published':'project.activate';
+  }};
+  denied(evaluate(input));
+  assert.equal(reads,1);
+});
+test('changing actor identity getter cannot switch to a granted user',()=>{
+  let reads=0;
+  const changingActor={get userId(){reads+=1;return reads===1?'user-2':'user-1'},authenticated:true,status:'active'};
+  denied(evaluate({actor:changingActor,resource,action:'project.read_published',grants:[grant('client_viewer')]}));
+  assert.equal(reads,1);
+});
+test('changing grant role getter cannot switch to a role allowed for the action',()=>{
+  let reads=0;
+  const changingGrant={...grant('delivery_staff'),get role(){reads+=1;return reads===1?'delivery_staff':'client_viewer'}};
+  denied(evaluate({actor,resource,action:'project.read_published',grants:[changingGrant]}));
+  assert.equal(reads,1);
+});
+test('changing actor, resource or grants references are captured only once',()=>{
+  let actorReads=0;
+  const changingActorInput={get actor(){actorReads+=1;return actorReads===1?{...actor,userId:'user-2'}:actor},
+    resource,action:'project.read_published',grants:[grant('client_viewer')]};
+  denied(evaluate(changingActorInput));
+  assert.equal(actorReads,1);
+
+  let resourceReads=0;
+  const changingResourceInput={actor,get resource(){resourceReads+=1;return resourceReads===1?{...resource,tenantId:'client-b'}:resource},
+    action:'project.read_published',grants:[grant('client_viewer')]};
+  denied(evaluate(changingResourceInput));
+  assert.equal(resourceReads,1);
+
+  let grantsReads=0;
+  const changingGrantsInput={actor,resource,action:'project.read_published',get grants(){
+    grantsReads+=1;
+    return grantsReads===1?[grant('client_viewer',{status:'revoked'})]:[grant('client_viewer')];
+  }};
+  denied(evaluate(changingGrantsInput));
+  assert.equal(grantsReads,1);
+});
+test('changing resource and grant identity fields cannot switch to the granted project',()=>{
+  let resourceTenantReads=0;
+  const changingResource={...resource,get tenantId(){resourceTenantReads+=1;return resourceTenantReads===1?'client-b':'client-a'}};
+  denied(evaluate({actor,resource:changingResource,action:'project.read_published',grants:[grant('client_viewer')]}));
+  assert.equal(resourceTenantReads,1);
+
+  let grantUserReads=0;
+  const changingGrant={...grant('client_viewer'),get userId(){grantUserReads+=1;return grantUserReads===1?'user-2':'user-1'}};
+  denied(evaluate({actor,resource,action:'project.read_published',grants:[changingGrant]}));
+  assert.equal(grantUserReads,1);
+});
 test('policy returns no object data when denied',()=>{
   const decision=check('project.read_published','client_viewer',{resource:{...resource,tenantId:'another-org'}});
   assert.deepEqual(Object.keys(decision).sort(),['allowed','reason']);
