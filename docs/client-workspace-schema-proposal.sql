@@ -120,13 +120,16 @@ CREATE TABLE workspace_invitation_records (
         CHECK (status IN ('pending','redeemed','revoked','expired')),
     issued_by_staff_id uuid NOT NULL
         REFERENCES workspace_staff_memberships(principal_id) ON DELETE RESTRICT,
-    redeemed_by_client_id uuid
-        REFERENCES workspace_principals(id) ON DELETE RESTRICT,
+    redeemed_by_client_id uuid,
+    redeemed_principal_kind text NOT NULL DEFAULT 'client'
+        CHECK (redeemed_principal_kind = 'client'),
     expires_at timestamptz NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     redeemed_at timestamptz,
     FOREIGN KEY (tenant_id, project_id)
         REFERENCES workspace_projects(tenant_id, id) ON DELETE RESTRICT,
+    FOREIGN KEY (redeemed_by_client_id, redeemed_principal_kind)
+        REFERENCES workspace_principals(id, kind) ON DELETE RESTRICT,
     CHECK ((status = 'redeemed' AND redeemed_by_client_id IS NOT NULL
             AND redeemed_at IS NOT NULL) OR
            (status <> 'redeemed' AND redeemed_by_client_id IS NULL
