@@ -4,8 +4,8 @@ Baseline `main`: `690c69c60aa7a0d5dababf352a71f796bbb16fb8`, after prerequisite 
 
 ## Results
 
-- Targeted: `node --test tests/client-progress.test.mjs` — **32 passed**.
-- Full suite: `node --test tests/*.test.mjs` — **70 passed**, including all 38 pre-existing tests.
+- Targeted: `node --test tests/client-progress.test.mjs` — **51 passed**.
+- Full suite: `node --test tests/*.test.mjs` — **89 passed**, including the original 70 tests.
 - `npx tsc --noEmit` and `npx tsc -p prototypes/client-progress/tsconfig.json` — passed; prototype uses strict TypeScript independently of production's include paths.
 - `npm run build` — passed, including Next lint/type validation. Existing Browserslist age notice remains; no dependency changes.
 - `git diff --check` — passed.
@@ -14,6 +14,12 @@ Baseline `main`: `690c69c60aa7a0d5dababf352a71f796bbb16fb8`, after prerequisite 
 - Privacy checks: HTML/embedded JSON/client JavaScript contain no internal fixture sentinels; denied/loading/error responses contain only their view kind. No GitHub navigation, JS errors or external browser requests. Raw fixture/model/server requests return 404; foreign Host returns 403. Unknown artifact destinations excluded.
 - Production `next start` returned **404** at `/client-progress/`, `/prototypes/client-progress/` and `/client.js`. No prototype paths in `.next/server/app-paths-manifest.json` or `.next/routes-manifest.json`. `NODE_ENV=production node prototypes/client-progress/preview.mjs` refuses startup as expected.
 - Diff against baseline confirms no existing production routes, app/components/lib/public, contact/Resend, analytics, Capability Core, proposal prototype, package manifests, lockfile or production config changed. Build-generated `next-env.d.ts` changes restored.
+
+## Publication-integrity correction (PR #67 review)
+
+Approval now binds exact overview/milestone/update/deliverable content and mapping/review metadata. Unapproved overview edits return the existing neutral error view; edited individual records are hidden until explicitly approved again. Nineteen additional regression tests cover post-publication changes, missing/reused tokens, update text/timestamps, dependency/acceptance mutations and explicit approval of exact new revisions. Existing acceptance/reconnect tests now explicitly simulate approval when testing an intentionally changed record; reconnect alone is denied and never republishes drafts.
+
+All 16 valid client fixture projections were compared with the pre-fix PR head and match exactly. The browser harness was rerun, including all responsive/keyboard/privacy checks; UI sources and screenshots are unchanged. Exact-content tokens are fixture-only revision bindings, not signatures, authentication or protection against an actor authorized to modify the fixture's approval metadata.
 
 ## Reproduce
 

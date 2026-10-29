@@ -1,8 +1,10 @@
+import { approveFixtureRevisions } from './model.js';
 import type { InternalProject, Review, Scenario } from './model.js';
 export const scenarios: Scenario[] = ['active','in-review','qa','changes-requested','awaiting-client','blocked-delayed','paused','no-activity','unpublished','mismatched','disconnected','stale','accepted','loading','error','access-denied'];
-const published: Review = { verifiedBy: 'delivery-lead', verifiedAt: '2030-01-15T10:00:00Z', approvedBy: 'publication-owner', publishedAt: '2030-01-15T11:00:00Z' };
+const published: Review = { approvedRevision: null, verifiedBy: 'delivery-lead', verifiedAt: '2030-01-15T10:00:00Z', approvedBy: 'publication-owner', publishedAt: '2030-01-15T11:00:00Z' };
 export function fixture(scenario: Scenario): InternalProject {
   const source: InternalProject = {
+    review: {...published},
     id: 'example-project', name: 'A better customer experience', client: 'Example Studio · studio@example.test',
     owner: 'Morgan Example · owner@example.test', status: 'In progress', nextAction: 'DigiPants is preparing the next design review. No action needed from you today.',
     milestones: [
@@ -27,5 +29,5 @@ export function fixture(scenario: Scenario): InternalProject {
   if (scenario === 'unpublished') { source.updates[0].review.publishedAt=null;source.deliverables[0].review.publishedAt=null; }
   if (scenario === 'mismatched') { source.updates[0].evidence.projectId='another-project';source.deliverables=[]; }
   if (scenario === 'disconnected' || scenario === 'stale') source.sync={state:scenario,at:'2030-01-08T09:00:00Z'};
-  return source;
+  return approveFixtureRevisions(source);
 }

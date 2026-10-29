@@ -6,9 +6,12 @@ if (process.env.NODE_ENV === 'production') throw new Error('Local preview disabl
 const compile = async name => ts.transpileModule(await readFile(new URL(name, import.meta.url), 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },
 }).outputText;
-const load = async name => import(`data:text/javascript;base64,${Buffer.from(await compile(name)).toString('base64')}`);
-const { projectClient } = await load('model.ts');
-const { fixture, scenarios } = await load('fixtures.ts');
+const moduleUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+const modelUrl = moduleUrl(await compile('model.ts'));
+const { projectClient } = await import(modelUrl);
+// Only the Node fixture module imports the publication helpers. Never serve it.
+const fixtureCode = (await compile('fixtures.ts')).replace(/(['"])\.\/model\.js\1/g, JSON.stringify(modelUrl));
+const { fixture, scenarios } = await import(moduleUrl(fixtureCode));
 const client = await compile('client.ts');
 const template = await readFile(new URL('index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('style.css', import.meta.url), 'utf8');
