@@ -2,6 +2,9 @@
 -- Review with engineering/security before converting to a Prisma schema/migration.
 -- Requires PostgreSQL with gen_random_uuid(). No RLS, grants, audit immutability
 -- triggers, tenant-filtered queries or authenticated routes are implemented here.
+-- provider_subject and project tenant_id are intended immutable, but this DDL
+-- does not forbid those updates; add database-role restrictions or triggers
+-- before these columns are used as authorization bindings.
 -- All dates are UTC timestamptz. Never use email address as user authorization ID.
 
 CREATE TABLE workspace_principals (
