@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model WorkspacePrincipal {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String   @default("better_auth") @db.Text
+  providerSubject String   @unique(map: "workspace_principals_provider_subject_key") @map("provider_subject") @db.Text
+  kind            String   @db.Text
+  status          String   @default("active") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clientMemberships   WorkspaceClientMembership[]
+  staffMembership     WorkspaceStaffMembership?
+  redeemedInvitations WorkspaceInvitationRecord[] @relation("InvitationRedeemer")
+  auditEvents         WorkspaceAuditEvent[]
+
+  @@unique([id, kind], map: "workspace_principal_kind_uq")
+  @@map("workspace_principals")
+}
+
+model WorkspaceTenant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legalName String   @map("legal_name") @db.Text
+  status    String   @default("active") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clientMemberships WorkspaceClientMembership[]
+  projects          WorkspaceProject[]
+
+  @@map("workspace_tenants")
+}
+
+model WorkspaceClientMembership {
+  tenantId      String    @map("tenant_id") @db.Uuid
+  principalId   String    @map("principal_id") @db.Uuid
+  principalKind String    @default("client") @map("principal_kind") @db.Text
+  status        String    @default("active") @db.Text
+  grantedAt     DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  tenant    WorkspaceTenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "workspace_client_memberships_tenant_id_fkey")
+  principal WorkspacePrincipal            @relation(fields: [principalId, principalKind], references: [id, kind], onDelete: Restrict, map: "workspace_client_memberships_principal_id_principal_kind_fkey")
+  grants    WorkspaceClientProjectGrant[]
+
+  @@id([tenantId, principalId])
+  @@map("workspace_client_memberships")
+}
+
+model WorkspaceStaffMembership {
+  principalId   String    @id @map("principal_id") @db.Uuid
+  principalKind String    @default("staff") @map("principal_kind") @db.Text
+  status        String    @default("active") @db.Text
+  grantedAt     DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  principal   WorkspacePrincipal           @relation(fields: [principalId, principalKind], references: [id, kind], onDelete: Restrict, map: "workspace_staff_memberships_principal_id_principal_kind_fkey")
+  grants      WorkspaceStaffProjectGrant[]
+  invitations WorkspaceInvitationRecord[]  @relation("InvitationIssuer")
+
+  @@unique([principalId, principalKind], map: "workspace_staff_membership_principal_kind_uq")
+  @@map("workspace_staff_memberships")
+}
+
+model WorkspaceProject {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  title       String   @db.Text
+  state       String   @default("planned") @db.Text
+  publication String   @default("unpublished") @db.Text
+  revision    BigInt   @default(1)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       WorkspaceTenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "workspace_projects_tenant_id_fkey")
+  clientGrants WorkspaceClientProjectGrant[]
+  staffGrants  WorkspaceStaffProjectGrant[]
+  invitations  WorkspaceInvitationRecord[]
+  auditEvents  WorkspaceAuditEvent[]
+
+  @@unique([tenantId, id], map: "workspace_project_tenant_id_uq")
+  @@index([tenantId, state], map: "workspace_project_tenant_state_idx")
+  @@map("workspace_projects")
+}
+
+model WorkspaceClientProjectGrant {
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  principalId String    @map("principal_id") @db.Uuid
+  role        String    @db.Text
+  status      String    @default("active") @db.Text
+  grantedAt   DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  project    WorkspaceProject          @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_client_project_grants_tenant_id_project_id_fkey")
+  membership WorkspaceClientMembership @relation(fields: [tenantId, principalId], references: [tenantId, principalId], onDelete: Restrict, map: "workspace_client_project_grants_tenant_id_principal_id_fkey")
+
+  @@id([tenantId, projectId, principalId, role])
+  @@index([principalId, tenantId, projectId, status], map: "workspace_client_grants_active_idx")
+  @@map("workspace_client_project_grants")
+}
+
+model WorkspaceStaffProjectGrant {
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  principalId String    @map("principal_id") @db.Uuid
+  role        String    @db.Text
+  status      String    @default("active") @db.Text
+  grantedAt   DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  project    WorkspaceProject         @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_staff_project_grants_tenant_id_project_id_fkey")
+  membership WorkspaceStaffMembership @relation(fields: [principalId], references: [principalId], onDelete: Restrict, map: "workspace_staff_project_grants_principal_id_fkey")
+
+  @@id([tenantId, projectId, principalId, role])
+  @@index([principalId, tenantId, projectId, status], map: "workspace_staff_grants_active_idx")
+  @@map("workspace_staff_project_grants")
+}
+
+model WorkspaceInvitationRecord {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  projectId             String    @map("project_id") @db.Uuid
+  intendedEmail         String    @map("intended_email") @db.Text
+  intendedRole          String    @map("intended_role") @db.Text
+  invitationTokenHash   String    @unique(map: "workspace_invitation_records_invitation_token_hash_key") @map("invitation_token_hash") @db.Text
+  status                String    @default("pending") @db.Text
+  issuedByStaffId       String    @map("issued_by_staff_id") @db.Uuid
+  redeemedByClientId    String?   @map("redeemed_by_client_id") @db.Uuid
+  redeemedPrincipalKind String    @default("client") @map("redeemed_principal_kind") @db.Text
+  expiresAt             DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  redeemedAt            DateTime? @map("redeemed_at") @db.Timestamptz(6)
+
+  project    WorkspaceProject         @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_invitation_records_tenant_id_project_id_fkey")
+  issuer     WorkspaceStaffMembership @relation("InvitationIssuer", fields: [issuedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_invitation_records_issued_by_staff_id_fkey")
+  redeemedBy WorkspacePrincipal?      @relation("InvitationRedeemer", fields: [redeemedByClientId, redeemedPrincipalKind], references: [id, kind], onDelete: Restrict, map: "workspace_invites_redeemed_principal_kind_fkey")
+
+  @@map("workspace_invitation_records")
+}
+
+model WorkspaceAuditEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  actorPrincipalId String?  @map("actor_principal_id") @db.Uuid
+  origin           String   @db.Text
+  action           String   @db.Text
+  objectType       String   @map("object_type") @db.Text
+  objectId         String   @map("object_id") @db.Text
+  beforeRevision   BigInt?  @map("before_revision")
+  afterRevision    BigInt?  @map("after_revision")
+  idempotencyKey   String   @map("idempotency_key") @db.Text
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  project WorkspaceProject    @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_audit_events_tenant_id_project_id_fkey")
+  actor   WorkspacePrincipal? @relation(fields: [actorPrincipalId], references: [id], onDelete: Restrict, map: "workspace_audit_events_actor_principal_id_fkey")
+
+  @@unique([tenantId, idempotencyKey], map: "workspace_audit_command_once")
+  @@index([tenantId, projectId, occurredAt(sort: Desc)], map: "workspace_audit_project_time_idx")
+  @@map("workspace_audit_events")
+}
