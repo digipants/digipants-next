@@ -43,6 +43,9 @@ export async function recordProjectStateChange(input: {
   }
 
   const prisma = getWorkspacePrisma();
+  const permittedRoles = input.nextState === "active" || input.nextState === "closed"
+    ? ["workspace_owner"]
+    : ["delivery_staff", "delivery_lead"];
   return prisma.$transaction(async (transaction) => {
     const activeGrant = await transaction.workspaceStaffProjectGrant.findFirst({
       where: {
@@ -51,7 +54,7 @@ export async function recordProjectStateChange(input: {
         principalId: input.actorPrincipalId,
         status: "active",
         revokedAt: null,
-        role: { in: ["delivery_staff", "delivery_lead", "workspace_owner"] },
+        role: { in: permittedRoles },
         membership: {
           is: {
             status: "active",
@@ -64,12 +67,6 @@ export async function recordProjectStateChange(input: {
       select: { role: true },
     });
     if (!activeGrant) throw new WorkspaceStateConflict();
-
-    const privilegedTransition = input.nextState === "active" || input.nextState === "closed";
-    if ((privilegedTransition && activeGrant.role !== "workspace_owner") ||
-        (!privilegedTransition && activeGrant.role === "workspace_owner")) {
-      throw new WorkspaceStateConflict();
-    }
 
     const changed = await transaction.workspaceProject.updateMany({
       where: {

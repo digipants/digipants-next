@@ -36,12 +36,12 @@ Set `DIRECT_URL` only in a secure local development environment before migration
 
 For migration-history drift checks, supply an isolated disposable `SHADOW_DIRECT_URL` and compare the checked-in migration directory to the selected development datasource with `prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code`. The shadow database is reset by Prisma during this operation; never point it at the development source branch or any production data.
 
-The database integration suite requires an explicit guard and accepts only the approved Neon workspace database or a loopback-only disposable PostgreSQL instance:
+The database integration suite requires an explicit guard. Neon runs must also supply `WORKSPACE_DB_TEST_EXPECTED_HOST` separately from `DATABASE_URL`; the script requires an exact hostname match and the synthetic database name. A wildcard, another Neon host, or a mismatched database fails before the test client connects. Local runs accept only loopback hosts.
 
 ```sh
-WORKSPACE_DB_TEST_APPROVED=1 npm run test:client-workspace:db
+WORKSPACE_DB_TEST_APPROVED=1 WORKSPACE_DB_TEST_EXPECTED_HOST=ep-approved.neon.tech npm run test:client-workspace:db
 ```
 
-Use a secure shell environment or secret injector for `DATABASE_URL`; do not paste connection strings into GitHub. The script checks the database and role names, inserts uniquely named synthetic fixtures, verifies constraints, grants and transaction rollback, then removes those fixtures. `WORKSPACE_DB_TEST_LOCAL=1` is reserved for a temporary loopback-only PostgreSQL container. The regular repository test suite does not connect to a database.
+Use a secure shell environment or secret injector for `DATABASE_URL` and set the expected hostname from an independently reviewed source; do not paste connection strings or host approvals into GitHub. The script also checks database and role names, inserts uniquely named synthetic fixtures, verifies constraints, grants and transaction rollback, then removes those fixtures. `WORKSPACE_DB_TEST_LOCAL=1` is reserved for a temporary loopback-only PostgreSQL container. The regular repository test suite does not connect to a database.
 
 The issue validation branch is separate from the development source branch. Its synthetic fixtures were removed after the tests. The branch’s remaining schema is for migration review only and is not a production-ready or migration-ledger source of truth.

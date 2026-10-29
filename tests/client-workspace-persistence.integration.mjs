@@ -4,20 +4,15 @@ import { readFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import ts from "typescript";
+import { resolveWorkspaceTestTarget } from "./client-workspace-db-test-target.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
-if ((!process.env.WORKSPACE_DB_TEST_APPROVED && !process.env.WORKSPACE_DB_TEST_LOCAL) || !databaseUrl) {
-  throw new Error("Set an explicit database-test guard and the approved test DATABASE_URL.");
-}
-
-const parsedUrl = new URL(databaseUrl);
-const approvedNeonDatabase = process.env.WORKSPACE_DB_TEST_APPROVED === "1" &&
-  parsedUrl.hostname.endsWith(".neon.tech") && parsedUrl.pathname === "/digipants_workspace_dev";
-const approvedLocalDatabase = process.env.WORKSPACE_DB_TEST_LOCAL === "1" &&
-  ["127.0.0.1", "localhost"].includes(parsedUrl.hostname) && parsedUrl.pathname === "/digipants_workspace_dev";
-if (!approvedNeonDatabase && !approvedLocalDatabase) {
-  throw new Error("Use the approved Neon development URL or explicitly enable a loopback-only test database.");
-}
+resolveWorkspaceTestTarget({
+  databaseUrl,
+  neonApproval: process.env.WORKSPACE_DB_TEST_APPROVED,
+  localApproval: process.env.WORKSPACE_DB_TEST_LOCAL,
+  expectedNeonHost: process.env.WORKSPACE_DB_TEST_EXPECTED_HOST,
+});
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5_000 }),
@@ -216,6 +211,8 @@ try {
   assert.deepEqual(await loadEffectiveWorkspaceGrants({ providerSubject: staffSubject, tenantId: ids.tenantA, projectId: ids.projectA }), []);
   assertions += 2;
 
+  await prisma.$executeRaw`INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id, role)
+    VALUES (${ids.tenantA}::uuid, ${ids.projectA}::uuid, ${ids.staff}::uuid, 'workspace_owner')`;
   await prisma.$executeRaw`UPDATE workspace_staff_memberships SET status = 'active', granted_at = now(), revoked_at = NULL WHERE principal_id = ${ids.staff}::uuid`;
   await prisma.$executeRaw`UPDATE workspace_staff_project_grants SET status = 'active', granted_at = now(), revoked_at = NULL WHERE tenant_id = ${ids.tenantA}::uuid AND project_id = ${ids.projectA}::uuid AND principal_id = ${ids.staff}::uuid`;
   assert.equal(await recordProjectStateChange({
@@ -249,6 +246,40 @@ try {
   assert.equal(rolledBackState[0]?.revision, 2n);
   assert.equal(rolledBackAudit[0]?.count, 1);
   assertions += 3;
+
+  assert.equal(await recordProjectStateChange({
+    tenantId: ids.tenantA,
+    projectId: ids.projectA,
+    actorPrincipalId: ids.staff,
+    expectedRevision: 2n,
+    nextState: "active",
+    idempotencyKey: `owner-activate-${randomUUID()}`,
+  }), 3n);
+  assertions += 1;
+  await prisma.$executeRaw`UPDATE workspace_staff_project_grants SET status = 'revoked', revoked_at = now()
+    WHERE tenant_id = ${ids.tenantA}::uuid AND project_id = ${ids.projectA}::uuid
+      AND principal_id = ${ids.staff}::uuid AND role = 'workspace_owner'`;
+  await expectRejected("revoked owner role cannot close while delivery grant remains active", () => recordProjectStateChange({
+    tenantId: ids.tenantA,
+    projectId: ids.projectA,
+    actorPrincipalId: ids.staff,
+    expectedRevision: 3n,
+    nextState: "closed",
+    idempotencyKey: `revoked-owner-close-${randomUUID()}`,
+  }));
+  const unchangedAfterRevokedOwner = await prisma.$queryRaw`SELECT state, revision FROM workspace_projects WHERE id = ${ids.projectA}::uuid`;
+  assert.equal(unchangedAfterRevokedOwner[0]?.state, "active");
+  assert.equal(unchangedAfterRevokedOwner[0]?.revision, 3n);
+  assertions += 2;
+  assert.equal(await recordProjectStateChange({
+    tenantId: ids.tenantA,
+    projectId: ids.projectA,
+    actorPrincipalId: ids.staff,
+    expectedRevision: 3n,
+    nextState: "paused",
+    idempotencyKey: `delivery-after-revocation-${randomUUID()}`,
+  }), 4n);
+  assertions += 1;
 
   await expectRejected("stale project revision", () => recordProjectStateChange({
     tenantId: ids.tenantA,

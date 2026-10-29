@@ -78,13 +78,18 @@ test("unknown database roles are discarded instead of widening permissions", asy
   }), []);
 });
 
-function stateDatabase({ role = "delivery_lead", changedCount = 1, auditError } = {}) {
+function stateDatabase({
+  grants = [{ role: "delivery_lead", status: "active", revokedAt: null }],
+  changedCount = 1,
+  auditError,
+} = {}) {
   const calls = { options: undefined, grantWhere: undefined, projectUpdate: undefined, auditCreate: undefined };
   const transaction = {
     workspaceStaffProjectGrant: {
       findFirst: async ({ where }) => {
         calls.grantWhere = where;
-          return role && where.role.in.includes(role) ? { role } : null;
+        return grants.find(grant => where.role.in.includes(grant.role) &&
+          grant.status === where.status && grant.revokedAt === where.revokedAt) ?? null;
       },
     },
     workspaceProject: {
@@ -142,28 +147,67 @@ test("state update and audit are one serializable, tenant-scoped transaction", a
 });
 
 test("state permissions match staff roles; activation and closure require the owner", async () => {
-  for (const role of [null, "commercial_approver"]) {
-    globalThis[testDoubleKey] = stateDatabase({ role }).database;
+  for (const grants of [[], [{ role: "commercial_approver", status: "active", revokedAt: null }]]) {
+    globalThis[testDoubleKey] = stateDatabase({ grants }).database;
     await assert.rejects(projectState.recordProjectStateChange(stateCommand()), projectState.WorkspaceStateConflict);
   }
 
-  globalThis[testDoubleKey] = stateDatabase({ role: "delivery_staff" }).database;
+  globalThis[testDoubleKey] = stateDatabase({ grants: [{ role: "delivery_staff", status: "active", revokedAt: null }] }).database;
   assert.equal(await projectState.recordProjectStateChange(stateCommand()), 4n);
-  globalThis[testDoubleKey] = stateDatabase({ role: "delivery_staff" }).database;
+  globalThis[testDoubleKey] = stateDatabase({ grants: [{ role: "delivery_staff", status: "active", revokedAt: null }] }).database;
   await assert.rejects(
     projectState.recordProjectStateChange(stateCommand({ nextState: "active" })),
     projectState.WorkspaceStateConflict,
   );
 
-  globalThis[testDoubleKey] = stateDatabase({ role: "delivery_lead" }).database;
+  globalThis[testDoubleKey] = stateDatabase({ grants: [{ role: "delivery_lead", status: "active", revokedAt: null }] }).database;
   await assert.rejects(
     projectState.recordProjectStateChange(stateCommand({ nextState: "closed" })),
     projectState.WorkspaceStateConflict,
   );
 
-  globalThis[testDoubleKey] = stateDatabase({ role: "workspace_owner" }).database;
+  globalThis[testDoubleKey] = stateDatabase({ grants: [{ role: "workspace_owner", status: "active", revokedAt: null }] }).database;
   await assert.rejects(projectState.recordProjectStateChange(stateCommand()), projectState.WorkspaceStateConflict);
   assert.equal(await projectState.recordProjectStateChange(stateCommand({ nextState: "active" })), 4n);
+});
+
+test("multi-role principals use only action-permitted active grants, regardless of grant order", async () => {
+  const roleOrders = [
+    ["workspace_owner", "delivery_lead"],
+    ["delivery_lead", "workspace_owner"],
+  ];
+  for (const roleOrder of roleOrders) {
+    const grants = roleOrder.map(role => ({ role, status: "active", revokedAt: null }));
+    const activation = stateDatabase({ grants });
+    globalThis[testDoubleKey] = activation.database;
+    assert.equal(await projectState.recordProjectStateChange(stateCommand({ nextState: "active" })), 4n);
+    assert.deepEqual(activation.calls.grantWhere.role.in, ["workspace_owner"]);
+
+    const deliveryChange = stateDatabase({ grants });
+    globalThis[testDoubleKey] = deliveryChange.database;
+    assert.equal(await projectState.recordProjectStateChange(stateCommand()), 4n);
+    assert.deepEqual(deliveryChange.calls.grantWhere.role.in, ["delivery_staff", "delivery_lead"]);
+  }
+});
+
+test("a revoked owner grant cannot authorize privileged transitions beside an active delivery grant", async () => {
+  const grants = [
+    { role: "workspace_owner", status: "revoked", revokedAt: new Date() },
+    { role: "delivery_lead", status: "active", revokedAt: null },
+  ];
+  const revokedOwner = stateDatabase({ grants });
+  globalThis[testDoubleKey] = revokedOwner.database;
+  await assert.rejects(
+    projectState.recordProjectStateChange(stateCommand({ nextState: "closed" })),
+    projectState.WorkspaceStateConflict,
+  );
+  assert.deepEqual(revokedOwner.calls.grantWhere.role.in, ["workspace_owner"]);
+  assert.equal(revokedOwner.calls.projectUpdate, undefined);
+
+  const deliveryStillAllowed = stateDatabase({ grants });
+  globalThis[testDoubleKey] = deliveryStillAllowed.database;
+  assert.equal(await projectState.recordProjectStateChange(stateCommand()), 4n);
+  assert.deepEqual(deliveryStillAllowed.calls.grantWhere.role.in, ["delivery_staff", "delivery_lead"]);
 });
 
 test("revision conflict or audit failure rejects the entire state-change command", async () => {
