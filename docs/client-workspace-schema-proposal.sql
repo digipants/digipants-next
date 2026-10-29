@@ -9,7 +9,7 @@
 
 CREATE TABLE workspace_principals (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider text NOT NULL DEFAULT 'clerk' CHECK (provider = 'clerk'),
+    provider text NOT NULL DEFAULT 'better_auth' CHECK (provider = 'better_auth'),
     provider_subject text NOT NULL UNIQUE CHECK (length(provider_subject) BETWEEN 1 AND 255),
     kind text NOT NULL CHECK (kind IN ('client', 'staff')),
     status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
@@ -108,7 +108,9 @@ CREATE TABLE workspace_staff_project_grants (
            (status = 'revoked' AND revoked_at IS NOT NULL))
 );
 
--- Provider-managed invitation reference; never store a raw Clerk invite token.
+-- Self-hosted Better Auth: single-use high-entropy invite token stored only as
+-- a digest (hash), never plaintext. Expiry and role assignment need audited
+-- transactional server enforcement beyond these constraints.
 -- Creating/accepting an invitation does NOT automatically grant project access.
 -- Grant provisioning requires a separate trusted, audited server transaction.
 CREATE TABLE workspace_invitation_records (
@@ -118,7 +120,8 @@ CREATE TABLE workspace_invitation_records (
     intended_email text NOT NULL CHECK (length(btrim(intended_email)) BETWEEN 3 AND 254),
     intended_role text NOT NULL CHECK (intended_role IN
         ('client_viewer','client_contributor','client_approver','client_signatory')),
-    provider_invitation_id text UNIQUE,
+    invitation_token_hash text NOT NULL UNIQUE
+        CHECK (length(invitation_token_hash) BETWEEN 48 AND 256),
     status text NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending','redeemed','revoked','expired')),
     issued_by_staff_id uuid NOT NULL
