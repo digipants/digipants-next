@@ -109,7 +109,7 @@ function knownRole(value: unknown): value is WorkspaceRole {
 }
 
 /** Internal diagnostic reasons must never be exposed to untrusted clients. */
-export function evaluateWorkspaceAccess(input: unknown): WorkspaceAccessDecision {
+function evaluateWorkspaceAccessUnchecked(input: unknown): WorkspaceAccessDecision {
   if (!isRecord(input) || !isRecord(input.actor)) return { allowed: false, reason: "invalid_context" };
   const actor = input.actor;
   if (!validId(actor.userId) || actor.authenticated !== true || actor.status !== "active") {
@@ -132,4 +132,13 @@ export function evaluateWorkspaceAccess(input: unknown): WorkspaceAccessDecision
     grant.userId === actor.userId && grant.tenantId === resource.tenantId &&
     grant.projectId === resource.projectId && ROLE_ACTIONS[grant.role].includes(input.action as WorkspaceAction));
   return permitted ? { allowed: true, reason: "explicit_project_grant" } : { allowed: false, reason: "not_permitted" };
+}
+
+/** Malformed accessors or proxies fail closed instead of escaping as exceptions. */
+export function evaluateWorkspaceAccess(input: unknown): WorkspaceAccessDecision {
+  try {
+    return evaluateWorkspaceAccessUnchecked(input);
+  } catch {
+    return { allowed: false, reason: "invalid_context" };
+  }
 }

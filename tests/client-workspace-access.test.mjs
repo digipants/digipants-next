@@ -92,6 +92,18 @@ test('malformed contexts, identifiers and visibility fail closed',()=>{
     {actor,resource:{...resource,publication:'other'},action:'project.read_published',grants:[grant('client_viewer')]}])
     denied(evaluate(bad));
 });
+test('throwing accessors and proxies fail closed without escaping',()=>{
+  const throwing={get userId(){throw new Error('untrusted actor accessor')}};
+  denied(check('project.read_published','client_viewer',{actor:throwing}));
+  const badGrant={...grant('client_viewer'),get role(){throw new Error('untrusted grant accessor')}};
+  denied(check('project.read_published','client_viewer',{grants:[badGrant]}));
+  const badResource={...resource,get publication(){throw new Error('untrusted resource accessor')}};
+  denied(check('project.read_published','client_viewer',{resource:badResource}));
+  const badProxy=new Proxy({}, { get(){throw new Error('untrusted proxy')} });
+  denied(evaluate(badProxy));
+  const revokedProxy=Proxy.revocable({},{});revokedProxy.revoke();
+  denied(evaluate(revokedProxy.proxy));
+});
 test('policy returns no object data when denied',()=>{
   const decision=check('project.read_published','client_viewer',{resource:{...resource,tenantId:'another-org'}});
   assert.deepEqual(Object.keys(decision).sort(),['allowed','reason']);
