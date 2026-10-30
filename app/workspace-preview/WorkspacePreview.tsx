@@ -5,7 +5,7 @@ import {
   ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, Check, CheckCircle2,
   ChevronRight, CircleHelp, Clock3, CreditCard, FileCheck2, FileText,
   FolderKanban, LayoutDashboard, LockKeyhole, MessageSquareText, Receipt,
-  ShieldCheck, Sparkles, WalletCards,
+  ShieldCheck, Sparkles,
 } from "lucide-react";
 
 type Section = "overview" | "progress" | "proposal" | "billing";
@@ -234,7 +234,7 @@ export default function WorkspacePreview() {
         </div>
         <p className="mt-7 hidden text-[11px] text-white/35 lg:block">Illustrative concept · not connected</p>
       </aside>
-      <main className="min-w-0 px-4 pb-16 pt-7 sm:px-7 lg:px-10 lg:pt-10 xl:px-12">
+      <div className="min-w-0 px-4 pb-16 pt-7 sm:px-7 lg:px-10 lg:pt-10 xl:px-12">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-6 dark:border-slate-800">
           <div><p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">EXAMPLE STUDIO / WORKSPACE</p><p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">A single place to follow your project</p></div>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><BadgeCheck size={15}/> Synthetic demo</span>
@@ -242,7 +242,7 @@ export default function WorkspacePreview() {
         <div className="mt-8 flex flex-wrap items-start justify-between gap-5">
           <div><p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Welcome to your workspace</p><h1 className="mt-2 max-w-2xl text-[30px] font-semibold leading-[1.12] tracking-[-.045em] text-slate-900 dark:text-white sm:text-[43px]">A clearer picture of your project.</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 dark:text-slate-400">Your scope, progress, reviews and billing — in one calm, shared view.</p></div>
         </div>
-        <Card className="mt-7 overflow-hidden !border-0 bg-[#0e3c32] p-6 text-white dark:bg-[#0e3c32] sm:p-8">
+        <Card className="mt-7 overflow-hidden !border-0 !bg-[#0e3c32] p-6 text-white sm:p-8">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
             <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-emerald-200/75">Example Studio · website refresh</p><div className="mt-3 flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white"><span className="h-2 w-2 rounded-full bg-emerald-300"/>{status.title}</span><span className="text-xs text-emerald-100/70">Phase 3 of 5</span></div><p className="mt-3 max-w-xl text-sm leading-6 text-emerald-50/75">{status.note}</p></div>
             <div className="shrink-0 rounded-xl bg-white/10 px-4 py-3"><label htmlFor="preview-scenario" className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-emerald-100/75">Explore sample states</label><select id="preview-scenario" value={scenario} onChange={e => setScenario(e.target.value as Scenario)} className="w-full rounded-lg border border-white/15 bg-[#12473c] px-2 py-2 text-xs font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-200"><option value="on-track">In progress</option><option value="awaiting-review">Awaiting client review</option><option value="delayed">Schedule under review</option></select></div>
@@ -255,7 +255,7 @@ export default function WorkspacePreview() {
           {section === "billing" && <Billing/>}
         </div>
         <footer className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6 text-[11px] leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400"><span>© DigiPants · Illustrative Client Workspace preview</span><span className="inline-flex items-center gap-1.5"><LockKeyhole size={13}/> No real data, authentication or payments</span></footer>
-      </main>
+      </div>
     </div>
   </div>;
 }
