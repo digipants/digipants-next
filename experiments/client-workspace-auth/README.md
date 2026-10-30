@@ -91,6 +91,33 @@ consumed and the orphan principal has no membership or grant; cleanup or
 reissuance is a future operational policy. This deliberately favors denial
 over accidentally restoring a consumed bearer token.
 
+## Isolated project-owner invitation issuance and revocation (#81)
+
+The `invite-issuance.ts` core adds the **issuance half** of the invitation
+contract, without introducing a route or sending any mail. It creates a
+cryptographically random 32-byte bearer token, stores only its SHA-256 digest,
+sets a PostgreSQL-clock 20-minute expiry, binds the intended recipient to an
+explicit client role and exact tenant/project, and creates an audit row in the
+same transaction. The bearer is returned to its **test-only** caller solely to
+enable future controlled delivery; never log or expose it to a browser/API.
+
+The issuer lookup requires an active DigiPants `staff` principal, active
+staff membership and an explicit active `workspace_owner` grant on the exact
+active tenant and project. The query takes shared row locks before the
+invitation is committed. Revocation similarly checks active ownership and
+atomically records an audit event; only pending invitations can be revoked.
+There is **no** automatic membership or project grant upon issuance.
+
+This is **not a production staff authorization boundary**. The issuer subject
+is injected by a synthetic test harness; there is not yet a verified
+staff-session/MFA binding (see #78). Real delivery, verified email ownership,
+CSRF/origin restrictions, rate limits, audit append-only permissions,
+resend/reconciliation and recovery remain blockers under #77 and #79.
+No external email, SMTP integration, actual recipients, password resets or
+production database writes occur here. The isolated SQL test inserts only
+synthetic fixtures on disposable loopback PostgreSQL, checks cross-tenant and
+unassigned-staff denials, token secrecy, audit linkage and revocation.
+
 ## Local verification
 
 Use only four disposable loopback PostgreSQL databases with the exact names
