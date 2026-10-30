@@ -310,11 +310,25 @@ if (!enabled) {
     assert.equal(secondFactor.response.ok, true, `valid TOTP should verify: ${JSON.stringify(secondFactor.payload)}`);
     current = await auth.api.getSession({ headers: new Headers({ cookie: jar.header() }) });
     assert.ok(current?.session?.id);
-    assert.equal(await authorizeValidatedWorkspaceAction({
+    const assuredState = await authDb.$queryRaw`
+      SELECT s.user_id, s.mfa_verified_at, u.two_factor_enabled, f.verified,
+             s.expires_at > statement_timestamp() AS session_live
+        FROM auth_spike.session AS s
+        JOIN auth_spike."user" AS u ON u.id = s.user_id
+        JOIN auth_spike."twoFactor" AS f ON f.user_id = u.id
+       WHERE s.id = ${current.session.id}
+    `;
+    const effectiveGrants = await loadEffectiveWorkspaceGrants({
+      providerSubject: current.user.id,
+      tenantId: ids.tenant,
+      projectId: ids.project,
+    });
+    const authorizedAfterTotp = await authorizeValidatedWorkspaceAction({
       ...workspaceInput,
       sessionId: current.session.id,
       providerSubject: current.user.id,
-    }), true, "a session created after valid TOTP verification plus explicit grant may proceed");
+    });
+    assert.equal(authorizedAfterTotp, true, `a session created after valid TOTP verification plus explicit grant may proceed: ${JSON.stringify({ assuredState, effectiveGrants })}`);
     const assuranceRow = await authDb.$queryRaw`SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${current.session.id}`;
     assert.ok(assuranceRow[0]?.mfa_verified_at instanceof Date, "TOTP verification persisted server-owned assurance");
 
