@@ -1,5 +1,12 @@
-import type { WorkspaceAction, WorkspaceResource, WorkspaceGrant } from "../../../lib/client-workspace/access-policy.js";
-import { evaluateWorkspaceAccess } from "../../../lib/client-workspace/access-policy.js";
+import { createRequire } from "node:module";
+import type { WorkspaceAction, WorkspaceResource, WorkspaceGrant } from "../../../lib/client-workspace/access-policy.ts";
+
+// The repository is CommonJS-scoped while this isolated package is ESM. Load
+// the shared TypeScript policy through tsx's CommonJS hook instead of asking
+// Node's ESM loader to reinterpret a CommonJS-scoped .ts module.
+const { evaluateWorkspaceAccess } = createRequire(import.meta.url)(
+  "../../../lib/client-workspace/access-policy.ts",
+) as typeof import("../../../lib/client-workspace/access-policy.ts");
 
 type RawSqlClient = {
   $queryRaw<T = unknown>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T>;

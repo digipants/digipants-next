@@ -59,6 +59,8 @@ jobs:
           AUTH_SHADOW_DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/auth_spike_shadow
         run: |
           set -euo pipefail
+          auth_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$auth_secret"
           {
             echo "DIRECT_URL=$DIRECT_URL"
             echo "DATABASE_URL=$DIRECT_URL"
@@ -70,7 +72,7 @@ jobs:
             echo "RUN_AUTH_EXPERIMENT_INTEGRATION=1"
             echo "AUTH_EXPERIMENT_ENABLED=1"
             echo "AUTH_BASE_URL=http://localhost:3000/api/auth"
-            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "BETTER_AUTH_SECRET=$auth_secret"
           } >> "$GITHUB_ENV"
           for database in workspace_shadow auth_spike_test auth_spike_shadow; do
             docker exec "$POSTGRES_CONTAINER_ID" psql \
