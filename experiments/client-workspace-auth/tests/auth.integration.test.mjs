@@ -32,10 +32,11 @@ if (!enabled) {
   });
   globalThis.authExperimentAuthDb = authDb;
   globalThis.authExperimentWorkspaceDb = workspaceDb;
-  const [{ auth }, { redeemClientInvitation }, { authorizeValidatedWorkspaceAction }] = await Promise.all([
+  const [{ auth }, { redeemClientInvitation }, { authorizeValidatedWorkspaceAction }, { createSyntheticMailboxChallenge }] = await Promise.all([
     import("../src/auth.ts"),
     import("../src/invitations.ts"),
     import("../src/workspace-access-core.ts"),
+    import("../src/mailbox-proof.ts"),
   ]);
 
   function totp(secret, at = Date.now()) {
@@ -215,13 +216,39 @@ if (!enabled) {
     const mismatchStillPending = await workspaceDb.$queryRaw`SELECT status FROM workspace_invitation_records WHERE id = ${mismatchedInviteId}::uuid`;
     assert.equal(mismatchStillPending[0]?.status, "pending", "a mismatched attempt must not consume another recipient's invitation");
 
+    const unprovenSignup = await send("/sign-up/email", {
+      name: "Synthetic Unproven", email: ids.clientEmail, password,
+    }, jar, { "x-digipants-workspace-invitation": validToken });
+    assert.equal(unprovenSignup.response.ok, false, "invitation bearer alone cannot enroll");
+    assert.equal(await authDb.user.count({ where: { email: ids.clientEmail } }), 0);
+    const notConsumed = await workspaceDb.$queryRaw`SELECT status FROM workspace_invitation_records WHERE id=${validInviteId}::uuid`;
+    assert.equal(notConsumed[0]?.status, "pending", "missing ownership proof must not spend invite");
+
+    const proof = await createSyntheticMailboxChallenge({
+      authDb, workspaceDb, invitationId: validInviteId, intendedEmail: ids.clientEmail,
+    });
+    assert.ok(proof?.code, "the test-only mailbox delivery seam created a separate proof");
+    const wrongProofSignup = await send("/sign-up/email", {
+      name: "Synthetic Wrong Proof", email: ids.clientEmail, password,
+    }, jar, {
+      "x-digipants-workspace-invitation": validToken,
+      "x-digipants-mail-challenge-id": proof.challengeId,
+      "x-digipants-mail-proof": randomBytes(32).toString("base64url"),
+    });
+    assert.equal(wrongProofSignup.response.ok, false, "incorrect mailbox proof must deny");
+    assert.equal(await authDb.user.count({ where: { email: ids.clientEmail } }), 0);
+
     const signup = await send("/sign-up/email", {
       name: "Synthetic Invited Client",
       email: ids.clientEmail,
       password,
       twoFactorEnabled: true,
       mfaVerifiedAt: "2099-01-01T00:00:00.000Z",
-    }, jar, { "x-digipants-workspace-invitation": validToken });
+    }, jar, {
+      "x-digipants-workspace-invitation": validToken,
+      "x-digipants-mail-challenge-id": proof.challengeId,
+      "x-digipants-mail-proof": proof.code,
+    });
     assert.equal(signup.response.ok, true, `invited signup should work: ${JSON.stringify(signup.payload)}`);
     created = true;
     ids.authUser = signup.payload.user.id;
