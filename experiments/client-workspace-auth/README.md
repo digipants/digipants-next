@@ -35,6 +35,21 @@ cannot create a session assurance marker. OAuth, magic link, email OTP,
 username, phone, passkey, anonymous and other passwordless entry points are not
 configured and are explicitly disabled where Better Auth has a matching path.
 
+Better Auth's configured account lockout is exercised by the real TOTP handler
+and PostgreSQL adapter. Five consecutive failed second-factor sign-in
+verifications persist `failedVerificationCount` and `lockedUntil` on the
+Better Auth two-factor row for 60 seconds; Better Auth applies this shared
+counter in both the TOTP and backup-code handlers. Correct factors are rejected
+during the lock before session creation. After 60 seconds, the next verification
+lazily clears the expired lock and failure count. Better Auth's separate
+five-attempt challenge limit may also require a fresh password sign-in; after
+that, a valid factor succeeds and leaves the counter reset to zero. The
+integration test backdates the lock only in its disposable PostgreSQL fixture
+to exercise this expiry path without waiting a minute. There is no manual
+unlock, password-reset bypass, or factor reset route in this experiment. A
+future audited factor-recovery process must revoke existing sessions and clear
+the lock only after identity verification.
+
 Invitation consumption and principal creation share one PostgreSQL transaction
 in the workspace database. Better Auth creates the identity in its separate
 database afterward. If that later identity write fails, the invitation remains

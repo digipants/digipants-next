@@ -392,5 +392,84 @@ if (!enabled) {
     const directSessionAttempt = await send("/create-session", { userId: ids.authUser, mfaVerifiedAt: "2099-01-01T00:00:00.000Z" }, jar);
     assert.equal(directSessionAttempt.response.ok, false, "no public session-creation route may set assurance");
     assert.equal(await authDb.session.count({ where: { userId: ids.authUser } }), sessionsBeforeDirectAttempt, "disabled direct session creation cannot create another session");
+
+    // Keep lockout terminal so it cannot affect the successful MFA and recovery
+    // assertions above. This is the real Better Auth handler against PostgreSQL.
+    const lockoutJar = cookieJar();
+    const startingLockoutState = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
+    assert.equal(startingLockoutState?.failedVerificationCount, 0, "positive MFA cases reset the failure counter before this phase");
+    assert.equal(startingLockoutState?.lockedUntil, null);
+    const beforeLockoutSignIn = await authDb.session.count({ where: { userId: ids.authUser } });
+    const beforeLockoutAssurance = await authDb.$queryRaw`
+      SELECT count(*)::int AS count FROM auth_spike.session
+       WHERE user_id = ${ids.authUser} AND mfa_verified_at IS NOT NULL
+    `;
+    const lockoutChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, lockoutJar);
+    assert.equal(lockoutChallenge.response.ok, true);
+    assert.equal(lockoutChallenge.payload.twoFactorRedirect, true);
+
+    const nearbyValidCodes = new Set([-90_000, -60_000, -30_000, 0, 30_000, 60_000, 90_000]
+      .map((offset) => totp(totpSecret, Date.now() + offset)));
+    let invalidLockoutCode = 0;
+    while (nearbyValidCodes.has(String(invalidLockoutCode).padStart(6, "0"))) invalidLockoutCode += 1;
+    const wrongFactorCode = String(invalidLockoutCode).padStart(6, "0");
+
+    for (let failedAttempt = 1; failedAttempt <= 5; failedAttempt += 1) {
+      const incorrectFactor = await send("/two-factor/verify-totp", { code: wrongFactorCode }, lockoutJar);
+      assert.equal(incorrectFactor.response.ok, false, `incorrect factor attempt ${failedAttempt} must fail`);
+      const persistedLockout = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
+      assert.equal(persistedLockout?.failedVerificationCount, failedAttempt, "each failed sign-in factor increments the persisted counter");
+      if (failedAttempt < 5) {
+        assert.equal(persistedLockout?.lockedUntil, null, "lockout begins only at the configured fifth failure");
+      } else {
+        assert.ok(persistedLockout?.lockedUntil instanceof Date);
+        assert.ok(persistedLockout.lockedUntil.getTime() > Date.now(), "fifth failed factor persists an active lock");
+        assert.ok(persistedLockout.lockedUntil.getTime() <= Date.now() + 60_000, "lock expires after the configured 60 seconds");
+      }
+      assert.equal(await auth.api.getSession({ headers: new Headers({ cookie: lockoutJar.header() }) }), null);
+    }
+
+    const lockedFactor = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
+    const correctDuringLockout = await send("/two-factor/verify-totp", { code: totp(totpSecret) }, lockoutJar);
+    assert.equal(correctDuringLockout.response.status, 429, "correct factor is rejected while the database-backed lock is active");
+    assert.equal(correctDuringLockout.payload.code, "ACCOUNT_TEMPORARILY_LOCKED");
+    assert.equal(await auth.api.getSession({ headers: new Headers({ cookie: lockoutJar.header() }) }), null, "locked verification creates no authenticated session");
+    assert.equal(await authDb.session.count({ where: { userId: ids.authUser } }), beforeLockoutSignIn, "lockout creates no session row");
+    const assuredDuringLockout = await authDb.$queryRaw`
+      SELECT count(*)::int AS count FROM auth_spike.session
+       WHERE user_id = ${ids.authUser} AND mfa_verified_at IS NOT NULL
+    `;
+    assert.equal(assuredDuringLockout[0]?.count, beforeLockoutAssurance[0]?.count, "lockout creates no MFA-assured session");
+    const lockStillActive = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
+    assert.equal(lockStillActive?.lockedUntil?.getTime(), lockedFactor?.lockedUntil?.getTime(), "a correct code cannot clear an active lock");
+
+    // Age the lock in the disposable database rather than waiting 60 seconds;
+    // the next real verification request exercises Better Auth's lazy expiry.
+    const expiredLockRows = await authDb.$executeRaw`
+      UPDATE auth_spike."twoFactor"
+         SET locked_until = statement_timestamp() - interval '1 second'
+       WHERE user_id = ${ids.authUser}
+    `;
+    assert.equal(expiredLockRows, 1);
+    const expiredChallengeProbe = await send("/two-factor/verify-totp", { code: wrongFactorCode }, lockoutJar);
+    assert.equal(expiredChallengeProbe.response.ok, false, "the exhausted challenge still requires a new password sign-in");
+    assert.equal(expiredChallengeProbe.payload.code, "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE");
+    const resetFactor = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
+    assert.equal(resetFactor?.failedVerificationCount, 0);
+    assert.equal(resetFactor?.lockedUntil, null, "expired lock and failure count are lazily cleared in PostgreSQL");
+    assert.equal(await auth.api.getSession({ headers: new Headers({ cookie: lockoutJar.header() }) }), null);
+
+    const recoveryJar = cookieJar();
+    const postExpiryChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, recoveryJar);
+    assert.equal(postExpiryChallenge.response.ok, true);
+    assert.equal(postExpiryChallenge.payload.twoFactorRedirect, true);
+    const recoveredAfterExpiry = await send("/two-factor/verify-totp", { code: totp(totpSecret) }, recoveryJar);
+    assert.equal(recoveredAfterExpiry.response.ok, true, "a valid factor succeeds after expiry and a fresh password challenge");
+    const recoveredSession = await auth.api.getSession({ headers: new Headers({ cookie: recoveryJar.header() }) });
+    assert.ok(recoveredSession?.session?.id);
+    const recoveredAssurance = await authDb.$queryRaw`
+      SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${recoveredSession.session.id}
+    `;
+    assert.ok(recoveredAssurance[0]?.mfa_verified_at instanceof Date, "assurance resumes only after valid factor verification after expiry");
   });
 }
