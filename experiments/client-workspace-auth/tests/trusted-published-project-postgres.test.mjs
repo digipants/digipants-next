@@ -21,8 +21,10 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     adapter: new PrismaPg({ connectionString: process.env.WORKSPACE_DATABASE_URL,
       max: 3, connectionTimeoutMillis: 5_000 }),
   });
-  const restrictedUrl = new URL(process.env.WORKSPACE_DATABASE_URL);
-  restrictedUrl.searchParams.set("options", "-c role=cw_runtime");
+  const restrictedUrl = assertDisposableLoopbackDatabaseUrl(
+    process.env.WORKSPACE_READ_RUNTIME_DATABASE_URL, "digipants_workspace_dev");
+  if (restrictedUrl.username !== "cw_client_read_ci")
+    throw new Error("A distinct restricted runtime login is required.");
   const runtimeDb = new PrismaClient({
     adapter: new PrismaPg({ connectionString: restrictedUrl.toString(),
       max: 3, connectionTimeoutMillis: 5_000 }),
@@ -92,7 +94,13 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     });
 
     const identity = await runtimeDb.$queryRaw`SELECT current_user::text AS role`;
-    assert.equal(identity[0]?.role, "cw_runtime");
+    assert.equal(identity[0]?.role, "cw_client_read_ci");
+    // A privileged login impersonating cw_runtime through SET ROLE must deny.
+    const privileged = await adminDb.$queryRaw`SELECT current_user::text AS login`;
+    assert.equal(privileged[0]?.login, "digipants_ws_dev");
+    globalThis.authExperimentWorkspaceDb = adminDb;
+    await assert.rejects(read(), PublishedProjectAccessDenied);
+    globalThis.authExperimentWorkspaceDb = runtimeDb;
 
     await assert.rejects(read(), PublishedProjectAccessDenied,
       "a valid grant never bypasses the unpublished-project gate");
