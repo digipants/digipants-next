@@ -14,6 +14,7 @@ DECLARE
   audit_id uuid;
   publication_id uuid;
   retract_audit_id uuid;
+  mismatched_audit_id uuid;
 BEGIN
   INSERT INTO workspace_principals(id, provider_subject, kind)
     VALUES(author,'synthetic-author-a','staff'),(author_b,'synthetic-author-b','staff');
@@ -42,6 +43,14 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 
+  -- A staff member assigned only to tenant B cannot author in tenant A.
+  BEGIN
+    INSERT INTO workspace_shared_revisions
+      (tenant_id,project_id,resource_id,version,kind,title,summary,content_sha256,created_by_staff_id)
+    VALUES(ta,pa,gen_random_uuid(),99,'progress','Unauthorized author','Must deny',repeat('d',64),author_b);
+    RAISE EXCEPTION 'cross-project author unexpectedly accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
   INSERT INTO workspace_audit_events(tenant_id,project_id,actor_principal_id,
     origin,action,object_type,object_id,idempotency_key)
     VALUES(ta,pa,reviewer,'person','sharing.published','workspace_shared_revision',
@@ -59,6 +68,18 @@ BEGIN
       VALUES(tb,pb,revision_id,author_b,audit_id);
     RAISE EXCEPTION 'cross-tenant publication unexpectedly accepted';
   EXCEPTION WHEN check_violation OR foreign_key_violation THEN NULL;
+  END;
+  INSERT INTO workspace_audit_events(tenant_id,project_id,actor_principal_id,
+    origin,action,object_type,object_id,idempotency_key)
+    VALUES(ta,pa,reviewer,'person','sharing.published','workspace_shared_revision',
+      '00000000-0000-4000-8000-000000000000','sharing-wrong-object')
+    RETURNING id INTO mismatched_audit_id;
+  BEGIN
+    INSERT INTO workspace_shared_publications
+      (tenant_id,project_id,revision_id,reviewed_by_staff_id,audit_event_id)
+      VALUES(ta,pa,revision_id,reviewer,mismatched_audit_id);
+    RAISE EXCEPTION 'mismatched audit object unexpectedly accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
   END;
   INSERT INTO workspace_shared_publications
     (tenant_id,project_id,revision_id,reviewed_by_staff_id,audit_event_id)
