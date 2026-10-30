@@ -2,7 +2,7 @@ name: Client Workspace requirements and documents preview
 
 on:
   pull_request:
-    branches: [feat/client-workspace-first-glimpse-104]
+    branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - ".github/workflows/client-workspace-requirements-preview.yml"
