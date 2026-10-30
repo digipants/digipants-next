@@ -1,0 +1,34 @@
+# Client Workspace invoice ledger experiment
+
+**Development-only, synthetic data, no runtime route.** This isolated Prisma 7.10.1 / PostgreSQL 17 experiment persists approved invoice snapshots, server-generated test order attempts, signed webhook candidates and append-only reconciliation audit. It does not contact Razorpay, create/capture payments, expose checkout or webhook endpoints, authorize workspace grants, or consume customer data. Issue #94 remains the gate for merchant ownership, credentials, real test-mode integration and finance/legal review.
+
+The migration stores invoice totals as integer INR paise and a canonical snapshot hash. A deferred composite constraint binds each invoice's current approved revision to an immutable snapshot. Each attempt references the exact tenant/project/invoice revision and has a unique synthetic merchant/environment/order ID and idempotency request key. Webhook receipt checks HMAC over the original bytes with a webhook secret distinct from the checkout key secret; it persists only the body SHA-256 and parsed candidate fields. Replaying an identical provider event is idempotent; reusing an event ID with different bytes is rejected. Checkout signatures are verified against the order loaded from the ledger and only produce a candidate result.
+
+A webhook or browser callback never marks an invoice paid. Reconciliation consumes an injected provider lookup seam for synthetic tests, then requires matching merchant, environment, persisted order ID, payment ID, captured status, INR currency, full amount and paid order amount before it can commit the invoice and immutable audit event in one serializable transaction. The seam is deliberately not an HTTP client. A production integration must supply an independently authenticated provider API adapter only after #94 is approved. Timeouts retain pending state with bounded exponential retry delay; mismatches become rejected inbox records; stale events cannot regress attempt or invoice status. Refund events also require matching provider evidence and cannot exceed the captured paise total. No event changes project grants or kickoff access.
+
+Database triggers reject snapshot/audit mutation, identity/order changes, invalid state transitions and webhook evidence edits. Composite foreign keys bind attempts, inbox rows and audit entries to the exact tenant/project/invoice revision. The separate `cw_payments` schema does not claim a cross-database FK to Workspace tenant records; callers in a future trusted server layer must independently authorize the active principal and exact project scope before invoking payment persistence.
+
+## Local validation
+
+Use a disposable PostgreSQL 17 database named `cw_payments_test` on loopback and a separate `cw_payments_shadow` database. The test-target guard rejects remote hosts, other database names and host-routing query parameters. Install with `npm ci`, set `PAYMENTS_DATABASE_URL` and `PAYMENTS_SHADOW_DATABASE_URL` to those loopback databases, then run `npm run db:generate`, `npm run db:migrate:deploy` twice, `npm run db:migrate:status`, `npm run db:migrate:diff`, and `npm test`. The PostgreSQL suite runs only when `RUN_PAYMENTS_INTEGRATION=1` is set; otherwise only the dependency-free contract tests run and integration is reported as skipped.
+
+Pull-request CI has read-only repository permissions and creates ephemeral PostgreSQL 17 databases on loopback. It uses locked dependencies with Prisma engine checksum verification enabled, checks migration reruns/status/history/drift, runs the payment integration and full repository suites, TypeScript, normal build and `git diff --check`. It does not use secrets or deploy.
+
+## Explicit merchant separation (owner-confirmed)
+
+The owner confirms that **two separate connected Razorpay merchant accounts**
+exist. DigiPants Client Workspace invoices must use **DigiPants Network Pvt.
+Ltd.'s corporate merchant account only**; the separate personal-PAN merchant
+is used for Aegis and must never be selected by the Client Workspace. A
+connected account's order records are not sufficient to determine which
+merchant is active in a given plugin/session. No account ID, keys or production
+configuration have been bound to this experiment. In future integrations,
+merchant selection and environment must be enforced by trusted server
+configuration, never inferred from an available connection or user headers.
+
+## Open release gates
+
+- The synthetic callback used by tests stands in for a future trusted provider API response; there is no real provider verification or Razorpay Test Mode evidence here.
+- Merchant account ownership for DigiPants Network Pvt. Ltd., KYC/settlement and invoice/GST/refund policy remain unverified under #94. Do not configure credentials or reuse another business's merchant account.
+- The payment schema is separate from the workspace database. A future authorized runtime layer must enforce authenticated actor, active MFA where required, tenant membership and exact project grant before reads/writes; account existence and payment settlement never create grants.
+- This experiment does not establish production role grants, hosted migration approvals, backups/restore, monitoring, retention, chargebacks, cancellation policy or production finance controls.

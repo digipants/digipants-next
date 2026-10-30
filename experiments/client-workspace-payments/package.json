@@ -1,0 +1,21 @@
+{
+  "name": "@digipants/client-workspace-payments-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:diff": "prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code",
+    "test": "node --test tests/*.test.mjs",
+    "test:integration": "node --test tests/payment-ledger-postgres.test.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "7.10.1",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "prisma": "7.10.1"
+  }
+}

@@ -80,6 +80,7 @@ web_modules/
 # Next.js build output
 .next
 experiments/client-workspace-auth/generated/
+experiments/client-workspace-payments/generated/
 out
 
 # Nuxt.js build / generate output

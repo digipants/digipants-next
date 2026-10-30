@@ -1,0 +1,140 @@
+name: Client Workspace payment ledger experiment
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-payments.yml"
+      - ".gitignore"
+      - "experiments/client-workspace-payments/**"
+      - "experiments/client-workspace-razorpay/razorpay-contract.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "prisma.config.ts"
+      - "prisma/**"
+      - "tests/**"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-payment-ledger:
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-invoice-ledger-95' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: digipants_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: workspace_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U digipants_test -d workspace_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked repository dependencies with native engine integrity checks
+        run: npm ci
+      - name: Install locked isolated payment experiment dependencies with native engine integrity checks
+        working-directory: experiments/client-workspace-payments
+        run: npm ci
+      - name: Create loopback-only workspace, payments and shadow databases
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          WORKSPACE_URL: postgresql://digipants_test:disposable_ci_only@127.0.0.1:5432/workspace_test
+          WORKSPACE_SHADOW_URL: postgresql://digipants_test:disposable_ci_only@127.0.0.1:5432/workspace_shadow
+          PAYMENTS_URL: postgresql://digipants_test:disposable_ci_only@127.0.0.1:5432/cw_payments_test
+          PAYMENTS_SHADOW_URL: postgresql://digipants_test:disposable_ci_only@127.0.0.1:5432/cw_payments_shadow
+        run: |
+          set -euo pipefail
+          {
+            echo "DATABASE_URL=$WORKSPACE_URL"
+            echo "DIRECT_URL=$WORKSPACE_URL"
+            echo "SHADOW_DIRECT_URL=$WORKSPACE_SHADOW_URL"
+            echo "WORKSPACE_DB_TEST_LOCAL=1"
+            echo "PAYMENTS_DATABASE_URL=$PAYMENTS_URL"
+            echo "PAYMENTS_SHADOW_DATABASE_URL=$PAYMENTS_SHADOW_URL"
+          } >> "$GITHUB_ENV"
+          for database in workspace_shadow cw_payments_test cw_payments_shadow; do
+            docker exec "$POSTGRES_CONTAINER_ID" psql \
+              -v ON_ERROR_STOP=1 -U digipants_test -d postgres \
+              -c "CREATE DATABASE $database;"
+          done
+      - name: Generate root workspace Prisma client
+        run: npm run db:generate
+      - name: Deploy root migrations twice and verify history and drift
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          expected_count="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+          successful_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_test -d workspace_test -Atqc \
+            'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
+          test "$successful_count" = "$expected_count"
+          for migration in prisma/migrations/*/; do
+            name="${migration%/}"
+            name="${name##*/}"
+            count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_test -d workspace_test -Atqc \
+              "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name='$name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+            test "$count" = 1
+          done
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+      - name: Generate isolated payment Prisma client
+        working-directory: experiments/client-workspace-payments
+        run: npm run db:generate
+      - name: Deploy payment migrations twice and verify history and drift
+        working-directory: experiments/client-workspace-payments
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          successful_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_test -d cw_payments_test -Atqc \
+            'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
+          test "$successful_count" = 1
+          migration_name="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n')"
+          recorded_name="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_test -d cw_payments_test -Atqc \
+            'SELECT migration_name FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
+          test "$recorded_name" = "$migration_name"
+          npm run db:migrate:diff
+      - name: Run synthetic payment security and PostgreSQL integration tests
+        working-directory: experiments/client-workspace-payments
+        env:
+          RUN_PAYMENTS_INTEGRATION: 1
+        run: npm test
+      - name: Run complete repository test suite
+        run: node --test tests/*.test.mjs
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+      - name: Build production application without deploying
+        run: npm run build
+      - name: Check patch whitespace
+        run: git diff --check "origin/${GITHUB_BASE_REF}...HEAD"
+      - name: Verify the slice remains isolated from application routes and production configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r path; do
+            case "$path" in
+              .gitignore|.github/workflows/client-workspace-payments.yml|experiments/client-workspace-payments/*) ;;
+              *) echo "Out-of-scope path in the payments slice: $path"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
