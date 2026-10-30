@@ -77,7 +77,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     await assert.rejects(commitVerifiedStaffProjectStateChange(cmd({ nextState: "active" })), /verified session/,
       "activation needs an action-appropriate owner grant, not only delivery privilege");
 
-    await authDb.session.update({ where: { id: id.session }, data: { mfaVerifiedAt: new Date(Date.now() - 10 * 60_000) } });
+    await authDb.session.update({ where: { id: id.session }, data: { mfaVerifiedAt: new Date(Date.now() - 20 * 60_000) } });
     await assert.rejects(commitVerifiedStaffProjectStateChange(cmd()), /verified session/,
       "stale MFA assurance denies a routine state change");
     await authDb.session.update({ where: { id: id.session }, data: { mfaVerifiedAt: new Date() } });
