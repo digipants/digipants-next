@@ -48,6 +48,12 @@ function debugTrustedStateFailure(error: unknown): void {
   });
 }
 
+function debugTrustedStateDenial(stage: string): void {
+  if (process.env.AUTH_EXPERIMENT_DEBUG === "1") {
+    console.error("synthetic trusted-state denial", { stage });
+  }
+}
+
 function actionForState(state: WorkspaceProjectState): "project.activate" | "project.close" | "delivery.edit" {
   if (state === "active") return "project.activate";
   if (state === "closed") return "project.close";
@@ -121,6 +127,7 @@ export async function commitVerifiedStaffProjectStateChange(input: {
     if (assured.length !== 1) throw new TrustedProjectStateDenied();
 
     return await workspaceDb.$transaction(async (tx) => {
+      let stage = "grant-lock";
       // This definer helper only locks and returns an exact active grant. The
       // caller already verified the Better Auth subject/session/MFA above; its
       // custom-GUC value is set only after the exact grant check below.
@@ -130,13 +137,17 @@ export async function commitVerifiedStaffProjectStateChange(input: {
         )::text AS "principalId"
       `;
       const actor = actors[0];
-      if (!actor?.principalId) throw new TrustedProjectStateDenied();
+      if (!actor?.principalId) {
+        debugTrustedStateDenial(stage);
+        throw new TrustedProjectStateDenied();
+      }
 
       // This value scopes the defense-in-depth RLS policy only. It is set
       // after the verified subject's exact active grant has been locked, and
       // every following query still carries exact tenant/project predicates.
       await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${values.tenantId}, true)`;
 
+      stage = "state-update";
       const changed = await tx.$executeRaw`
         UPDATE workspace_projects
            SET state = ${values.nextState}, revision = revision + 1
@@ -145,16 +156,23 @@ export async function commitVerifiedStaffProjectStateChange(input: {
            AND revision = ${values.expectedRevision}
            AND EXISTS (SELECT 1 FROM workspace_tenants WHERE id = ${values.tenantId}::uuid AND status = 'active')
       `;
-      if (changed !== 1) throw new TrustedProjectStateDenied();
+      if (changed !== 1) {
+        debugTrustedStateDenial(stage);
+        throw new TrustedProjectStateDenied();
+      }
 
       const nextRevision = values.expectedRevision + 1n;
+      stage = "audit-append";
       const audit = await tx.$queryRaw<Array<{ appended: boolean }>>`
         SELECT NOT (cw_append_audit_event(
           ${values.tenantId}::uuid, ${values.projectId}::uuid, ${actor.principalId}::uuid,
           'person', 'project.state_changed', 'workspace_project', ${values.projectId},
           ${values.expectedRevision}, ${nextRevision}, ${values.idempotencyKey}) IS NULL) AS appended
       `;
-      if (audit[0]?.appended !== true) throw new TrustedProjectStateDenied();
+      if (audit[0]?.appended !== true) {
+        debugTrustedStateDenial(stage);
+        throw new TrustedProjectStateDenied();
+      }
       return nextRevision;
     }, { isolationLevel: "Serializable" });
   } catch (error) {
