@@ -662,23 +662,15 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
         return false;
       }
       stage = "lock-exact-owner-grant";
-      const owners = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT p.id::text AS id
-          FROM workspace_principals p
-          JOIN workspace_staff_memberships m ON m.principal_id=p.id
-          JOIN workspace_staff_project_grants g ON g.principal_id=p.id
-          JOIN workspace_tenants t ON t.id=g.tenant_id
-          JOIN workspace_projects pr ON pr.tenant_id=g.tenant_id AND pr.id=g.project_id
-         WHERE p.provider='better_auth' AND p.provider_subject=${values.providerSubject}
-           AND p.kind='staff' AND p.status='active'
-           AND m.status='active' AND m.revoked_at IS NULL
-           AND g.status='active' AND g.revoked_at IS NULL AND g.role='workspace_owner'
-           AND g.tenant_id=${attempt.tenantId}::uuid AND g.project_id=${attempt.projectId}::uuid
-           AND t.status='active'
-         LIMIT 1 FOR SHARE OF p,m,g,t,pr
+      // The shared helper locks the exact owner grant chain under the limited
+      // runtime role. The current Better Auth session/MFA was verified above.
+      const owners = await tx.$queryRaw<Array<{ id: string | null }>>`
+        SELECT cw_lock_staff_project_grant(
+          ${values.providerSubject}, ${attempt.tenantId}::uuid, ${attempt.projectId}::uuid, 'project.activate'
+        )::text AS id
       `;
       const owner = owners[0];
-      if (!owner) {
+      if (!owner?.id) {
         debugEnrollmentFailure("owner-approval-grant-denied", {});
         return false;
       }
