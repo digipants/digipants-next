@@ -149,6 +149,7 @@ jobs:
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
         run: npm run test:integration
       - name: Run baseline authentication fixtures for enrollment PR
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
@@ -177,17 +178,20 @@ jobs:
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
         run: node --import tsx --test tests/enrollment-saga-postgres.test.mjs
       - name: Exercise invitation-only Better Auth handler against PostgreSQL
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
         run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Exercise verified-subject state changes and concurrent revocation
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
         run: npm run test:trusted-state
       - name: Type-check the isolated auth experiment
         working-directory: experiments/client-workspace-auth
