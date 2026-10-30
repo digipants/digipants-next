@@ -631,10 +631,15 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
   catch { return false; }
   if (!UUID.test(values.attemptId) || typeof values.sessionId !== "string" || !values.sessionId ||
       typeof values.providerSubject !== "string" || !UUID.test(values.providerSubject)) return false;
+  let stage = "verify-owner-session";
   try {
-    if (!(await authorizeCurrentStaffSession(values.sessionId, values.providerSubject))) return false;
+    if (!(await authorizeCurrentStaffSession(values.sessionId, values.providerSubject))) {
+      debugEnrollmentFailure("owner-approval-session-denied", {});
+      return false;
+    }
     const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
     return await workspaceDb.$transaction(async (tx) => {
+      stage = "lock-attempt-and-invitation";
       const attempts = await tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
         SELECT a.id::text AS id, a.idempotency_hash AS "idempotencyHash",
                a.invitation_id::text AS "invitationId", a.invitation_hash AS "invitationHash",
@@ -650,7 +655,14 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
          FOR UPDATE OF a,i
       `;
       const attempt = attempts[0];
-      if (!attempt || attempt.retryBlocked || !CLIENT_ROLES.has(attempt.intendedRole)) return false;
+      if (!attempt || attempt.retryBlocked || !CLIENT_ROLES.has(attempt.intendedRole)) {
+        debugEnrollmentFailure("owner-approval-attempt-denied", {
+          attemptFound: Boolean(attempt), retryBlocked: attempt?.retryBlocked ?? false,
+          roleAllowed: attempt ? CLIENT_ROLES.has(attempt.intendedRole) : false,
+        });
+        return false;
+      }
+      stage = "lock-exact-owner-grant";
       const owners = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT p.id::text AS id
           FROM workspace_principals p
@@ -667,13 +679,21 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
          LIMIT 1 FOR SHARE OF p,m,g,t,pr
       `;
       const owner = owners[0];
-      if (!owner) return false;
+      if (!owner) {
+        debugEnrollmentFailure("owner-approval-grant-denied", {});
+        return false;
+      }
       if (attempt.state === "completed") return true;
       if (attempt.state !== "grant_ready_for_review" || attempt.inviteStatus !== "pending" ||
           !attempt.notExpired) {
+        debugEnrollmentFailure("owner-approval-state-denied", {
+          stateAllowed: attempt.state === "grant_ready_for_review",
+          invitationPending: attempt.inviteStatus === "pending", invitationUnexpired: attempt.notExpired,
+        });
         await poisonInTransaction(tx, attempt, "invitation_invalid");
         return false;
       }
+      stage = "activate-client-principal";
       const principals = await tx.$queryRaw<Array<{ id: string; status: string }>>`
         SELECT id::text AS id,status FROM workspace_principals
          WHERE provider='better_auth' AND provider_subject=${attempt.providerSubject} AND kind='client'
@@ -681,9 +701,13 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
       `;
       const client = principals[0];
       if (!client || client.status !== "disabled") {
+        debugEnrollmentFailure("owner-approval-principal-denied", {
+          principalFound: Boolean(client), principalDisabled: client?.status === "disabled",
+        });
         await poisonInTransaction(tx, attempt, "identity_conflict");
         return false;
       }
+      stage = "commit-membership-grant-and-audit";
       await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
       await tx.$executeRaw`UPDATE workspace_principals SET status='active' WHERE id=${client.id}::uuid AND status='disabled'`;
       await tx.$executeRaw`
@@ -719,7 +743,28 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
       });
       return true;
     }, { isolationLevel: "Serializable" });
-  } catch {
+  } catch (error) {
+    const safeError = error as {
+      code?: unknown;
+      message?: unknown;
+      cause?: { code?: unknown; message?: unknown };
+      meta?: { code?: unknown; message?: unknown };
+    };
+    const rawMessage = safeError?.meta?.message ?? safeError?.cause?.message ?? safeError?.message;
+    const message = typeof rawMessage === "string"
+      ? rawMessage
+        .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "[uuid]")
+        .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}/gi, "[email]")
+        .replace(/[A-Za-z0-9_-]{32,}/g, "[opaque-token]")
+        .slice(0, 180)
+      : null;
+    debugEnrollmentFailure("owner-approval-transaction-failed", {
+      stage,
+      code: typeof safeError?.code === "string" ? safeError.code : null,
+      databaseCode: typeof safeError?.meta?.code === "string" ? safeError.meta.code :
+        typeof safeError?.cause?.code === "string" ? safeError.cause.code : null,
+      message,
+    });
     return false;
   }
 }
