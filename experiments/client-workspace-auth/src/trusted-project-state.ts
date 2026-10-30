@@ -169,12 +169,13 @@ export async function commitVerifiedStaffProjectStateChange(input: {
       if (changed !== 1) throw new TrustedProjectStateDenied();
 
       const nextRevision = values.expectedRevision + 1n;
-      await tx.$queryRaw`
-        SELECT cw_append_audit_event(
+      const audit = await tx.$queryRaw<Array<{ appended: boolean }>>`
+        SELECT NOT (cw_append_audit_event(
           ${values.tenantId}::uuid, ${values.projectId}::uuid, ${actor.principalId}::uuid,
           'person', 'project.state_changed', 'workspace_project', ${values.projectId},
-          ${values.expectedRevision}, ${nextRevision}, ${values.idempotencyKey})
+          ${values.expectedRevision}, ${nextRevision}, ${values.idempotencyKey}) IS NULL) AS appended
       `;
+      if (audit[0]?.appended !== true) throw new TrustedProjectStateDenied();
       return nextRevision;
     }, { isolationLevel: "Serializable" });
   } catch (error) {
