@@ -256,7 +256,7 @@ if (!enabled) {
 
     await workspaceDb.$executeRaw`INSERT INTO workspace_client_memberships (tenant_id, principal_id) VALUES (${ids.tenant}::uuid, ${ids.principal}::uuid)`;
     await workspaceDb.$executeRaw`INSERT INTO workspace_client_project_grants (tenant_id, project_id, principal_id, role) VALUES (${ids.tenant}::uuid, ${ids.project}::uuid, ${ids.principal}::uuid, 'client_approver')`;
-    const { loadEffectiveWorkspaceGrants } = await loadExistingGrantQuery();
+    const loadEffectiveWorkspaceGrants = await loadExistingGrantQuery();
     const workspaceInput = {
       tenantId: ids.tenant,
       projectId: ids.project,
