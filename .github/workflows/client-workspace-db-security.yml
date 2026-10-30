@@ -72,10 +72,10 @@ jobs:
           set -euo pipefail
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
           {
-            printf 'BEGIN;\\n'
+            printf 'BEGIN;\n'
             cat experiments/client-workspace-db-security/sql/roles.sql
             cat experiments/client-workspace-db-security/sql/hardening.sql
-            printf '\\nCOMMIT;\\n'
+            printf '\nCOMMIT;\n'
           } | docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1
       - name: Exercise least-privilege roles, RLS limits, append-only audit and rollback negatives
         run: |
