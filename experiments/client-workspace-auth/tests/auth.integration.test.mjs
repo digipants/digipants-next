@@ -278,7 +278,7 @@ if (!enabled) {
     assert.equal(setup.response.ok, true, `TOTP enrollment should start: ${JSON.stringify(setup.payload)}`);
     assert.equal(setup.payload.method, "totp");
     assert.ok(Array.isArray(setup.payload.backupCodes) && setup.payload.backupCodes.length > 0);
-    const factor = await authDb.twoFactor.findUnique({ where: { userId: ids.authUser } });
+    const factor = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
     assert.ok(factor, "Better Auth owns the 2FA record");
     const authContext = await auth.$context;
     const totpSecret = await symmetricDecrypt({ key: authContext.secretConfig, data: factor.secret });
