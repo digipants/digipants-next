@@ -61,6 +61,9 @@ model WorkspaceStaffMembership {
   principal   WorkspacePrincipal           @relation(fields: [principalId, principalKind], references: [id, kind], onDelete: Restrict, map: "workspace_staff_memberships_principal_id_principal_kind_fkey")
   grants      WorkspaceStaffProjectGrant[]
   invitations WorkspaceInvitationRecord[]  @relation("InvitationIssuer")
+  authoredShares WorkspaceSharedRevision[] @relation("SharedAuthors")
+  reviewedShares WorkspaceSharedPublication[] @relation("SharedReviewers")
+  retractedShares WorkspaceSharedRetraction[] @relation("SharedRetractors")
 
   @@unique([principalId, principalKind], map: "workspace_staff_membership_principal_kind_uq")
   @@map("workspace_staff_memberships")
@@ -80,6 +83,7 @@ model WorkspaceProject {
   staffGrants  WorkspaceStaffProjectGrant[]
   invitations  WorkspaceInvitationRecord[]
   auditEvents  WorkspaceAuditEvent[]
+  sharedRevisions WorkspaceSharedRevision[]
 
   @@unique([tenantId, id], map: "workspace_project_tenant_id_uq")
   @@index([tenantId, state], map: "workspace_project_tenant_state_idx")
@@ -193,8 +197,76 @@ model WorkspaceAuditEvent {
 
   project WorkspaceProject    @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_audit_events_tenant_id_project_id_fkey")
   actor   WorkspacePrincipal? @relation(fields: [actorPrincipalId], references: [id], onDelete: Restrict, map: "workspace_audit_events_actor_principal_id_fkey")
+  sharedPublications WorkspaceSharedPublication[] @relation("SharingPublishedAudit")
+  sharedRetractions WorkspaceSharedRetraction[] @relation("SharingRetractedAudit")
 
   @@unique([tenantId, idempotencyKey], map: "workspace_audit_command_once")
+  @@unique([tenantId, projectId, id], map: "workspace_audit_scope_uq")
   @@index([tenantId, projectId, occurredAt(sort: Desc)], map: "workspace_audit_project_time_idx")
   @@map("workspace_audit_events")
+}
+
+
+// Development-only immutable sharing ledger. There is no live route, approved
+// storage, reader grant or customer-facing endpoint attached to these models.
+model WorkspaceSharedRevision {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  projectId         String   @map("project_id") @db.Uuid
+  resourceId        String   @map("resource_id") @db.Uuid
+  version           Int
+  kind              String   @db.Text
+  title             String   @db.Text
+  summary           String   @db.Text
+  privateObjectRef  String?  @map("private_object_ref") @db.Text
+  contentSha256     String   @map("content_sha256") @db.Text
+  byteSize          BigInt?  @map("byte_size")
+  mediaType         String?  @map("media_type") @db.Text
+  createdByStaffId  String   @map("created_by_staff_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project      WorkspaceProject @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_shared_revisions_project_fkey")
+  author       WorkspaceStaffMembership @relation("SharedAuthors", fields: [createdByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_shared_revisions_author_fkey")
+  publications WorkspaceSharedPublication[]
+
+  @@unique([tenantId, projectId, id], map: "workspace_shared_revisions_scope_uq")
+  @@unique([tenantId, projectId, resourceId, version], map: "workspace_shared_resource_version_uq")
+  @@index([tenantId, projectId, kind, createdAt(sort: Desc)], map: "workspace_shared_draft_idx")
+  @@map("workspace_shared_revisions")
+}
+
+model WorkspaceSharedPublication {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  revisionId      String   @unique(map: "workspace_shared_publications_revision_id_key") @map("revision_id") @db.Uuid
+  reviewedByStaffId String @map("reviewed_by_staff_id") @db.Uuid
+  auditEventId    String   @unique(map: "workspace_shared_publications_audit_event_id_key") @map("audit_event_id") @db.Uuid
+  publishedAt     DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+
+  revision    WorkspaceSharedRevision @relation(fields: [tenantId, projectId, revisionId], references: [tenantId, projectId, id], onDelete: Restrict, map: "workspace_shared_publications_revision_scope_fkey")
+  reviewer    WorkspaceStaffMembership @relation("SharedReviewers", fields: [reviewedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_shared_publications_reviewer_fkey")
+  audit       WorkspaceAuditEvent @relation("SharingPublishedAudit", fields: [tenantId, projectId, auditEventId], references: [tenantId, projectId, id], onDelete: Restrict, map: "workspace_shared_publications_audit_scope_fkey")
+  retractions WorkspaceSharedRetraction[]
+
+  @@unique([tenantId, projectId, id], map: "workspace_shared_publications_scope_uq")
+  @@index([tenantId, projectId, publishedAt(sort: Desc)], map: "workspace_shared_publications_project_time_idx")
+  @@map("workspace_shared_publications")
+}
+
+model WorkspaceSharedRetraction {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  publicationId    String   @unique(map: "workspace_shared_retractions_publication_id_key") @map("publication_id") @db.Uuid
+  retractedByStaffId String @map("retracted_by_staff_id") @db.Uuid
+  auditEventId     String   @unique(map: "workspace_shared_retractions_audit_event_id_key") @map("audit_event_id") @db.Uuid
+  reason           String   @db.Text
+  retractedAt      DateTime @default(now()) @map("retracted_at") @db.Timestamptz(6)
+
+  publication WorkspaceSharedPublication @relation(fields: [tenantId, projectId, publicationId], references: [tenantId, projectId, id], onDelete: Restrict, map: "workspace_shared_retractions_publication_scope_fkey")
+  retractor   WorkspaceStaffMembership @relation("SharedRetractors", fields: [retractedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_shared_retractions_retractor_fkey")
+  audit       WorkspaceAuditEvent @relation("SharingRetractedAudit", fields: [tenantId, projectId, auditEventId], references: [tenantId, projectId, id], onDelete: Restrict, map: "workspace_shared_retractions_audit_scope_fkey")
+
+  @@map("workspace_shared_retractions")
 }

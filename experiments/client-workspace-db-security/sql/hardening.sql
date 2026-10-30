@@ -6,7 +6,8 @@ REVOKE ALL ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
   workspace_projects, workspace_client_project_grants,
   workspace_staff_project_grants, workspace_invitation_records, workspace_enrollment_attempts,
-  workspace_audit_events FROM PUBLIC;
+  workspace_audit_events, workspace_shared_revisions,
+  workspace_shared_publications, workspace_shared_retractions FROM PUBLIC;
 
 GRANT SELECT ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
