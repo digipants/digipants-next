@@ -139,16 +139,23 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     await assert.rejects(read(), PublishedProjectAccessDenied);
     await adminDb.$executeRaw`UPDATE workspace_client_memberships SET status='active',revoked_at=NULL
       WHERE principal_id=${id.client}::uuid`;
+    // Membership reactivation intentionally leaves its grants revoked.
+    // A separate, explicit owner action is required to reinstate a grant.
+    await adminDb.$executeRaw`UPDATE workspace_client_project_grants SET status='active',revoked_at=NULL
+      WHERE principal_id=${id.client}::uuid`;
+    assert.equal((await read()).id, id.projectA, "restored authorized grant is visible again");
 
-    await adminDb.$executeRaw`UPDATE workspace_tenants SET status='disabled' WHERE id=${id.tenantA}::uuid`;
+    await adminDb.$executeRaw`UPDATE workspace_tenants SET status='suspended' WHERE id=${id.tenantA}::uuid`;
     await assert.rejects(read(), PublishedProjectAccessDenied);
     await adminDb.$executeRaw`UPDATE workspace_tenants SET status='active' WHERE id=${id.tenantA}::uuid`;
+    assert.equal((await read()).id, id.projectA, "suspended tenant reactivation alone restored normal view");
     await adminDb.$executeRaw`UPDATE workspace_projects SET publication='unpublished'
       WHERE id=${id.projectA}::uuid`;
     await assert.rejects(read(), PublishedProjectAccessDenied);
 
     await adminDb.$executeRaw`UPDATE workspace_projects SET publication='published'
       WHERE id=${id.projectA}::uuid`;
+    assert.equal((await read()).id, id.projectA, "republishing restores authorized read");
     await authDb.session.delete({ where: { id: id.session } });
     await assert.rejects(read(), PublishedProjectAccessDenied,
       "session revoked after DB grant check cannot authorize later reads");
