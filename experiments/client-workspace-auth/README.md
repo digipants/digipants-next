@@ -118,28 +118,50 @@ production database writes occur here. The isolated SQL test inserts only
 synthetic fixtures on disposable loopback PostgreSQL, checks cross-tenant and
 unassigned-staff denials, token secrecy, audit linkage and revocation.
 
-## Synthetic staff grant enforcement (#86)
+## Isolated mailbox-ownership proof and request guard (#84)
 
-The isolated authorization seam now exposes a **separate staff-only validator**
-that obtains a server-validated Better Auth session via the existing wrapper,
-then checks a DB-backed enabled and verified factor, a server-stamped MFA age,
-an active `staff` principal, active staff membership and the exact active
-tenant/project staff grant. Staff actions are an explicit allowlist; a staff
-subject **never inherits client contract signatory or proposal-decision roles**.
-The existing client validator continues requiring `kind = 'client'`.
+The `mailbox-proof.ts` experiment creates a second, separately random
+32-byte ownership secret for the **exact pending invitation recipient**.
+The challenge's SHA-256 digest lives in `auth_spike.verification` with a
+10-minute expiration. Two concurrent requests for the same invitation and
+recipient serialize on a PostgreSQL advisory transaction lock, limiting the
+fixture to one active code. Checking a proof deletes the matching hash
+atomically, denying replay, other emails, expired proofs and revoked invites.
+The code exists only in its private test return value; no email, account,
+tenant membership or grant is created. **A real provider must deliver it only
+to the address on the invite, and production signup must independently consume
+a valid proof; neither is implemented here.** Proof success alone cannot be
+relied on to enable sign-up.
 
-The PostgreSQL test constructs a **synthetic staff identity and MFA-marked
-session directly in the disposable database** to exercise positive/negative
-grant, wrong tenant, stale MFA, factor and revocation checks. This test does
-**not prove actual staff signup, real TOTP enrollment, HTTP cookie handling,
-staff impersonation prevention or interactive MFA step-up**. No real staff
-account or production endpoint is created. The wrapper must only receive
-headers from a trusted Next.js server boundary if ever integrated.
+`enrollment-request-guard.ts` separately demonstrates a strict server-side
+same-origin POST/JSON and HMAC double-submit token contract, bound to an
+already verified, server-owned session and short validity window. It rejects
+mismatched Origin/Host, missing or cross-site fetch metadata, a wrong CSRF
+cookie/header, altered HMAC, incorrect session or expired/future timestamp.
+This experimental helper is **not middleware**, does not establish identity,
+does not replace Better Auth's built-in CSRF and session protection and does
+not secure routes merely because an HTTP client supplied Origin/Host headers.
 
-Real issuance must bind the staff principal subject to a verified company
-identity and recent TOTP session, and factor recovery must revoke all other
-sessions. Those are **still required** under #78 and #79. Do not enable staff
-operations or publish any auth route merely because these isolated tests pass.
+Remaining **blocking #83/#78/#79 work**: controlled mail delivery, email
+verification linked atomically to identity provisioning, request rate limits,
+origin/CSRF integration, abuse/suppression monitoring, auditable recovery
+of the separate auth/workspace databases, production secret and cookie policy,
+staff MFA and least-privilege roles. The existing signup experiment still
+redeems a bearer invite without this separate mailbox proof; it must not be
+exposed or imported into the production Next app until its gate is replaced
+with a verified recipient workflow.
+
+## Isolated staff grant gate (#86)
+
+The isolated staff-only validator uses a verified server Better Auth session,
+enabled and verified TOTP, DB-stored MFA age, active staff membership and exact
+project grants. Staff actions are explicitly allowlisted; client privileges do
+not carry over. Synthetic PostgreSQL tests check tenant/role separation,
+stale MFA, disabled factor, revoked grants/memberships and deleted sessions.
+The fixture inserts test-only staff identity and assurance state directly in
+a disposable database: real staff enrollment, operator approval, live TOTP
+challenge and factor-reset recovery are **not** implemented. #78 remains a
+production blocker. No live route imports this experimental helper.
 
 ## Local verification
 
