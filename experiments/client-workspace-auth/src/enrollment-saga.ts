@@ -53,6 +53,13 @@ function idempotencyHash(invitationHash: string, email: string, proofHash: strin
 function auditKey(attemptId: string, event: string, sequence = 0): string {
   return `enrollment:${attemptId}:${event}:${sequence}`;
 }
+function debugEnrollmentFailure(stage: string, detail: Record<string, unknown>): void {
+  if (process.env.AUTH_EXPERIMENT_DEBUG === "1") {
+    // Emit only a generic stage and database error codes, never query values,
+    // bearer tokens, mailbox proofs, subjects or invitation contents.
+    console.error("synthetic enrollment diagnostic", { stage, ...detail });
+  }
+}
 function liveInvitation(row: { status: string; notExpired: boolean; tenantStatus: string; projectTenantId: string | null }): boolean {
   return row.status === "pending" && row.notExpired &&
     row.tenantStatus === "active" && row.projectTenantId !== null;
@@ -94,7 +101,13 @@ export async function prepareEnrollmentAttempt(input: {
   catch { return null; }
   const email = normalizeInvitedEmail(values.intendedEmail);
   if (!email || typeof values.token !== "string" || values.token.length < 32 || values.token.length > 512 ||
-      !UUID.test(values.challengeId)) return null;
+      !UUID.test(values.challengeId)) {
+    debugEnrollmentFailure("input-rejected", {
+      hasValidEmail: Boolean(email), tokenLengthValid: typeof values.token === "string" && values.token.length >= 32 && values.token.length <= 512,
+      challengeIdValid: UUID.test(values.challengeId),
+    });
+    return null;
+  }
 
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const invitationHash = hashInvitationToken(values.token);
@@ -132,7 +145,12 @@ export async function prepareEnrollmentAttempt(input: {
          FOR UPDATE OF i, t, p
       `;
       const invitation = invitations[0];
-      if (!invitation || !CLIENT_ROLES.has(invitation.intendedRole)) return null;
+      if (!invitation || !CLIENT_ROLES.has(invitation.intendedRole)) {
+        debugEnrollmentFailure("invitation-not-found-or-role-rejected", {
+          invitationFound: Boolean(invitation), roleAllowed: invitation ? CLIENT_ROLES.has(invitation.intendedRole) : false,
+        });
+        return null;
+      }
       const proofHash = proofReferenceHash(invitation.id, email, values.challengeId);
       const idemHash = idempotencyHash(invitationHash, email, proofHash);
       const existing = await tx.$queryRaw<Array<AttemptRow & { retryBlocked: boolean }>>`
@@ -178,7 +196,10 @@ export async function prepareEnrollmentAttempt(input: {
         SELECT id::text AS id FROM workspace_enrollment_attempts
          WHERE invitation_id = ${invitation.id}::uuid LIMIT 1
       `;
-      if (priorForInvite.length) return null;
+      if (priorForInvite.length) {
+        debugEnrollmentFailure("invitation-already-journaled", { priorAttemptFound: true });
+        return null;
+      }
 
       const attemptId = randomUUID();
       const providerSubject = randomUUID();
@@ -213,7 +234,12 @@ export async function prepareEnrollmentAttempt(input: {
       });
       return publicAttempt(inserted[0]!);
     }, { isolationLevel: "Serializable" });
-  } catch {
+  } catch (error) {
+    const safeError = error as { code?: unknown; meta?: { code?: unknown } };
+    debugEnrollmentFailure("transaction-failed", {
+      code: typeof safeError?.code === "string" ? safeError.code : null,
+      databaseCode: typeof safeError?.meta?.code === "string" ? safeError.meta.code : null,
+    });
     // A parallel attempt may win the invitation's UNIQUE journal slot while
     // this serializable transaction is resolving. Re-read by the full stable
     // input identity rather than handing the caller a second subject.

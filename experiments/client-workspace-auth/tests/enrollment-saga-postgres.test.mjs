@@ -66,6 +66,14 @@ if (!enabled) {
     // same deterministic idempotency key and provider subject.
     const proof = await mailbox.createSyntheticMailboxChallenge({ authDb, workspaceDb, invitationId: inviteId, intendedEmail });
     assert.ok(proof);
+    const stillLive = await workspaceDb.$queryRaw`
+      SELECT status,lower(intended_email) AS intended_email,expires_at > statement_timestamp() AS not_expired
+        FROM workspace_invitation_records WHERE id=${inviteId}::uuid
+    `;
+    assert.equal(stillLive.length, 1);
+    assert.equal(stillLive[0].status, "pending");
+    assert.equal(stillLive[0].intended_email, intendedEmail);
+    assert.equal(stillLive[0].not_expired, true);
     const first = await saga.prepareEnrollmentAttempt({ token: inviteToken, intendedEmail, challengeId: proof.challengeId });
     const [retryA, retryB] = await Promise.all([
       saga.prepareEnrollmentAttempt({ token: inviteToken, intendedEmail, challengeId: proof.challengeId }),
