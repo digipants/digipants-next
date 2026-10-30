@@ -1,9 +1,23 @@
 import "server-only";
 import type { WorkspaceAction, WorkspaceResource } from "../../../lib/client-workspace/access-policy.js";
-import { loadEffectiveWorkspaceGrants } from "../../../lib/client-workspace/effective-grants.js";
 import { auth } from "./auth.js";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { authorizeValidatedWorkspaceAction, authorizeValidatedStaffWorkspaceAction } from "./workspace-access-core.js";
+
+type EffectiveGrantLoader = typeof import("../../../lib/client-workspace/effective-grants.js").loadEffectiveWorkspaceGrants;
+
+async function loadEffectiveWorkspaceGrants(input: Parameters<EffectiveGrantLoader>[0]): ReturnType<EffectiveGrantLoader> {
+  // The repository root intentionally has no package.json type=module, so
+  // tsx exposes this TypeScript module through CommonJS's default namespace.
+  // Dynamic import keeps ESM linking portable across that package boundary.
+  const imported = await import("../../../lib/client-workspace/effective-grants.js") as unknown as {
+    loadEffectiveWorkspaceGrants?: EffectiveGrantLoader;
+    default?: { loadEffectiveWorkspaceGrants?: EffectiveGrantLoader };
+  };
+  const loader = imported.loadEffectiveWorkspaceGrants ?? imported.default?.loadEffectiveWorkspaceGrants;
+  if (typeof loader !== "function") return [];
+  return loader(input);
+}
 
 /**
  * Server-only, fixture-scope access seam. The caller supplies incoming request
