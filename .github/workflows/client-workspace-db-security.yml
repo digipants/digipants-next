@@ -1,0 +1,92 @@
+name: Client Workspace disposable DB security rehearsal
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-db-security.yml"
+      - "experiments/client-workspace-db-security/**"
+      - "prisma/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  ephemeral-postgres-security:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: digipants_ws_dev
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: digipants_workspace_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U digipants_ws_dev -d digipants_workspace_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+      DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+      SHADOW_DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_shadow
+      POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Create disposable shadow database
+        run: |
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE digipants_workspace_shadow"
+      - name: Verify native Prisma baseline migration and ledger
+        run: |
+          set -euo pipefail
+          npm run db:generate
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          ledger_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
+            "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name='20261029130000_client_workspace_foundation' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+          test "$ledger_count" = 1
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+      - name: Seed synthetic records and apply experiment-only SQL
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
+      - name: Exercise RLS, least privilege, immutable audit and rollback negatives
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify.sql
+      - name: Dump and restore into second isolated PostgreSQL database
+        run: |
+          set -euo pipefail
+          backup="$RUNNER_TEMP/workspace-synthetic.dump"
+          docker exec "$POSTGRES_CONTAINER_ID" pg_dump -U digipants_ws_dev -d digipants_workspace_dev --format=custom > "$backup"
+          test -s "$backup"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE workspace_restore_test"
+          docker exec -i "$POSTGRES_CONTAINER_ID" pg_restore -U digipants_ws_dev -d workspace_restore_test --no-owner --no-acl < "$backup"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d workspace_restore_test -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify-restore.sql
+          rm -f "$backup"
+      - name: Existing repository tests and TypeScript validation
+        run: |
+          node --test tests/*.test.mjs
+          npx tsc --noEmit
+      - name: Normal production build (no new routes)
+        run: npm run build
+      - name: Check pull-request patch formatting
+        run: |
+          git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
