@@ -81,7 +81,7 @@ CREATE INDEX workspace_shared_publications_project_time_idx
 -- a revision. No principal id is accepted as proof of caller identity; the
 -- eventual server must still authenticate/authorize the acting session.
 CREATE FUNCTION workspace_check_shared_author()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM 1 FROM workspace_principals p
     JOIN workspace_staff_memberships sm ON sm.principal_id=p.id
@@ -101,7 +101,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 CREATE TRIGGER workspace_shared_revision_author_guard
   BEFORE INSERT ON workspace_shared_revisions
   FOR EACH ROW EXECUTE FUNCTION workspace_check_shared_author();
