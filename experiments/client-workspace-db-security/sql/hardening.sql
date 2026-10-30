@@ -143,12 +143,22 @@ CREATE TRIGGER cw_audit_reject_truncate
 REVOKE cw_audit_writer FROM CURRENT_USER;
 REVOKE cw_schema_owner FROM CURRENT_USER;
 
-DO $$
+DO $
 BEGIN
-  IF pg_has_role(current_user, 'cw_schema_owner', 'MEMBER') OR
-     pg_has_role(current_user, 'cw_audit_writer', 'MEMBER') OR
-     has_schema_privilege('cw_audit_writer', 'public', 'CREATE') THEN
-    RAISE EXCEPTION 'installer retained temporary elevation';
+  -- PostgreSQL 17 CREATEROLE may retain administrative membership in a
+  -- created role even after explicit SET/INHERIT rights are revoked. It is
+  -- NOT the same as the ability to SET ROLE or inherit its table privileges.
+  -- A superuser can assume any role by definition, so the membership test
+  -- applies only to a non-superuser installer.
+  IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AND
+     (pg_has_role(current_user, 'cw_schema_owner', 'SET') OR
+      pg_has_role(current_user, 'cw_schema_owner', 'USAGE') OR
+      pg_has_role(current_user, 'cw_audit_writer', 'SET') OR
+      pg_has_role(current_user, 'cw_audit_writer', 'USAGE')) THEN
+    RAISE EXCEPTION 'installer retained owner or audit writer SET/INHERIT rights';
+  END IF;
+  IF has_schema_privilege('cw_audit_writer', 'public', 'CREATE') THEN
+    RAISE EXCEPTION 'audit writer retained temporary schema CREATE';
   END IF;
 END;
-$$;
+$;
