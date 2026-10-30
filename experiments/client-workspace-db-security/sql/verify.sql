@@ -26,6 +26,20 @@ SET LOCAL ROLE cw_runtime;
 DO $$
 DECLARE denied boolean := false;
 BEGIN
+  IF has_function_privilege(
+       'cw_runtime',
+       'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
+       'EXECUTE') IS NOT TRUE OR
+     has_function_privilege(
+       'cw_audit_writer',
+       'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
+       'EXECUTE') OR
+     has_function_privilege(
+       'cw_audit_reader',
+       'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
+       'EXECUTE') THEN
+    RAISE EXCEPTION 'grant-lock helper privileges are not runtime-only';
+  END IF;
   IF (SELECT count(*) FROM workspace_projects) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed projects';
   END IF;
