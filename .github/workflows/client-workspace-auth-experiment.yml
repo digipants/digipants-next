@@ -179,6 +179,7 @@ jobs:
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           NODE_OPTIONS: --conditions=react-server
+          AUTH_EXPERIMENT_DEBUG: 1
         run: node --import tsx --test tests/enrollment-saga-postgres.test.mjs
       - name: Exercise invitation-only Better Auth handler against PostgreSQL
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
