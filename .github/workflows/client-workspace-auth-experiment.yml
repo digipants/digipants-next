@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   local-auth-security-validation:
-    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:

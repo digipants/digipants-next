@@ -151,6 +151,18 @@ redeems a bearer invite without this separate mailbox proof; it must not be
 exposed or imported into the production Next app until its gate is replaced
 with a verified recipient workflow.
 
+## Isolated staff grant gate (#86)
+
+The isolated staff-only validator uses a verified server Better Auth session,
+enabled and verified TOTP, DB-stored MFA age, active staff membership and exact
+project grants. Staff actions are explicitly allowlisted; client privileges do
+not carry over. Synthetic PostgreSQL tests check tenant/role separation,
+stale MFA, disabled factor, revoked grants/memberships and deleted sessions.
+The fixture inserts test-only staff identity and assurance state directly in
+a disposable database: real staff enrollment, operator approval, live TOTP
+challenge and factor-reset recovery are **not** implemented. #78 remains a
+production blocker. No live route imports this experimental helper.
+
 ## Local verification
 
 Use only four disposable loopback PostgreSQL databases with the exact names

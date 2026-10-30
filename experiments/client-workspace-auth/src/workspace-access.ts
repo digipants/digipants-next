@@ -3,24 +3,30 @@ import type { WorkspaceAction, WorkspaceResource } from "../../../lib/client-wor
 import { loadEffectiveWorkspaceGrants } from "../../../lib/client-workspace/effective-grants.js";
 import { auth } from "./auth.js";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
-import { authorizeValidatedWorkspaceAction } from "./workspace-access-core.js";
+import { authorizeValidatedWorkspaceAction, authorizeValidatedStaffWorkspaceAction } from "./workspace-access-core.js";
 
 /**
  * Server-only, fixture-scope access seam. The caller supplies incoming request
  * headers; Better Auth validates the session and its DB marker before grants
  * are queried. No route in the live Next.js app imports this module.
  */
-export async function authorizeWorkspaceAction(input: {
+export type WorkspaceRequestAction = {
   headers: Headers;
   tenantId: string;
   projectId: string;
   action: WorkspaceAction;
   publication: WorkspaceResource["publication"];
-}): Promise<boolean> {
+};
+
+/**
+ * In this experiment a server-owned Better Auth session is required before
+ * either client or staff authorization. No HTTP route imports these helpers.
+ */
+async function authorizeFromVerifiedSession(input: WorkspaceRequestAction, staff: boolean): Promise<boolean> {
   try {
     const current = await auth.api.getSession({ headers: input.headers });
     if (!current?.session?.id || !current.user?.id) return false;
-    return authorizeValidatedWorkspaceAction({
+    return (staff ? authorizeValidatedStaffWorkspaceAction : authorizeValidatedWorkspaceAction)({
       sessionId: current.session.id,
       providerSubject: current.user.id,
       tenantId: input.tenantId,
@@ -34,4 +40,12 @@ export async function authorizeWorkspaceAction(input: {
   } catch {
     return false;
   }
+}
+
+export async function authorizeWorkspaceAction(input: WorkspaceRequestAction): Promise<boolean> {
+  return authorizeFromVerifiedSession(input, false);
+}
+
+export async function authorizeStaffWorkspaceAction(input: WorkspaceRequestAction): Promise<boolean> {
+  return authorizeFromVerifiedSession(input, true);
 }

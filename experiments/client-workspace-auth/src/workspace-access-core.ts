@@ -13,7 +13,14 @@ type RawSqlClient = {
   $queryRaw<T = unknown>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
-export async function authorizeValidatedWorkspaceAction(input: {
+const STAFF_ACTIONS: ReadonlySet<WorkspaceAction> = new Set([
+  "project.read_internal", "brief.review", "delivery.edit", "estimate.approve",
+  "milestone.verify", "progress.publish", "proposal.approve_price",
+  "invoice.approve", "payment.reconcile", "proposal.release",
+  "project.activate", "project.close",
+]);
+
+export type AuthenticatedWorkspaceInput = {
   sessionId: string;
   providerSubject: string;
   tenantId: string;
@@ -27,8 +34,15 @@ export async function authorizeValidatedWorkspaceAction(input: {
     tenantId: string;
     projectId: string;
   }) => Promise<WorkspaceGrant[]>;
-}): Promise<boolean> {
+};
+
+async function authorizeKind(
+  input: AuthenticatedWorkspaceInput,
+  kind: "client" | "staff",
+): Promise<boolean> {
   try {
+    // Do not silently inherit client roles as staff permissions.
+    if (kind === "staff" && !STAFF_ACTIONS.has(input.action)) return false;
     // No browser-supplied assurance and no permissive fallback for new actions.
     // Use the PostgreSQL server clock to compare a persisted MFA challenge
     // timestamp, not the client's local time or an unsigned session claim.
@@ -55,7 +69,7 @@ export async function authorizeValidatedWorkspaceAction(input: {
         FROM workspace_principals
        WHERE provider = 'better_auth'
          AND provider_subject = ${input.providerSubject}
-         AND kind = 'client'
+         AND kind = ${kind}
        LIMIT 1
     `;
     const principal = principals[0];
@@ -79,4 +93,22 @@ export async function authorizeValidatedWorkspaceAction(input: {
   } catch {
     return false;
   }
+}
+
+/** Client actions remain bound to an active client principal. */
+export async function authorizeValidatedWorkspaceAction(
+  input: AuthenticatedWorkspaceInput,
+): Promise<boolean> {
+  return authorizeKind(input, "client");
+}
+
+/**
+ * Isolated staff-only grant gate. The caller MUST already have independently
+ * verified its Better Auth session; this function alone does not enroll staff
+ * or authenticate a bearer cookie. No production route imports it.
+ */
+export async function authorizeValidatedStaffWorkspaceAction(
+  input: AuthenticatedWorkspaceInput,
+): Promise<boolean> {
+  return authorizeKind(input, "staff");
 }
