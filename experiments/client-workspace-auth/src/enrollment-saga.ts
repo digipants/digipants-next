@@ -235,16 +235,24 @@ export async function prepareEnrollmentAttempt(input: {
       return publicAttempt(inserted[0]!);
     }, { isolationLevel: "Serializable" });
   } catch (error) {
-    const safeError = error as { code?: unknown; meta?: { code?: unknown; message?: unknown } };
-    const databaseMessage = typeof safeError?.meta?.message === "string"
-      ? safeError.meta.message
+    const safeError = error as {
+      code?: unknown;
+      message?: unknown;
+      cause?: { code?: unknown; message?: unknown };
+      meta?: { code?: unknown; message?: unknown };
+    };
+    const rawDatabaseMessage = safeError?.meta?.message ?? safeError?.cause?.message ?? safeError?.message;
+    const databaseMessage = typeof rawDatabaseMessage === "string"
+      ? rawDatabaseMessage
         .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "[uuid]")
         .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}/gi, "[email]")
+        .replace(/[A-Za-z0-9_-]{32,}/g, "[opaque-token]")
         .slice(0, 180)
       : null;
     debugEnrollmentFailure("transaction-failed", {
       code: typeof safeError?.code === "string" ? safeError.code : null,
-      databaseCode: typeof safeError?.meta?.code === "string" ? safeError.meta.code : null,
+      databaseCode: typeof safeError?.meta?.code === "string" ? safeError.meta.code :
+        typeof safeError?.cause?.code === "string" ? safeError.cause.code : null,
       databaseMessage,
     });
     // A parallel attempt may win the invitation's UNIQUE journal slot while
