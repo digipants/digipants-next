@@ -69,12 +69,13 @@ async function appendAudit(tx: Sql, values: {
   tenantId: string; projectId: string; actorId?: string | null;
   action: string; objectId: string; idempotencyKey: string;
 }): Promise<void> {
-  await tx.$queryRaw`
-    SELECT cw_append_audit_event(
+  const rows = await tx.$queryRaw<Array<{ appended: boolean }>>`
+    SELECT NOT (cw_append_audit_event(
       ${values.tenantId}::uuid, ${values.projectId}::uuid, ${values.actorId ?? null}::uuid,
       'system', ${values.action}, 'workspace_enrollment_attempt', ${values.objectId},
-      NULL, NULL, ${values.idempotencyKey})
+      NULL, NULL, ${values.idempotencyKey}) IS NULL) AS appended
   `;
+  if (rows[0]?.appended !== true) throw new Error("Enrollment audit append did not complete.");
 }
 
 function publicAttempt(row: AttemptRow): Pick<AttemptRow,
