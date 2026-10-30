@@ -113,7 +113,8 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
       const active = await workspaceDb.$queryRaw`SELECT count(*)::int AS count
         FROM pg_stat_activity
        WHERE datname = current_database() AND pid <> pg_backend_pid()
-         AND state = 'active' AND ltrim(query) LIKE 'UPDATE workspace_projects%'`;
+         AND state = 'active' AND wait_event = 'PgSleep'
+         AND query ILIKE '%workspace_projects%'`;
       if (active[0]?.count > 0) { updateInFlight = true; break; }
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
