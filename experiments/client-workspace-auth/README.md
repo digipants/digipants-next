@@ -115,12 +115,62 @@ GUC; the database roles and parameterized trusted server path do not make that
 scenario safe. Production role provisioning, pooler behavior, audit export and
 fresh-MFA step-up remain review gates.
 
-Invitation consumption and principal creation share one PostgreSQL transaction
-in the workspace database. Better Auth creates the identity in its separate
-database afterward. If that later identity write fails, the invitation remains
-consumed and the orphan principal has no membership or grant; cleanup or
-reissuance is a future operational policy. This deliberately favors denial
-over accidentally restoring a consumed bearer token.
+## Two-database enrollment journal and recovery (Issue #97)
+
+The isolated signup hook now coordinates the Workspace and Better Auth
+databases through a durable, bounded journal. Before Better Auth writes an
+identity, Workspace creates one attempt keyed by an idempotency digest of the
+hashed invitation, normalized recipient and proof reference. The attempt
+persists one server-generated provider subject, exact tenant/project and
+allowlisted client role, and a hash of the mailbox-proof reference; it never
+stores the bearer token or proof code. A composite foreign key binds that
+attempt to its invitation scope. An immutable-context trigger and state-machine
+trigger limit transitions to `pending`, `auth_created`,
+`grant_ready_for_review`, `completed`, `cancelled` and `needs_repair`.
+
+Proof consumption commits independently in the Auth database. The verification
+row is removed and its proof-reference/code-digest receipt is recorded in the
+same Auth transaction. Replaying that exact receipt for the same attempt is
+idempotent; replaying it for another attempt or with a different code fails.
+If the process stops after either database commits, retry/reconciliation uses
+the stable journaled provider subject and existing Auth records. The Workspace
+principal is created disabled, the invitation remains pending, and no tenant
+membership or project grant is inferred from account existence. Only a current
+Better Auth session with recent persisted MFA, an active staff membership and
+an exact active `workspace_owner` grant can approve the invitation; principal
+activation, invitation redemption, membership, exact project grant, journal
+completion and append-only audit are one serializable Workspace transaction.
+
+Expired/revoked invitations after Auth identity creation, provider identity
+conflicts and Workspace principals without a matching Auth identity move to
+`needs_repair`; the principal stays disabled and has no rights. Five recorded
+failures poison an attempt. The partial index on `poisoned_at` is the local
+alertable queue; a real alert channel and operator identity system are not part
+of this experiment. The test-runbook query for synthetic/manual triage is:
+
+```sql
+SELECT id, tenant_id, project_id, invitation_id, state, attempt_count,
+       last_error_code, poisoned_at, updated_at
+  FROM workspace_enrollment_attempts
+ WHERE state = 'needs_repair'
+ ORDER BY poisoned_at;
+```
+
+Manual repair is deliberately not an endpoint or automatic grant path. An
+operator must compare the invitation, Auth-side subject, proof-spend receipt,
+workspace principal and audit trail in both disposable databases, record an
+approved repair decision, and either revoke/disable the orphan or authorize a
+fresh invitation through the normal owner gate. Never delete a spent proof,
+restore a bearer, activate a principal or create a grant solely because a
+Better Auth user exists. There is no cross-database transaction; deterministic
+failure-injection tests cover journal-only, proof-spend and Auth-user commit
+crash points, with reconciliation and poison outcomes checked using synthetic
+identities only.
+
+The proof and invitation workflows remain test-only: there is no mail
+delivery, route, public login, external provider API, production secret,
+customer identity or remote database. Hosted recovery monitoring and backup
+restore policy still require human review before any product integration.
 
 ## Isolated project-owner invitation issuance and revocation (#81)
 
@@ -222,6 +272,7 @@ export WORKSPACE_DB_TEST_LOCAL=1
 npm ci
 npm run db:generate
 npm run db:migrate:deploy
+npm run db:migrate:deploy
 npm run db:migrate:status
 npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
 node tests/client-workspace-persistence.integration.mjs
@@ -244,10 +295,13 @@ export BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
 npm ci
 npm run db:generate
 npm run db:migrate:deploy
+npm run db:migrate:deploy
 npm run db:migrate:status
 npm run db:migrate:diff
 npm run auth:schema
-npm run test:integration
+node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
+# Apply the disposable database-role rehearsal before these append-only tests.
+node --import tsx --test tests/enrollment-saga-postgres.test.mjs tests/auth.integration.test.mjs
 npm test
 npm run typecheck
 ```

@@ -138,8 +138,43 @@ model WorkspaceInvitationRecord {
   project    WorkspaceProject         @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_invitation_records_tenant_id_project_id_fkey")
   issuer     WorkspaceStaffMembership @relation("InvitationIssuer", fields: [issuedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_invitation_records_issued_by_staff_id_fkey")
   redeemedBy WorkspacePrincipal?      @relation("InvitationRedeemer", fields: [redeemedByClientId, redeemedPrincipalKind], references: [id, kind], onDelete: Restrict, map: "workspace_invites_redeemed_principal_kind_fkey")
+  enrollmentAttempts WorkspaceEnrollmentAttempt[]
 
+  @@unique([tenantId, projectId, id], map: "workspace_invitation_scope_uq")
   @@map("workspace_invitation_records")
+}
+
+// Durable workspace-side saga journal. Better Auth identity/session rows stay
+// in auth_spike; this table stores only the stable subject and hashed proof refs.
+model WorkspaceEnrollmentAttempt {
+  id                 String    @id @db.Uuid
+  idempotencyHash    String    @unique(map: "workspace_enrollment_idempotency_hash_key") @map("idempotency_hash") @db.Text
+  invitationId       String    @unique(map: "workspace_enrollment_invitation_id_key") @map("invitation_id") @db.Uuid
+  invitationHash     String    @map("invitation_hash") @db.Text
+  mailboxProofRefHash String   @map("mailbox_proof_ref_hash") @db.Text
+  providerSubject    String    @unique(map: "workspace_enrollment_provider_subject_key") @map("provider_subject") @db.Text
+  tenantId           String    @map("tenant_id") @db.Uuid
+  projectId          String    @map("project_id") @db.Uuid
+  intendedEmail      String    @map("intended_email") @db.Text
+  intendedRole       String    @map("intended_role") @db.Text
+  state              String    @default("pending") @db.Text
+  attemptCount       Int       @default(0) @map("attempt_count")
+  lastErrorCode      String?   @map("last_error_code") @db.Text
+  nextRetryAt        DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  poisonedAt         DateTime? @map("poisoned_at") @db.Timestamptz(6)
+  authCreatedAt      DateTime? @map("auth_created_at") @db.Timestamptz(6)
+  principalCreatedAt DateTime? @map("principal_created_at") @db.Timestamptz(6)
+  grantApprovedAt    DateTime? @map("grant_approved_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+  cancelledAt        DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  invitation WorkspaceInvitationRecord @relation(fields: [tenantId, projectId, invitationId], references: [tenantId, projectId, id], onDelete: Restrict, map: "workspace_enrollment_invitation_scope_fkey")
+
+  @@index([state, nextRetryAt, updatedAt], map: "workspace_enrollment_retry_idx")
+  @@index([poisonedAt], map: "workspace_enrollment_poisoned_idx")
+  @@map("workspace_enrollment_attempts")
 }
 
 model WorkspaceAuditEvent {
