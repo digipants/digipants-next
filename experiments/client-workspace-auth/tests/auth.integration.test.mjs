@@ -277,7 +277,7 @@ if (!enabled) {
     const setup = await send("/two-factor/enable", { method: "totp", password }, jar);
     assert.equal(setup.response.ok, true, `TOTP enrollment should start: ${JSON.stringify(setup.payload)}`);
     assert.equal(setup.payload.method, "totp");
-    assert.ok(Array.isArray(setup.payload.backupCodes) && setup.payload.backupCodes.length > 0);
+    assert.ok(Array.isArray(setup.payload.backupCodes) && setup.payload.backupCodes.length >= 4);
     const factor = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
     assert.ok(factor, "Better Auth owns the 2FA record");
     const authContext = await auth.$context;
@@ -430,7 +430,9 @@ if (!enabled) {
     }
 
     const lockedFactor = await authDb.twoFactor.findFirst({ where: { userId: ids.authUser } });
-    const correctDuringLockout = await send("/two-factor/verify-totp", { code: totp(totpSecret) }, lockoutJar);
+    const correctDuringLockout = await send("/two-factor/verify-backup-code", {
+      code: setup.payload.backupCodes[2],
+    }, lockoutJar);
     assert.equal(correctDuringLockout.response.status, 429, "correct factor is rejected while the database-backed lock is active");
     assert.equal(correctDuringLockout.payload.code, "ACCOUNT_TEMPORARILY_LOCKED");
     assert.equal(await auth.api.getSession({ headers: new Headers({ cookie: lockoutJar.header() }) }), null, "locked verification creates no authenticated session");
@@ -463,8 +465,8 @@ if (!enabled) {
     const postExpiryChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, recoveryJar);
     assert.equal(postExpiryChallenge.response.ok, true);
     assert.equal(postExpiryChallenge.payload.twoFactorRedirect, true);
-    const recoveredAfterExpiry = await send("/two-factor/verify-totp", { code: totp(totpSecret) }, recoveryJar);
-    assert.equal(recoveredAfterExpiry.response.ok, true, "a valid factor succeeds after expiry and a fresh password challenge");
+    const recoveredAfterExpiry = await send("/two-factor/verify-backup-code", { code: setup.payload.backupCodes[3] }, recoveryJar);
+    assert.equal(recoveredAfterExpiry.response.ok, true, "an unused backup factor succeeds after expiry and a fresh password challenge");
     const recoveredSession = await auth.api.getSession({ headers: new Headers({ cookie: recoveryJar.header() }) });
     assert.ok(recoveredSession?.session?.id);
     const recoveredAssurance = await authDb.$queryRaw`
