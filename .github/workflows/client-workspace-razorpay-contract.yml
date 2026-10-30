@@ -1,0 +1,41 @@
+name: Client Workspace Razorpay contract validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-razorpay-contract.yml"
+      - "experiments/client-workspace-razorpay/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-payment-contract:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-razorpay-contract-92' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/unused_offline
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Prove offline synthetic Razorpay signature and event contracts
+        run: node --test experiments/client-workspace-razorpay/tests/*.test.mjs
+      - name: Existing repository tests and TypeScript validation
+        run: |
+          node --test tests/*.test.mjs
+          npx tsc --noEmit
+      - name: Normal Next.js production build, no payment routes
+        run: npm run build
+      - name: Check patch whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
