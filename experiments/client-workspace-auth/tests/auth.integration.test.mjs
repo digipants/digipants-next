@@ -354,6 +354,8 @@ if (!enabled) {
       sessionId: current.session.id,
       providerSubject: current.user.id,
     }), true, "verified recovery code establishes the same server assurance");
+    const recoveryAssurance = await authDb.$queryRaw`SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${current.session.id}`;
+    assert.ok(recoveryAssurance[0]?.mfa_verified_at instanceof Date, "backup-code verification persisted server-owned assurance");
 
     await send("/sign-out", {}, jar);
     const reusedBackupChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, jar);
@@ -386,9 +388,9 @@ if (!enabled) {
     const disabledMembership = await workspaceDb.$queryRaw`SELECT status FROM workspace_client_memberships WHERE principal_id = ${ids.principal}::uuid`;
     assert.equal(disabledMembership[0]?.status, "revoked", "principal disable cascades to its membership");
 
+    const sessionsBeforeDirectAttempt = await authDb.session.count({ where: { userId: ids.authUser } });
     const directSessionAttempt = await send("/create-session", { userId: ids.authUser, mfaVerifiedAt: "2099-01-01T00:00:00.000Z" }, jar);
     assert.equal(directSessionAttempt.response.ok, false, "no public session-creation route may set assurance");
-    const totalMfaRows = await authDb.$queryRaw`SELECT count(*)::int AS count FROM auth_spike.session WHERE user_id = ${ids.authUser} AND mfa_verified_at IS NOT NULL`;
-    assert.ok(totalMfaRows[0]?.count >= 2, "only verified TOTP/recovery flows should create assured sessions");
+    assert.equal(await authDb.session.count({ where: { userId: ids.authUser } }), sessionsBeforeDirectAttempt, "disabled direct session creation cannot create another session");
   });
 }
