@@ -37,7 +37,6 @@ jobs:
       DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
       DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
       SHADOW_DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_shadow
-      POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +44,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Initialize disposable service container handle
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          echo "POSTGRES_CONTAINER_ID=$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
       - name: Install locked dependencies
         run: npm ci
       - name: Create disposable shadow database
