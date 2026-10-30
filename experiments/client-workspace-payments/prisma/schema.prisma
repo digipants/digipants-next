@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+// Composite foreign keys, partial unique indexes and transition/immutability
+// triggers are defined explicitly in the checked-in PostgreSQL migration.
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["cw_payments"]
+}
+
+model PaymentInvoice {
+  id                    String   @id @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  projectId             String   @map("project_id") @db.Uuid
+  invoiceNumber         String   @map("invoice_number") @db.Text
+  currentApprovedRevision Int    @map("current_approved_revision")
+  status                String   @default("approved") @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, projectId, id], map: "payment_invoices_scope_id_key")
+  @@unique([tenantId, projectId, id, currentApprovedRevision], map: "payment_invoices_approved_snapshot_key")
+  @@unique([tenantId, projectId, invoiceNumber], map: "payment_invoices_scoped_number_key")
+  @@map("payment_invoices")
+  @@schema("cw_payments")
+}
+
+model ApprovedInvoiceSnapshot {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  revision       Int
+  amountPaise    BigInt   @map("amount_paise")
+  currency       String   @db.Text
+  snapshotJson   Json     @map("snapshot_json") @db.JsonB
+  snapshotSha256 String   @map("snapshot_sha256") @db.Text
+  approvedBy     String   @map("approved_by") @db.Uuid
+  approvedAt     DateTime @default(now()) @map("approved_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, projectId, invoiceId, revision], map: "approved_invoice_snapshots_revision_key")
+  @@map("approved_invoice_snapshots")
+  @@schema("cw_payments")
+}
+
+model PaymentAttempt {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  invoiceRevision Int     @map("invoice_revision")
+  merchantId     String   @map("merchant_id") @db.Text
+  environment    String   @db.Text
+  requestKey     String   @map("request_key") @db.Text
+  orderId        String   @map("order_id") @db.Text
+  paymentId      String?  @map("payment_id") @db.Text
+  amountPaise    BigInt   @map("amount_paise")
+  refundedAmountPaise BigInt @default(0) @map("refunded_amount_paise")
+  currency       String   @db.Text
+  status         String   @default("pending") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([merchantId, environment, orderId], map: "payment_attempts_merchant_env_order_key")
+  @@unique([merchantId, environment, paymentId], map: "payment_attempts_merchant_env_payment_key")
+  @@unique([tenantId, invoiceId, invoiceRevision, requestKey], map: "payment_attempts_request_key")
+  @@unique([tenantId, projectId, invoiceId, invoiceRevision, id], map: "payment_attempts_scope_revision_id_key")
+  @@map("payment_attempts")
+  @@schema("cw_payments")
+}
+
+model WebhookEventInbox {
+  id                 String   @id @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  projectId          String   @map("project_id") @db.Uuid
+  invoiceId          String   @map("invoice_id") @db.Uuid
+  invoiceRevision    Int      @map("invoice_revision")
+  merchantId         String   @map("merchant_id") @db.Text
+  environment        String   @db.Text
+  providerEventId    String   @map("provider_event_id") @db.Text
+  eventType          String   @map("event_type") @db.Text
+  orderId            String   @map("order_id") @db.Text
+  paymentId          String   @map("payment_id") @db.Text
+  refundId           String?  @map("refund_id") @db.Text
+  rawBodySha256      String   @map("raw_body_sha256") @db.Text
+  payloadAmountPaise BigInt?  @map("payload_amount_paise")
+  payloadCurrency    String?  @map("payload_currency") @db.Text
+  payloadStatus      String?  @map("payload_status") @db.Text
+  state              String   @default("pending") @db.Text
+  attemptCount       Int      @default(0) @map("attempt_count")
+  lastErrorCode      String?  @map("last_error_code") @db.Text
+  nextRetryAt        DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([merchantId, environment, providerEventId], map: "webhook_event_inbox_provider_event_key")
+  @@unique([tenantId, projectId, invoiceId, invoiceRevision, id], map: "webhook_event_inbox_scope_id_key")
+  @@map("webhook_event_inbox")
+  @@schema("cw_payments")
+}
+
+model PaymentReconciliationEvent {
+  id                   String   @id @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  projectId            String   @map("project_id") @db.Uuid
+  invoiceId            String   @map("invoice_id") @db.Uuid
+  invoiceRevision      Int      @map("invoice_revision")
+  paymentAttemptId     String?  @map("payment_attempt_id") @db.Uuid
+  webhookEventInboxId  String?  @map("webhook_event_inbox_id") @db.Uuid
+  action               String   @db.Text
+  beforeInvoiceStatus  String?  @map("before_invoice_status") @db.Text
+  afterInvoiceStatus   String?  @map("after_invoice_status") @db.Text
+  beforePaymentStatus  String?  @map("before_payment_status") @db.Text
+  afterPaymentStatus   String?  @map("after_payment_status") @db.Text
+  providerEvidenceSha256 String? @map("provider_evidence_sha256") @db.Text
+  idempotencyKey       String   @map("idempotency_key") @db.Text
+  occurredAt           DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, idempotencyKey], map: "payment_reconciliation_idempotency_key")
+  @@map("payment_reconciliation_events")
+  @@schema("cw_payments")
+}
