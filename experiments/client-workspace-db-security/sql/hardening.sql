@@ -5,13 +5,18 @@
 REVOKE ALL ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
   workspace_projects, workspace_client_project_grants,
-  workspace_staff_project_grants, workspace_invitation_records,
+  workspace_staff_project_grants, workspace_invitation_records, workspace_enrollment_attempts,
   workspace_audit_events FROM PUBLIC;
 
 GRANT SELECT ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
   workspace_projects, workspace_client_project_grants,
-  workspace_staff_project_grants TO cw_runtime;
+  workspace_staff_project_grants, workspace_enrollment_attempts TO cw_runtime;
+GRANT INSERT ON TABLE workspace_enrollment_attempts TO cw_runtime;
+GRANT UPDATE (state, attempt_count, last_error_code, next_retry_at,
+  poisoned_at, auth_created_at, principal_created_at, grant_approved_at,
+  completed_at, cancelled_at, updated_at)
+  ON TABLE workspace_enrollment_attempts TO cw_runtime;
 GRANT UPDATE (state, revision) ON TABLE workspace_projects TO cw_runtime;
 GRANT SELECT ON TABLE workspace_projects, workspace_audit_events TO cw_audit_reader;
 GRANT INSERT ON TABLE workspace_audit_events TO cw_audit_writer;

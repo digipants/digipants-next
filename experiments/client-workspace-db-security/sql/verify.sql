@@ -168,6 +168,18 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN denied := true;
   END;
   IF NOT denied THEN RAISE EXCEPTION 'runtime could truncate audit history'; END IF;
+  denied := false;
+  BEGIN
+    UPDATE workspace_enrollment_attempts SET intended_email='forged@example.invalid';
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'runtime could change immutable enrollment identity/context'; END IF;
+  denied := false;
+  BEGIN
+    DELETE FROM workspace_enrollment_attempts;
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'runtime could erase enrollment recovery history'; END IF;
 END $$;
 COMMIT;
 

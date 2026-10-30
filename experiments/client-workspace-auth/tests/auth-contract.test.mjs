@@ -65,8 +65,16 @@ test("auth-owned schema is isolated and session assurance is not client writable
 
 test("public signup and alternative passwordless routes have explicit server gates", async () => {
   const auth = await readFile(new URL("../src/auth.ts", import.meta.url), "utf8");
+  const saga = await readFile(new URL("../src/enrollment-saga.ts", import.meta.url), "utf8");
   assert.match(auth, /context\.path !== "\/sign-up\/email"/);
-  assert.match(auth, /redeemClientInvitation/);
+  assert.match(auth, /prepareEnrollmentAttempt/);
+  assert.match(auth, /consumeMailboxProofForEnrollment/);
+  assert.match(auth, /markAuthIdentityCreated/);
+  assert.doesNotMatch(auth, /redeemClientInvitation/);
+  assert.match(saga, /grant_ready_for_review/);
+  assert.match(saga, /return "grant_ready_for_review"/);
+  assert.match(saga, /approveEnrollmentGrantForVerifiedSubject/);
+  assert.doesNotMatch(saga, /CREATE\s+ROUTE|NextResponse|app\/api/i);
   for (const path of ["/sign-in/social", "/sign-in/magic-link", "/sign-in/email-otp", "/sign-in/phone-number", "/sign-in/username", "/sign-up/anonymous", "/two-factor/verify-otp"]) {
     assert.ok(auth.includes(path), `Expected disabled endpoint ${path}`);
   }

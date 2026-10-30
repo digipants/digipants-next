@@ -3,9 +3,14 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { twoFactor } from "better-auth/plugins";
-import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
-import { INVITATION_HEADER, redeemClientInvitation } from "./invitations.js";
-import { consumeSyntheticMailboxChallenge, findPendingInvitationIdForBearer } from "./mailbox-proof.js";
+import { getAuthPrisma } from "./database.js";
+import { INVITATION_HEADER } from "./invitations.js";
+import {
+  consumeMailboxProofForEnrollment,
+  markAuthIdentityCreated,
+  prepareEnrollmentAttempt,
+  reconcileEnrollmentAttempt,
+} from "./enrollment-saga.js";
 import { stampMfaAssurance } from "./mfa-assurance.js";
 
 const secret = process.env.BETTER_AUTH_SECRET;
@@ -64,35 +69,36 @@ export const auth = betterAuth({
           if (!context || context.path !== "/sign-up/email" || context.method !== "POST") {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
           }
-          // Better Auth calls this hook before its adapter assigns a user id.
-          // Choose the server-owned subject here and pass the same value to
-          // both the workspace principal and Better Auth's subsequent insert.
-          const providerSubject = randomUUID();
           const token = context.headers?.get(INVITATION_HEADER) ?? "";
           const challengeId = context.headers?.get("x-digipants-mail-challenge-id") ?? "";
           const challengeCode = context.headers?.get("x-digipants-mail-proof") ?? "";
-          const workspaceDb = getWorkspacePrisma();
-          const invitationId = await findPendingInvitationIdForBearer({
-            workspaceDb, token, intendedEmail: user.email,
+          const attempt = await prepareEnrollmentAttempt({
+            token, intendedEmail: user.email, challengeId,
           });
-          if (!invitationId || !(await consumeSyntheticMailboxChallenge({
-            workspaceDb, authDb: getAuthPrisma(), invitationId,
-            intendedEmail: user.email, challengeId, code: challengeCode,
-          }))) {
+          if (!attempt || attempt.state !== "pending") {
             throw APIError.from("UNAUTHORIZED", {
               message: "Invitation required", code: "INVITATION_REQUIRED",
             });
           }
-          // Separate DB transactions: if this or the provider identity insert
-          // fails, the one-time proof remains consumed. That is fail-closed;
-          // controlled reconciliation and reissuance are future launch gates.
-          const accepted = await redeemClientInvitation({
-            workspaceDb, token, intendedEmail: user.email, providerSubject,
-          });
-          if (!accepted) {
+          const reconciled = await reconcileEnrollmentAttempt(attempt.id);
+          if (reconciled && reconciled !== "pending") {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
           }
-          return { data: { id: providerSubject } };
+          if (!(await consumeMailboxProofForEnrollment({
+            attemptId: attempt.id, challengeId, code: challengeCode,
+          }))) {
+            throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
+          }
+          // Better Auth's own user insert is the next, separate database
+          // commit. The stable subject is journaled before this insert so a
+          // crash can be reconciled without creating a different identity.
+          return { data: { id: attempt.providerSubject } };
+        },
+        after: async (user) => {
+          const state = await markAuthIdentityCreated(user.id, user.email);
+          if (state !== "grant_ready_for_review" && state !== "completed") {
+            throw APIError.from("UNAUTHORIZED", { message: "Enrollment requires repair", code: "ENROLLMENT_REPAIR_REQUIRED" });
+          }
         },
       },
     },

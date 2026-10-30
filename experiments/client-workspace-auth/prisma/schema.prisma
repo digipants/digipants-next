@@ -106,3 +106,15 @@ model TotpCodeUse {
   @@map("totp_code_use")
   @@schema("auth_spike")
 }
+
+// Proof consumption is durable and binds one mailbox proof to one workspace
+// enrollment attempt. The attempt id intentionally has no cross-database FK.
+model WorkspaceMailboxProofSpend {
+  proofRefHash String   @id @map("proof_ref_hash") @db.Text
+  attemptId    String   @unique(map: "auth_spike_mailbox_proof_attempt_key") @map("attempt_id") @db.Uuid
+  codeDigestHash String  @map("code_digest_hash") @db.Text
+  consumedAt   DateTime @default(now()) @map("consumed_at") @db.Timestamptz(6)
+
+  @@map("workspace_mailbox_proof_spends")
+  @@schema("auth_spike")
+}
