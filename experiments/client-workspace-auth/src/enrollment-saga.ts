@@ -640,24 +640,23 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
     const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
     return await workspaceDb.$transaction(async (tx) => {
       stage = "lock-attempt-and-invitation";
-      const attempts = await tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
+      const attempts = await tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean }>>`
         SELECT a.id::text AS id, a.idempotency_hash AS "idempotencyHash",
                a.invitation_id::text AS "invitationId", a.invitation_hash AS "invitationHash",
                a.mailbox_proof_ref_hash AS "mailboxProofRefHash", a.provider_subject AS "providerSubject",
                a.tenant_id::text AS "tenantId", a.project_id::text AS "projectId",
                a.intended_email AS "intendedEmail", a.intended_role AS "intendedRole", a.state,
                a.attempt_count AS "attemptCount", a.next_retry_at AS "nextRetryAt",
-               i.status AS "inviteStatus", i.expires_at > statement_timestamp() AS "notExpired",
-               COALESCE(a.next_retry_at > statement_timestamp(), false) AS "retryBlocked"
+               i.status AS "inviteStatus", i.expires_at > statement_timestamp() AS "notExpired"
           FROM workspace_enrollment_attempts a
           JOIN workspace_invitation_records i ON i.id=a.invitation_id
          WHERE a.id=${values.attemptId}::uuid
          FOR UPDATE OF a,i
       `;
       const attempt = attempts[0];
-      if (!attempt || attempt.retryBlocked || !CLIENT_ROLES.has(attempt.intendedRole)) {
+      if (!attempt || !CLIENT_ROLES.has(attempt.intendedRole)) {
         debugEnrollmentFailure("owner-approval-attempt-denied", {
-          attemptFound: Boolean(attempt), retryBlocked: attempt?.retryBlocked ?? false,
+          attemptFound: Boolean(attempt),
           roleAllowed: attempt ? CLIENT_ROLES.has(attempt.intendedRole) : false,
         });
         return false;
@@ -684,6 +683,10 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
         return false;
       }
       if (attempt.state === "completed") return true;
+      // Retry backoff applies to provider/proof retry work. It cannot block
+      // the separate owner decision once identity is ready for review; current
+      // owner MFA, exact scope/role, invitation validity and bounded state are
+      // rechecked below before any grant is written.
       if (attempt.state !== "grant_ready_for_review" || attempt.inviteStatus !== "pending" ||
           !attempt.notExpired) {
         debugEnrollmentFailure("owner-approval-state-denied", {

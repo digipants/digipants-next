@@ -184,6 +184,11 @@ if (!enabled) {
       VALUES (${ownerSessionId},${staffUserId},${randomBytes(32).toString("hex")},
         statement_timestamp()+interval '1 hour',statement_timestamp(),statement_timestamp(),statement_timestamp())
     `;
+    const retryWindow = await workspaceDb.$queryRaw`
+      SELECT COALESCE(next_retry_at > statement_timestamp(),false) AS blocked
+        FROM workspace_enrollment_attempts WHERE id=${first.id}::uuid
+    `;
+    assert.equal(retryWindow[0]?.blocked, true, "a rejected proof replay delays provider/proof retries");
     const approvals = await Promise.all([1, 2].map(() => saga.approveEnrollmentGrantForVerifiedSubject({
       attemptId: first.id, sessionId: ownerSessionId, providerSubject: ownerSubject,
     })));
