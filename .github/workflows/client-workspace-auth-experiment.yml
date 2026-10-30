@@ -151,6 +151,13 @@ jobs:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           NODE_OPTIONS: --conditions=react-server
         run: npm run test:integration
+      - name: Run invitation and grant fixtures BEFORE append-only audit hardening
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
+        run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
       - name: Run baseline authentication fixtures for enrollment PR
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
         working-directory: experiments/client-workspace-auth
@@ -195,13 +202,13 @@ jobs:
           NODE_OPTIONS: --conditions=react-server
           AUTH_EXPERIMENT_DEBUG: 1
         run: npm run test:trusted-state
-      - name: Run full auth integration suite AFTER installer and append-only audit helper
+      - name: Test invitation-only Better Auth enrollment AFTER audit hardening
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           NODE_OPTIONS: --conditions=react-server
-        run: npm run test:integration
+        run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Provision distinct NON-superuser runtime login for published read test
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' }}
         env:
