@@ -27,8 +27,8 @@ provided.
   creation; its `Paid` tag is a fake example status, not a transaction.
 - Proposal controls are explanation-only; they cannot accept or decline
   a real proposal.
-- No input of personal information, authentication, database connector,
-  provider API calls, files, uploads, analytics tags or secrets is implemented.
+- The project root layout still includes the existing marketing header/footer and\n  consent UI. This is a known preview-only UX limitation; a future real\n  authenticated workspace needs a dedicated shell and privacy review.\n- No workspace-specific input of personal information, authentication, database connector,
+  provider API calls, files, uploads, analytics tags or secrets is implemented; the parent marketing layout may\n  still load its existing consent-gated analytics components.
 - The original `prototypes/client-workspace/` and
   `prototypes/client-progress/` remain untouched and localhost-only.
 - Root project navigation, contact and production pages remain unchanged.
@@ -45,7 +45,7 @@ the information hierarchy, status visibility, proposal transparency,
 milestone wording, timeline, invoice design and navigation. Collect feedback
 in the PR. Do not merge this demo route as an unauthenticated live portal
 without a separate explicit owner decision about retaining a public sample
-or returning 404 in production.
+or returning 404 in production. The server route now explicitly\nreturns Next.js 404 for every host other than Netlify PR preview URLs; this\ncheck is an additional demo visibility guard, not an identity or data security\nboundary. The preview remains synthetic-only and publicly accessible by link.
 
 The actual workspace will need authenticated tenant-scoped session,
 approved sharing and revision policy (#67), authorization and
