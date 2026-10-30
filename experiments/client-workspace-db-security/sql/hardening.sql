@@ -143,7 +143,7 @@ CREATE TRIGGER cw_audit_reject_truncate
 REVOKE cw_audit_writer FROM CURRENT_USER;
 REVOKE cw_schema_owner FROM CURRENT_USER;
 
-DO $
+DO $$
 BEGIN
   -- PostgreSQL 17 CREATEROLE may retain administrative membership in a
   -- created role even after explicit SET/INHERIT rights are revoked. It is
@@ -161,4 +161,4 @@ BEGIN
     RAISE EXCEPTION 'audit writer retained temporary schema CREATE';
   END IF;
 END;
-$;
+$$;
