@@ -118,6 +118,29 @@ production database writes occur here. The isolated SQL test inserts only
 synthetic fixtures on disposable loopback PostgreSQL, checks cross-tenant and
 unassigned-staff denials, token secrecy, audit linkage and revocation.
 
+## Synthetic staff grant enforcement (#86)
+
+The isolated authorization seam now exposes a **separate staff-only validator**
+that obtains a server-validated Better Auth session via the existing wrapper,
+then checks a DB-backed enabled and verified factor, a server-stamped MFA age,
+an active `staff` principal, active staff membership and the exact active
+tenant/project staff grant. Staff actions are an explicit allowlist; a staff
+subject **never inherits client contract signatory or proposal-decision roles**.
+The existing client validator continues requiring `kind = 'client'`.
+
+The PostgreSQL test constructs a **synthetic staff identity and MFA-marked
+session directly in the disposable database** to exercise positive/negative
+grant, wrong tenant, stale MFA, factor and revocation checks. This test does
+**not prove actual staff signup, real TOTP enrollment, HTTP cookie handling,
+staff impersonation prevention or interactive MFA step-up**. No real staff
+account or production endpoint is created. The wrapper must only receive
+headers from a trusted Next.js server boundary if ever integrated.
+
+Real issuance must bind the staff principal subject to a verified company
+identity and recent TOTP session, and factor recovery must revoke all other
+sessions. Those are **still required** under #78 and #79. Do not enable staff
+operations or publish any auth route merely because these isolated tests pass.
+
 ## Local verification
 
 Use only four disposable loopback PostgreSQL databases with the exact names
