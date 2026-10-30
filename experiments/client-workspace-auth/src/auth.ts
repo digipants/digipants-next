@@ -63,16 +63,21 @@ export const auth = betterAuth({
           if (!context || context.path !== "/sign-up/email" || context.method !== "POST") {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
           }
+          // Better Auth calls this hook before its adapter assigns a user id.
+          // Choose the server-owned subject here and pass the same value to
+          // both the workspace principal and Better Auth's subsequent insert.
+          const providerSubject = randomUUID();
           const token = context.headers?.get(INVITATION_HEADER) ?? "";
           const accepted = await redeemClientInvitation({
             workspaceDb: getWorkspacePrisma(),
             token,
             intendedEmail: user.email,
-            providerSubject: user.id,
+            providerSubject,
           });
           if (!accepted) {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
           }
+          return { data: { id: providerSubject } };
         },
       },
     },

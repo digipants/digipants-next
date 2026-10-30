@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { assertDisposableLoopbackDatabaseUrl } from "../src/test-target.ts";
-import { hashInvitationToken } from "../src/invitations.ts";
+import { hashInvitationToken, redeemClientInvitation } from "../src/invitations.ts";
 
 test("database guard permits only the exact loopback fixture target", () => {
   assert.equal(
@@ -32,6 +32,17 @@ test("invitation digests are one-way SHA-256 values and never the bearer token",
   assert.match(digest, /^[a-f0-9]{64}$/);
   assert.notEqual(digest, token);
   assert.notEqual(digest, hashInvitationToken(`${token}-changed`));
+});
+
+test("malformed invitation fields deny without opening a transaction", async () => {
+  const workspaceDb = { $transaction() { throw new Error("invalid invitation data must fail before database access"); } };
+  for (const input of [
+    { token: undefined, intendedEmail: "client@example.invalid", providerSubject: "subject" },
+    { token: "x".repeat(32), intendedEmail: undefined, providerSubject: "subject" },
+    { token: "x".repeat(32), intendedEmail: "client@example.invalid", providerSubject: undefined },
+  ]) {
+    assert.equal(await redeemClientInvitation({ workspaceDb, ...input }), false);
+  }
 });
 
 test("auth-owned schema is isolated and session assurance is not client writable", async () => {

@@ -26,7 +26,11 @@ export async function redeemClientInvitation(input: {
   providerSubject: string;
 }): Promise<boolean> {
   const { workspaceDb, token, intendedEmail, providerSubject } = input;
-  if (token.length < 32 || token.length > 512 || providerSubject.length < 1 || providerSubject.length > 255) {
+  if (
+    typeof token !== "string" || token.length < 32 || token.length > 512 ||
+    typeof intendedEmail !== "string" || intendedEmail.length < 3 || intendedEmail.length > 320 ||
+    typeof providerSubject !== "string" || providerSubject.length < 1 || providerSubject.length > 255
+  ) {
     return false;
   }
 
