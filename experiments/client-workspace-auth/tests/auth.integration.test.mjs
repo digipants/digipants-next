@@ -109,7 +109,7 @@ if (!enabled) {
     return module.loadEffectiveWorkspaceGrants;
   }
 
-  test("invitation-only credential enrollment, real 2FA assurance, replay and revocation", async (t) => {
+  test("invitation-only enrollment, real 2FA assurance, lockout, replay and revocation", async (t) => {
     const ids = {
       tenant: randomUUID(),
       project: randomUUID(),
