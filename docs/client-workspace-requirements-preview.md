@@ -1,6 +1,6 @@
 # Client Workspace — Requirements and Documents synthetic review (#106)
 
-This is an additive UX review slice stacked on the first-glimpse PR #105.
+This is an additive UX review slice based on the first-glimpse PR #105, which has now been squash-merged into main.
 The entry point remains the Netlify PR Deploy Preview at /workspace-preview/.
 The page remains restricted to Netlify PR hosts, noindex/nofollow and synthetic.
 
@@ -16,4 +16,4 @@ The page remains restricted to Netlify PR hosts, noindex/nofollow and synthetic.
 - The root layout still includes public marketing site chrome; a real authenticated workspace will need a dedicated root shell and appropriate consent/privacy behavior.
 
 ## Review
-Check both screens and the local category filter on desktop/mobile in the PR's Netlify preview. Check the full tests, TypeScript and Next build. The stacked PR must not merge before #105; neither PR should be treated as a real customer onboarding gate.
+Check both screens and the local category filter on desktop/mobile in the PR's Netlify preview. Check the full tests, TypeScript and Next build. This PR remains draft for founder review and must not be treated as a real customer onboarding gate.
