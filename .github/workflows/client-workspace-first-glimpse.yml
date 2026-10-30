@@ -1,0 +1,43 @@
+name: Client Workspace first-glimpse preview validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-first-glimpse.yml"
+      - "app/workspace-preview/**"
+      - "tests/client-workspace-first-glimpse.test.mjs"
+      - "docs/client-workspace-first-glimpse.md"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-browser-preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-first-glimpse-104' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/unused_offline
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate existing Prisma client without database access
+        run: npm run db:generate
+      - name: Prove preview-only data isolation and run full repository tests
+        run: node --test tests/*.test.mjs
+      - name: TypeScript validation
+        run: npx tsc --noEmit
+      - name: Standard production build
+        run: npm run build
+      - name: Whitespace check
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
