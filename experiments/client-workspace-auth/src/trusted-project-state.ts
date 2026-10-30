@@ -125,14 +125,15 @@ export async function commitVerifiedStaffProjectStateChange(input: {
       // SHARE makes a concurrent membership/grant revocation wait until this
       // authorized state+audit transaction finishes (or this transaction
       // fails). User input can choose the requested transition, never the role.
+      // The grant's composite FK proves its project/tenant binding. Avoid
+      // reading the RLS-protected project row until after the exact grant is
+      // locked and the server sets the transaction-local tenant filter.
       const actors = await tx.$queryRaw<Array<{ principalId: string }>>`
         SELECT p.id::text AS "principalId"
           FROM workspace_principals AS p
           JOIN workspace_staff_memberships AS m ON m.principal_id = p.id
           JOIN workspace_staff_project_grants AS g ON g.principal_id = p.id
           JOIN workspace_tenants AS t ON t.id = g.tenant_id
-          JOIN workspace_projects AS project
-            ON project.tenant_id = g.tenant_id AND project.id = g.project_id
          WHERE p.provider = 'better_auth'
            AND p.provider_subject = ${values.providerSubject}
            AND p.kind = 'staff'
@@ -148,7 +149,7 @@ export async function commitVerifiedStaffProjectStateChange(input: {
            AND ((${values.nextState}::text IN ('active', 'closed') AND g.role = 'workspace_owner')
              OR (${values.nextState}::text NOT IN ('active', 'closed') AND g.role IN ('delivery_staff', 'delivery_lead')))
          LIMIT 1
-         FOR SHARE OF p, m, g, t, project
+         FOR SHARE OF p, m, g, t
       `;
       const actor = actors[0];
       if (!actor) throw new TrustedProjectStateDenied();
