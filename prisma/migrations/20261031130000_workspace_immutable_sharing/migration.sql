@@ -77,6 +77,35 @@ CREATE INDEX workspace_shared_draft_idx
 CREATE INDEX workspace_shared_publications_project_time_idx
   ON workspace_shared_publications(tenant_id, project_id, published_at DESC);
 
+-- Only exact active staff with a current project delivery grant may author
+-- a revision. No principal id is accepted as proof of caller identity; the
+-- eventual server must still authenticate/authorize the acting session.
+CREATE FUNCTION workspace_check_shared_author()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  PERFORM 1 FROM workspace_principals p
+    JOIN workspace_staff_memberships sm ON sm.principal_id=p.id
+    JOIN workspace_staff_project_grants g ON g.principal_id=p.id
+    JOIN workspace_projects project ON project.id=g.project_id AND project.tenant_id=g.tenant_id
+    JOIN workspace_tenants tenant ON tenant.id=project.tenant_id
+   WHERE p.id=NEW.created_by_staff_id
+     AND p.kind='staff' AND p.status='active'
+     AND sm.status='active' AND sm.revoked_at IS NULL
+     AND g.tenant_id=NEW.tenant_id AND g.project_id=NEW.project_id
+     AND g.role IN ('delivery_staff','delivery_lead')
+     AND g.status='active' AND g.revoked_at IS NULL
+     AND tenant.status='active'
+   FOR SHARE OF p,sm,g,project,tenant;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'author requires an active exact project grant' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$;
+CREATE TRIGGER workspace_shared_revision_author_guard
+  BEFORE INSERT ON workspace_shared_revisions
+  FOR EACH ROW EXECUTE FUNCTION workspace_check_shared_author();
+
 -- A reviewer must be distinct from the author; staff membership and project
 -- grant must be current at insert time. This DOES NOT authenticate any caller:
 -- runtime roles lack INSERT and a verified server session is still required.
@@ -86,18 +115,23 @@ DECLARE
   author_id uuid;
   audit_actor uuid;
   audit_action text;
+  audit_object_type text;
+  audit_object_id text;
 BEGIN
   SELECT r.created_by_staff_id INTO author_id
     FROM workspace_shared_revisions r
    WHERE r.tenant_id = NEW.tenant_id AND r.project_id = NEW.project_id
      AND r.id = NEW.revision_id FOR SHARE;
-  SELECT a.actor_principal_id, a.action INTO audit_actor, audit_action
+  SELECT a.actor_principal_id, a.action, a.object_type, a.object_id
+    INTO audit_actor, audit_action, audit_object_type, audit_object_id
     FROM workspace_audit_events a
    WHERE a.tenant_id = NEW.tenant_id AND a.project_id = NEW.project_id
      AND a.id = NEW.audit_event_id FOR SHARE;
   IF author_id IS NULL OR author_id = NEW.reviewed_by_staff_id
      OR audit_actor IS DISTINCT FROM NEW.reviewed_by_staff_id
-     OR audit_action IS DISTINCT FROM 'sharing.published' THEN
+     OR audit_action IS DISTINCT FROM 'sharing.published'
+     OR audit_object_type IS DISTINCT FROM 'workspace_shared_revision'
+     OR audit_object_id IS DISTINCT FROM NEW.revision_id::text THEN
     RAISE EXCEPTION 'invalid independent publication review/audit' USING ERRCODE = '23514';
   END IF;
   PERFORM 1 FROM workspace_staff_memberships sm
@@ -123,13 +157,18 @@ RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   audit_actor uuid;
   audit_action text;
+  audit_object_type text;
+  audit_object_id text;
 BEGIN
-  SELECT a.actor_principal_id, a.action INTO audit_actor, audit_action
+  SELECT a.actor_principal_id, a.action, a.object_type, a.object_id
+    INTO audit_actor, audit_action, audit_object_type, audit_object_id
     FROM workspace_audit_events a
    WHERE a.tenant_id = NEW.tenant_id AND a.project_id = NEW.project_id
      AND a.id = NEW.audit_event_id FOR SHARE;
   IF audit_actor IS DISTINCT FROM NEW.retracted_by_staff_id
-     OR audit_action IS DISTINCT FROM 'sharing.retracted' THEN
+     OR audit_action IS DISTINCT FROM 'sharing.retracted'
+     OR audit_object_type IS DISTINCT FROM 'workspace_shared_publication'
+     OR audit_object_id IS DISTINCT FROM NEW.publication_id::text THEN
     RAISE EXCEPTION 'invalid retraction audit' USING ERRCODE = '23514';
   END IF;
   PERFORM 1 FROM workspace_staff_memberships sm
