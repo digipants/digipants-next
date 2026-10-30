@@ -1,0 +1,43 @@
+name: Client Workspace requirements and documents preview
+
+on:
+  pull_request:
+    branches: [feat/client-workspace-first-glimpse-104]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-requirements-preview.yml"
+      - "app/workspace-preview/**"
+      - "tests/client-workspace-requirements-preview.test.mjs"
+      - "docs/client-workspace-requirements-preview.md"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  review-fixture-only-slice:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-requirements-documents-106' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/unused_offline
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate Prisma client without database access
+        run: npm run db:generate
+      - name: Run all repository tests including synthetic boundary checks
+        run: node --test tests/*.test.mjs
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Standard Next production build
+        run: npm run build
+      - name: Whitespace and patch check
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
