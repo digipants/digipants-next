@@ -36,6 +36,52 @@ and stale events never cause state regression; refunds/failures are manually
 reconciled. These tests **do not** implement an exactly-once distributed
 payment workflow, durable event inbox, actual provider fetch or funds transfer.
 
+## Corporate Razorpay Test Mode adapter — isolated follow-up
+
+`test-mode-adapter.mjs` provides a **disabled-by-default injectable provider
+contract**, with a fixed Razorpay API host, Test Mode-only key ID prefix,
+distinct server-side API and webhook signing secrets, and an explicit
+DigiPants Network Pvt. Ltd. merchant account identity
+(`acc_Tu75hN11NeaAqL`). The personal-PAN merchant is reserved for Aegis.
+A second `credentialMerchantAccountId` assertion ensures configuration
+matches the intended account; this is a **trusted configuration assertion,
+not cryptographic proof** that the API key belongs to that merchant.
+Merchant ownership must be checked through the correct Razorpay Dashboard
+session and credentials before enabling a real gateway transport.
+
+Order creation accepts only a **persisted, approved invoice attempt**
+atomically claimed by the injected repository. It builds an official
+`POST /v1/orders` request with integer paise, INR, non-partial payment and
+a stable, stored receipt. If the provider response is lost, malformed, or
+not durably bound to the attempt, the attempt is quarantined for review.
+**No automatic second POST** is permitted: a receipt alone is not a proven
+Razorpay Orders API idempotency contract. Duplicate requests must reuse or
+review the existing attempt instead of creating another charge path.
+
+`fetchCapturedEvidence` reads both `GET /v1/orders/:id` and
+`GET /v1/payments/:id` through the injected transport and only returns a
+captured candidate when order and payment are both exact matches for the
+trusted attempt's order ID, INR currency and total amount. It never marks
+an invoice paid, updates grants, or invokes a webhook. Tests inject a
+synthetic transport: **no Razorpay network requests are made.**
+
+**Not yet wired to the existing isolated `cw_payments` ledger:** that
+experiment allocates synthetic order identifiers up front and uses a
+synthetic merchant ID. A separate reviewed migration/code slice must
+introduce a durable `prepared → creating → bound/needs_review`
+attempt lifecycle and merchant-bound provider-order IDs before the adapter
+can be used against a genuine Test Mode merchant. The corresponding
+callbacks must enforce exact invoice revision, tenant/project grants,
+idempotent audit and current staff/client identity. No public Next.js
+payment route imports this adapter.
+
+Future verified Test Mode transport may only be enabled after the specific
+corporate account is selected, the test credentials are installed in a
+trusted secret manager, and a separate owner-approved environment gate
+is reviewed. Do not insert the real key secret, webhook secret, PAN,
+client information, bank information or payment details in GitHub issues
+or source files.
+
 ## Blocking live integration tasks
 
 1. Verify the **correct merchant organization** owns this Client Workspace's
