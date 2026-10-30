@@ -71,12 +71,16 @@ test("valid signed capture is a reconciliation candidate, never a paid invoice m
 test("signed mismatched payment evidence, malformed JSON or fake event headers deny", () => {
   for (const paymentChange of [
     { amount: 1 }, { amount: "249900" }, { currency: "USD" },
-    { order_id: "order_WRONG1234" }, { id: "pay_WRONG1234" },
+    { order_id: "order_WRONG1234" },
     { status: "authorized" },
   ]) assert.equal(inspect({ ...signed("payment.captured", "captured", paymentChange) }).decision, "rejected");
   assert.equal(inspect({ eventId: "" }).decision, "rejected");
   assert.equal(inspect({ trustedInvoice: { ...invoice, amountPaise: 249901 } }).decision, "rejected");
   assert.equal(inspect({ trustedInvoice: { ...invoice, paymentId: "pay_ANOTHER1111" } }).decision, "rejected");
+  // Before the trusted system has bound a payment ID to the order, a newly
+  // observed ID is evidence for independent provider reconciliation, not a
+  // reason to mark the invoice paid or falsely reject the notification.
+  assert.equal(inspect({ ...signed("payment.captured", "captured", { id: "pay_OTHER9999" }) }).decision, "reconcile");
   const rawBody = Buffer.from("not-json");
   const signature = createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
   assert.equal(inspect({ rawBody, signature }).reason, "invalid-json");
