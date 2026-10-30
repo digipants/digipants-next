@@ -235,10 +235,17 @@ export async function prepareEnrollmentAttempt(input: {
       return publicAttempt(inserted[0]!);
     }, { isolationLevel: "Serializable" });
   } catch (error) {
-    const safeError = error as { code?: unknown; meta?: { code?: unknown } };
+    const safeError = error as { code?: unknown; meta?: { code?: unknown; message?: unknown } };
+    const databaseMessage = typeof safeError?.meta?.message === "string"
+      ? safeError.meta.message
+        .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "[uuid]")
+        .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}/gi, "[email]")
+        .slice(0, 180)
+      : null;
     debugEnrollmentFailure("transaction-failed", {
       code: typeof safeError?.code === "string" ? safeError.code : null,
       databaseCode: typeof safeError?.meta?.code === "string" ? safeError.meta.code : null,
+      databaseMessage,
     });
     // A parallel attempt may win the invitation's UNIQUE journal slot while
     // this serializable transaction is resolving. Re-read by the full stable
