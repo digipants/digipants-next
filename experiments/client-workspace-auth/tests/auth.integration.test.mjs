@@ -332,7 +332,46 @@ if (!enabled) {
     const assuranceRow = await authDb.$queryRaw`SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${current.session.id}`;
     assert.ok(assuranceRow[0]?.mfa_verified_at instanceof Date, "TOTP verification persisted server-owned assurance");
 
+    // The same valid session must not retain unlimited MFA authority. All
+    // comparisons are made against PostgreSQL time, never a browser timestamp.
+    const verifiedSessionId = current.session.id;
+    const authorizeWithAction = (action) => authorizeValidatedWorkspaceAction({
+      ...workspaceInput,
+      sessionId: verifiedSessionId,
+      providerSubject: current.user.id,
+      action,
+    });
+    const ageAssurance = async (minutes) => authDb.$executeRaw`
+      UPDATE auth_spike.session
+         SET mfa_verified_at = statement_timestamp() - (${minutes} * interval '1 minute')
+       WHERE id = ${verifiedSessionId}
+    `;
+
+    await ageAssurance(10);
+    assert.equal(await authorizeWithAction("project.read_published"), true, "a ten-minute MFA session can read the published project");
+    assert.equal(await authorizeWithAction("brief.edit"), true, "routine edit allowed within 15 minutes");
+    assert.equal(await authorizeWithAction("proposal.decide"), false, "ten-minute-old MFA cannot approve a proposal");
+    await ageAssurance(20);
+    assert.equal(await authorizeWithAction("brief.edit"), false, "routine edits expire after 15 minutes");
+    assert.equal(await authorizeWithAction("project.read_published"), true, "published read retains its longer session window");
+    await ageAssurance(13 * 60);
+    assert.equal(await authorizeWithAction("project.read_published"), false, "even read authority expires after twelve hours");
+    await authDb.$executeRaw`UPDATE auth_spike.session
+       SET mfa_verified_at = statement_timestamp() + interval '1 minute'
+       WHERE id = ${verifiedSessionId}`;
+    assert.equal(await authorizeWithAction("project.read_published"), false, "future timestamps never establish assurance");
+    await ageAssurance(0);
+    assert.equal(await authorizeWithAction("proposal.decide"), true, "a genuinely fresh verified session can decide with the matching explicit grant");
+
+    await authDb.twoFactor.updateMany({ where: { userId: ids.authUser }, data: { verified: false } });
+    assert.equal(await authorizeWithAction("project.read_published"), false, "unverified factor denies a fresh session");
+    await authDb.twoFactor.updateMany({ where: { userId: ids.authUser }, data: { verified: true } });
+    await authDb.user.update({ where: { id: ids.authUser }, data: { twoFactorEnabled: false } });
+    assert.equal(await authorizeWithAction("project.read_published"), false, "disabled MFA denies a fresh session");
+    await authDb.user.update({ where: { id: ids.authUser }, data: { twoFactorEnabled: true } });
+
     await send("/sign-out", {}, jar);
+    assert.equal(await authorizeWithAction("project.read_published"), false, "signed-out session cannot be reused even with a recent MFA marker");
     const replayChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, jar);
     assert.equal(replayChallenge.payload.twoFactorRedirect, true);
     const replayedTotp = await send("/two-factor/verify-totp", { code: successfulCode }, jar);
