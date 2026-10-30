@@ -197,7 +197,8 @@ if (!enabled) {
       attemptId: first.id, sessionId: ownerSessionId, providerSubject: ownerSubject,
     }), true, "approval retry is idempotent");
     const completed = await workspaceDb.$queryRaw`
-      SELECT a.state,p.status AS principal_status,i.status AS invitation_status,i.redeemed_by_client_id::text AS redeemer,
+      SELECT a.state,a.next_retry_at IS NOT NULL AS retry_scheduled,
+        p.status AS principal_status,i.status AS invitation_status,i.redeemed_by_client_id::text AS redeemer,
         (SELECT count(*) FROM workspace_client_memberships m WHERE m.principal_id=p.id)::int AS memberships,
         (SELECT count(*) FROM workspace_client_project_grants g WHERE g.principal_id=p.id)::int AS grants
       FROM workspace_enrollment_attempts a
@@ -206,6 +207,7 @@ if (!enabled) {
       WHERE a.id=${first.id}::uuid
     `;
     assert.deepEqual(completed[0], {
+      retry_scheduled: false,
       state: "completed", principal_status: "active", invitation_status: "redeemed",
       redeemer: review[0] ? (await workspaceDb.$queryRaw`SELECT id::text FROM workspace_principals WHERE provider_subject=${first.providerSubject}`)[0].id : null,
       memberships: 1, grants: 1,

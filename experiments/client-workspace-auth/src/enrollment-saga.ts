@@ -734,7 +734,8 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
       `;
       if (redeemed !== 1) throw new Error("Invitation was no longer redeemable.");
       const completed = await tx.$executeRaw`
-        UPDATE workspace_enrollment_attempts SET state='completed', grant_approved_at=statement_timestamp(),
+        UPDATE workspace_enrollment_attempts SET state='completed', next_retry_at=NULL,
+          grant_approved_at=statement_timestamp(),
           completed_at=statement_timestamp(), updated_at=statement_timestamp()
          WHERE id=${attempt.id}::uuid AND state='grant_ready_for_review'
       `;
