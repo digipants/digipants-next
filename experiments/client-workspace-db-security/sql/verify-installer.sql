@@ -9,10 +9,13 @@ BEGIN
   IF attrs.rolsuper OR attrs.rolbypassrls OR NOT attrs.rolcreaterole THEN
     RAISE EXCEPTION 'CI installer does not model hosted Neon CREATEROLE login';
   END IF;
-  IF pg_has_role(current_user,'cw_schema_owner','MEMBER') OR
-     pg_has_role(current_user,'cw_audit_writer','MEMBER') OR
-     pg_has_role(current_user,'cw_runtime','MEMBER') THEN
-    RAISE EXCEPTION 'installer retained a privileged runtime/owner membership';
+  IF pg_has_role(current_user,'cw_schema_owner','SET') OR
+     pg_has_role(current_user,'cw_schema_owner','USAGE') OR
+     pg_has_role(current_user,'cw_audit_writer','SET') OR
+     pg_has_role(current_user,'cw_audit_writer','USAGE') OR
+     pg_has_role(current_user,'cw_runtime','SET') OR
+     pg_has_role(current_user,'cw_runtime','USAGE') THEN
+    RAISE EXCEPTION 'installer retained owner/audit/runtime SET or INHERIT privileges';
   END IF;
   IF has_schema_privilege('cw_audit_writer','public','CREATE') THEN
     RAISE EXCEPTION 'temporary schema CREATE was not revoked';
