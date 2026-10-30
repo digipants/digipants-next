@@ -11,6 +11,7 @@
     "db:migrate:diff": "prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code",
     "test": "node --import tsx --test tests/*.test.mjs",
     "test:integration": "node --import tsx --test tests/auth.integration.test.mjs tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs",
+    "test:trusted-state": "node --import tsx --test tests/trusted-project-state-postgres.test.mjs",
     "typecheck": "tsc --noEmit",
     "validate": "npm run db:generate && npm run test && npm run typecheck"
   },

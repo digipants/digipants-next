@@ -77,12 +77,39 @@ the old session ID cannot authorize actions even though its earlier MFA
 timestamp had been valid.
 
 **Important limitations:** This does not implement fresh TOTP prompting or a
-server-side step-up flow at the point of an approval. The experiment still
-restricts its principal lookup to `kind = 'client'`; staff MFA and staff
-session enrollment remain unproven. Reset/recovery must invalidate old sessions
-and assurance. Before real client/staff use, review all time windows against
-a product security policy and test factor reset, absolute/idle session expiry,
-audit, rate limits, cross-database consistency and clock/replica behavior.
+server-side step-up flow at the point of an approval. Reset/recovery must
+invalidate old sessions and assurance. Before real client/staff use, review all
+time windows against a product security policy and test factor reset,
+absolute/idle session expiry, audit, rate limits, cross-database consistency
+and clock/replica behavior.
+
+## Trusted tenant and project mutation boundary (#96)
+
+The request-facing experiment wrapper accepts headers for Better Auth's
+verified session lookup and derives the provider subject from that result. It
+ignores caller-supplied identity or role fields. Authorization rechecks the
+session and persisted MFA assurance, then loads only the exact requested
+tenant/project grants for an active principal, tenant and membership. A custom
+PostgreSQL GUC is never identity; the row security experiment intentionally
+shows that an ordinary SQL role can spoof it.
+
+Project state changes additionally choose allowed staff roles from the requested
+transition before querying grants, lock the active principal, membership,
+tenant, project and permitted grant rows, and commit state revision plus audit
+in one serializable transaction. Concurrent grant revocation waits for that
+transaction; later operations deny. The isolated PostgreSQL role rehearsal
+defines separate NOLOGIN schema-owner/migrator, runtime, audit-writer and
+audit-reader roles. Runtime cannot do DDL or mutate audit directly. Its narrow
+security-definer audit append function is transaction-scoped, with immutable
+triggers denying update/delete/truncate.
+
+This remains a local/CI experiment. The generic root persistence helper is a
+low-level fixture primitive, not an authorization boundary. No login roles,
+credentials, public auth routes, hosted migration or production integration are
+added. A compromised runtime process can still issue arbitrary SQL and set the
+GUC; the database roles and parameterized trusted server path do not make that
+scenario safe. Production role provisioning, pooler behavior, audit export and
+fresh-MFA step-up remain review gates.
 
 Invitation consumption and principal creation share one PostgreSQL transaction
 in the workspace database. Better Auth creates the identity in its separate
@@ -223,11 +250,11 @@ npm run typecheck
 
 ## Remaining gates
 
-This is an SDK compatibility experiment, not a production authentication
-design. Before any product integration, independently review invitation
+This is an SDK compatibility and local tenant-security experiment, not a
+production authentication or database deployment. Before any product integration, independently review invitation
 issuance and delivery, email ownership verification, origin/CSRF controls,
 session revocation and factor reset, recovery operations, encrypted backup
-codes and TOTP secrets at rest, account lockout/rate limits, database role
-separation, monitoring, and the cross-database partial-failure policy. The
-hosted Neon primary development branch and all production resources are out of
-scope.
+codes and TOTP secrets at rest, account lockout/rate limits, environment-bound
+role provisioning, pool reset, offsite audit protection, monitoring, and the
+cross-database partial-failure policy. The hosted Neon primary development
+branch and all production resources are out of scope.

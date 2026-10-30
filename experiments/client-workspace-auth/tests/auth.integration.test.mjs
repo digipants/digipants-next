@@ -32,11 +32,12 @@ if (!enabled) {
   });
   globalThis.authExperimentAuthDb = authDb;
   globalThis.authExperimentWorkspaceDb = workspaceDb;
-  const [{ auth }, { redeemClientInvitation }, { authorizeValidatedWorkspaceAction }, { createSyntheticMailboxChallenge }] = await Promise.all([
+  const [{ auth }, { redeemClientInvitation }, { authorizeValidatedWorkspaceAction }, { createSyntheticMailboxChallenge }, { authorizeWorkspaceAction }] = await Promise.all([
     import("../src/auth.ts"),
     import("../src/invitations.ts"),
     import("../src/workspace-access-core.ts"),
     import("../src/mailbox-proof.ts"),
+    import("../src/workspace-access.ts"),
   ]);
 
   function totp(secret, at = Date.now()) {
@@ -358,6 +359,23 @@ if (!enabled) {
       providerSubject: current.user.id,
     });
     assert.equal(authorizedAfterTotp, true, `a session created after valid TOTP verification plus explicit grant may proceed: ${JSON.stringify({ assuredState, effectiveGrants })}`);
+    const requestHeaders = new Headers({ cookie: jar.header() });
+    const trustedRequest = (overrides = {}) => authorizeWorkspaceAction({
+      headers: requestHeaders,
+      tenantId: ids.tenant,
+      projectId: ids.project,
+      action: "project.read_published",
+      publication: "published",
+      ...overrides,
+    });
+    assert.equal(await authorizeWorkspaceAction({
+      headers: new Headers(), tenantId: ids.tenant, projectId: ids.project,
+      action: "project.read_published", publication: "published",
+    }), false, "missing verified identity is denied");
+    assert.equal(await trustedRequest({ providerSubject: `forged-${randomUUID()}`, role: "workspace_owner" }), true,
+      "spoofed caller identity/role fields do not replace the identity and grants loaded from Better Auth and PostgreSQL");
+    assert.equal(await trustedRequest({ tenantId: randomUUID(), projectId: randomUUID() }), false,
+      "caller-selected tenant/project without an exact grant is denied");
     const assuranceRow = await authDb.$queryRaw`SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${current.session.id}`;
     assert.ok(assuranceRow[0]?.mfa_verified_at instanceof Date, "TOTP verification persisted server-owned assurance");
 

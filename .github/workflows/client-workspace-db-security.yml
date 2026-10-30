@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ephemeral-postgres-security:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -70,8 +70,9 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/roles.sql
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
-      - name: Exercise RLS, least privilege, immutable audit and rollback negatives
+      - name: Exercise least-privilege roles, RLS limits, append-only audit and rollback negatives
         run: |
           set -euo pipefail
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify.sql

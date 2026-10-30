@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   local-auth-security-validation:
-    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:
@@ -69,7 +69,6 @@ jobs:
             echo "AUTH_DATABASE_URL=$AUTH_DATABASE_URL"
             echo "AUTH_SHADOW_DATABASE_URL=$AUTH_SHADOW_DATABASE_URL"
             echo "WORKSPACE_DB_TEST_LOCAL=1"
-            echo "RUN_AUTH_EXPERIMENT_INTEGRATION=1"
             echo "AUTH_EXPERIMENT_ENABLED=1"
             echo "AUTH_BASE_URL=http://localhost:3000/api/auth"
             echo "BETTER_AUTH_SECRET=$auth_secret"
@@ -135,14 +134,30 @@ jobs:
 
       - name: Run targeted authentication security integration tests
         working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
         run: npm run test:integration
-      - name: Run the full isolated contract and integration suite
+      - name: Run the full isolated non-database contract suite
         working-directory: experiments/client-workspace-auth
         run: npm test
       - name: Run the complete repository test suite
         run: node --test tests/*.test.mjs
       - name: Run existing workspace PostgreSQL persistence tests
         run: node tests/client-workspace-persistence.integration.mjs
+      - name: Apply and verify isolated runtime and audit role contract
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify.sql
+      - name: Exercise verified-subject state changes and concurrent revocation
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+        run: npm run test:trusted-state
       - name: Type-check the isolated auth experiment
         working-directory: experiments/client-workspace-auth
         run: npm run typecheck
