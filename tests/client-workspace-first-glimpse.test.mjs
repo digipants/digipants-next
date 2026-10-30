@@ -42,3 +42,20 @@ test("preview is interactive, accessible and never connected to clients, databas
     assert.doesNotMatch(content, forbidden, `preview must not use a live dependency: ${forbidden}`);
   }
 });
+
+test("only Netlify PR preview host can render the public synthetic route", async () => {
+  const route = await readFile(page, "utf8");
+  assert.match(route, /export const dynamic = "force-dynamic"/);
+  assert.match(route, /await headers\(\)/);
+  assert.match(route, /notFound\(\)/);
+  assert.match(route, /deploy-preview-\[1-9\]/);
+  // Keep these unit examples aligned to the literal fail-closed host expression.
+  const previewHost = /^deploy-preview-[1-9]\d*--digipants\.netlify\.app$/;
+  assert.equal(previewHost.test("deploy-preview-105--digipants.netlify.app"), true);
+  for (const forbiddenHost of [
+    "digipants.com", "www.digipants.com", "main--digipants.netlify.app",
+    "attacker-deploy-preview-105--digipants.netlify.app",
+    "deploy-preview-105--digipants.netlify.app.attacker.test",
+    "",
+  ]) assert.equal(previewHost.test(forbiddenHost), false, forbiddenHost);
+});
