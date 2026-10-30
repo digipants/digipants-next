@@ -14,6 +14,18 @@ Use a disposable PostgreSQL 17 database named `cw_payments_test` on loopback and
 
 Pull-request CI has read-only repository permissions and creates ephemeral PostgreSQL 17 databases on loopback. It uses locked dependencies with Prisma engine checksum verification enabled, checks migration reruns/status/history/drift, runs the payment integration and full repository suites, TypeScript, normal build and `git diff --check`. It does not use secrets or deploy.
 
+## Explicit merchant separation (owner-confirmed)
+
+The owner confirms that **two separate connected Razorpay merchant accounts**
+exist. DigiPants Client Workspace invoices must use **DigiPants Network Pvt.
+Ltd.'s corporate merchant account only**; the separate personal-PAN merchant
+is used for Aegis and must never be selected by the Client Workspace. A
+connected account's order records are not sufficient to determine which
+merchant is active in a given plugin/session. No account ID, keys or production
+configuration have been bound to this experiment. In future integrations,
+merchant selection and environment must be enforced by trusted server
+configuration, never inferred from an available connection or user headers.
+
 ## Open release gates
 
 - The synthetic callback used by tests stands in for a future trusted provider API response; there is no real provider verification or Razorpay Test Mode evidence here.
