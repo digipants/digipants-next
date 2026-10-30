@@ -5,6 +5,7 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { twoFactor } from "better-auth/plugins";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { INVITATION_HEADER, redeemClientInvitation } from "./invitations.js";
+import { consumeSyntheticMailboxChallenge, findPendingInvitationIdForBearer } from "./mailbox-proof.js";
 import { stampMfaAssurance } from "./mfa-assurance.js";
 
 const secret = process.env.BETTER_AUTH_SECRET;
@@ -68,11 +69,25 @@ export const auth = betterAuth({
           // both the workspace principal and Better Auth's subsequent insert.
           const providerSubject = randomUUID();
           const token = context.headers?.get(INVITATION_HEADER) ?? "";
+          const challengeId = context.headers?.get("x-digipants-mail-challenge-id") ?? "";
+          const challengeCode = context.headers?.get("x-digipants-mail-proof") ?? "";
+          const workspaceDb = getWorkspacePrisma();
+          const invitationId = await findPendingInvitationIdForBearer({
+            workspaceDb, token, intendedEmail: user.email,
+          });
+          if (!invitationId || !(await consumeSyntheticMailboxChallenge({
+            workspaceDb, authDb: getAuthPrisma(), invitationId,
+            intendedEmail: user.email, challengeId, code: challengeCode,
+          }))) {
+            throw APIError.from("UNAUTHORIZED", {
+              message: "Invitation required", code: "INVITATION_REQUIRED",
+            });
+          }
+          // Separate DB transactions: if this or the provider identity insert
+          // fails, the one-time proof remains consumed. That is fail-closed;
+          // controlled reconciliation and reissuance are future launch gates.
           const accepted = await redeemClientInvitation({
-            workspaceDb: getWorkspacePrisma(),
-            token,
-            intendedEmail: user.email,
-            providerSubject,
+            workspaceDb, token, intendedEmail: user.email, providerSubject,
           });
           if (!accepted) {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
