@@ -27,6 +27,8 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
   test("verified subject, fresh MFA, exact action role and locked grants are required", async (t) => {
     const id = { user: randomUUID(), session: randomUUID(), principal: randomUUID(),
       tenantA: randomUUID(), tenantB: randomUUID(), projectA: randomUUID(), projectB: randomUUID() };
+    const runtimeRole = await workspaceRuntimeDb.$queryRaw`SELECT current_user::text AS role`;
+    assert.equal(runtimeRole[0]?.role, "cw_runtime", "trusted state changes use the restricted runtime role");
     const cmd = (overrides = {}) => ({
       sessionId: id.session, providerSubject: id.user,
       tenantId: id.tenantA, projectId: id.projectA,
