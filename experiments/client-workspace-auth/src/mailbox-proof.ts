@@ -62,7 +62,7 @@ export async function createSyntheticMailboxChallenge(input: Scope):
     return await input.authDb.$transaction(async tx => {
       // Serialize challenge creation even though Better Auth's generic
       // verification table has no unique constraint on identifier.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+      await tx.$queryRaw`SELECT true AS locked FROM (SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))) AS guard`;
       const active = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM auth_spike.verification
          WHERE identifier = ${key} AND expires_at > statement_timestamp()
