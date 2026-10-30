@@ -90,7 +90,7 @@ CREATE FUNCTION public.cw_lock_client_project_grant(
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public
-AS $
+AS $$
 DECLARE authorized_principal_id uuid;
 BEGIN
   IF p_action <> 'project.read_published'
@@ -116,7 +116,7 @@ BEGIN
    LIMIT 1 FOR SHARE OF p,m,g,t;
   RETURN authorized_principal_id;
 END;
-$;
+$$;
 ALTER FUNCTION public.cw_lock_client_project_grant(text, uuid, uuid, text)
   OWNER TO cw_schema_owner;
 REVOKE ALL ON FUNCTION public.cw_lock_client_project_grant(text, uuid, uuid, text) FROM PUBLIC;
