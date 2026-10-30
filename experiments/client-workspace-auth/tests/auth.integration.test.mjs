@@ -32,11 +32,11 @@ if (!enabled) {
   });
   globalThis.authExperimentAuthDb = authDb;
   globalThis.authExperimentWorkspaceDb = workspaceDb;
-  const [{ auth }, { redeemClientInvitation }, { authorizeValidatedWorkspaceAction }, { createSyntheticMailboxChallenge }] = await Promise.all([
+  const [{ auth }, { authorizeValidatedWorkspaceAction }, { createSyntheticMailboxChallenge }, { authorizeWorkspaceAction }] = await Promise.all([
     import("../src/auth.ts"),
-    import("../src/invitations.ts"),
     import("../src/workspace-access-core.ts"),
     import("../src/mailbox-proof.ts"),
+    import("../src/workspace-access.ts"),
   ]);
 
   function totp(secret, at = Date.now()) {
@@ -127,22 +127,14 @@ if (!enabled) {
     const revokedInviteId = randomUUID();
     const mismatchedToken = randomBytes(32).toString("base64url");
     const mismatchedInviteId = randomUUID();
-    const issuerSubject = `synthetic-staff-${ids.staff}`;
+    const issuerSubject = randomUUID();
     const password = "fixture-only-password-not-a-real-credential-51!";
     const jar = cookieJar();
     let created = false;
 
     await t.after(async () => {
-      if (ids.principal) {
-        await workspaceDb.$executeRaw`DELETE FROM workspace_client_project_grants WHERE principal_id = ${ids.principal}::uuid`;
-        await workspaceDb.$executeRaw`DELETE FROM workspace_client_memberships WHERE principal_id = ${ids.principal}::uuid`;
-      }
-      await workspaceDb.$executeRaw`DELETE FROM workspace_invitation_records WHERE id IN (${validInviteId}::uuid, ${expiredInviteId}::uuid, ${revokedInviteId}::uuid, ${mismatchedInviteId}::uuid)`;
-      if (ids.principal) await workspaceDb.$executeRaw`DELETE FROM workspace_principals WHERE id = ${ids.principal}::uuid`;
-      await workspaceDb.$executeRaw`DELETE FROM workspace_staff_memberships WHERE principal_id = ${ids.staff}::uuid`;
-      await workspaceDb.$executeRaw`DELETE FROM workspace_principals WHERE id = ${ids.staff}::uuid`;
-      await workspaceDb.$executeRaw`DELETE FROM workspace_projects WHERE tenant_id = ${ids.tenant}::uuid`;
-      await workspaceDb.$executeRaw`DELETE FROM workspace_tenants WHERE id = ${ids.tenant}::uuid`;
+      // Workspace audit/journal fixtures are append-only. This database is
+      // disposable and is dropped with the CI service container.
       if (created && ids.authUser) await authDb.user.deleteMany({ where: { id: ids.authUser } });
       await authDb.$disconnect();
       await workspaceDb.$disconnect();
@@ -155,6 +147,7 @@ if (!enabled) {
     await workspaceDb.$executeRaw`INSERT INTO workspace_principals (id, provider_subject, kind) VALUES (${ids.staff}::uuid, ${issuerSubject}, 'staff')`;
     await workspaceDb.$executeRaw`INSERT INTO workspace_staff_memberships (principal_id) VALUES (${ids.staff}::uuid)`;
     await workspaceDb.$executeRaw`INSERT INTO workspace_projects (id, tenant_id, title, publication) VALUES (${ids.project}::uuid, ${ids.tenant}::uuid, 'Synthetic security fixture', 'published')`;
+    await workspaceDb.$executeRaw`INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id, role) VALUES (${ids.tenant}::uuid, ${ids.project}::uuid, ${ids.staff}::uuid, 'workspace_owner')`;
 
     async function insertInvitation(id, email, token, expiresAt) {
       await workspaceDb.$executeRaw`
@@ -237,6 +230,10 @@ if (!enabled) {
     });
     assert.equal(wrongProofSignup.response.ok, false, "incorrect mailbox proof must deny");
     assert.equal(await authDb.user.count({ where: { email: ids.clientEmail } }), 0);
+    await workspaceDb.$executeRaw`
+      UPDATE workspace_enrollment_attempts SET next_retry_at=statement_timestamp()-interval '1 second'
+       WHERE invitation_id=${validInviteId}::uuid
+    `;
 
     const signup = await send("/sign-up/email", {
       name: "Synthetic Invited Client",
@@ -258,11 +255,13 @@ if (!enabled) {
     assert.equal(signupSession?.mfaVerifiedAt, null, "client input cannot assert session MFA assurance");
 
     const principalRows = await workspaceDb.$queryRaw`SELECT id::text AS id, status FROM workspace_principals WHERE provider_subject = ${ids.authUser}`;
-    assert.equal(principalRows.length, 1, "redeemed identity should map to one workspace principal");
+    assert.equal(principalRows.length, 1, "the committed identity maps to one disabled workspace principal");
     ids.principal = principalRows[0].id;
-    const redeemedInvite = await workspaceDb.$queryRaw`SELECT status, redeemed_by_client_id::text AS principal_id FROM workspace_invitation_records WHERE id = ${validInviteId}::uuid`;
-    assert.equal(redeemedInvite[0]?.status, "redeemed");
-    assert.equal(redeemedInvite[0]?.principal_id, ids.principal);
+    assert.equal(principalRows[0].status, "disabled", "account creation does not activate a principal");
+    const enrollment = await workspaceDb.$queryRaw`SELECT state FROM workspace_enrollment_attempts WHERE provider_subject = ${ids.authUser}`;
+    assert.equal(enrollment[0]?.state, "grant_ready_for_review");
+    const stillPending = await workspaceDb.$queryRaw`SELECT status FROM workspace_invitation_records WHERE id = ${validInviteId}::uuid`;
+    assert.equal(stillPending[0]?.status, "pending", "identity creation does not redeem an invitation");
     const noImplicitRights = await workspaceDb.$queryRaw`
       SELECT
         (SELECT count(*) FROM workspace_client_memberships WHERE principal_id = ${ids.principal}::uuid) AS memberships,
@@ -271,18 +270,14 @@ if (!enabled) {
     assert.equal(Number(noImplicitRights[0]?.memberships), 0, "signup must not create a tenant membership");
     assert.equal(Number(noImplicitRights[0]?.grants), 0, "signup must not create project permissions");
 
-    const replay = await redeemClientInvitation({
-      workspaceDb,
-      token: validToken,
-      intendedEmail: ids.clientEmail,
-      providerSubject: `synthetic-replay-${randomUUID()}`,
-    });
-    assert.equal(replay, false, "a redeemed invitation cannot be replayed for another identity");
     const replaySignup = await send("/sign-up/email", { name: "Synthetic Replay", email: ids.clientEmail, password }, jar, {
       "x-digipants-workspace-invitation": validToken,
     });
-    assert.equal(replaySignup.response.ok, false, "replayed enrollment cannot create another user/session");
+    assert.equal(replaySignup.response.ok, false, "a committed identity cannot be created a second time");
 
+    // Subsequent setup below is explicit synthetic fixture preparation for MFA
+    // authorization tests. The enrollment saga itself created no membership.
+    await workspaceDb.$executeRaw`UPDATE workspace_principals SET status='active' WHERE id=${ids.principal}::uuid`;
     await workspaceDb.$executeRaw`INSERT INTO workspace_client_memberships (tenant_id, principal_id) VALUES (${ids.tenant}::uuid, ${ids.principal}::uuid)`;
     await workspaceDb.$executeRaw`INSERT INTO workspace_client_project_grants (tenant_id, project_id, principal_id, role) VALUES (${ids.tenant}::uuid, ${ids.project}::uuid, ${ids.principal}::uuid, 'client_approver')`;
     const loadEffectiveWorkspaceGrants = await loadExistingGrantQuery();
@@ -358,6 +353,23 @@ if (!enabled) {
       providerSubject: current.user.id,
     });
     assert.equal(authorizedAfterTotp, true, `a session created after valid TOTP verification plus explicit grant may proceed: ${JSON.stringify({ assuredState, effectiveGrants })}`);
+    const requestHeaders = new Headers({ cookie: jar.header() });
+    const trustedRequest = (overrides = {}) => authorizeWorkspaceAction({
+      headers: requestHeaders,
+      tenantId: ids.tenant,
+      projectId: ids.project,
+      action: "project.read_published",
+      publication: "published",
+      ...overrides,
+    });
+    assert.equal(await authorizeWorkspaceAction({
+      headers: new Headers(), tenantId: ids.tenant, projectId: ids.project,
+      action: "project.read_published", publication: "published",
+    }), false, "missing verified identity is denied");
+    assert.equal(await trustedRequest({ providerSubject: `forged-${randomUUID()}`, role: "workspace_owner" }), true,
+      "spoofed caller identity/role fields do not replace the identity and grants loaded from Better Auth and PostgreSQL");
+    assert.equal(await trustedRequest({ tenantId: randomUUID(), projectId: randomUUID() }), false,
+      "caller-selected tenant/project without an exact grant is denied");
     const assuranceRow = await authDb.$queryRaw`SELECT mfa_verified_at FROM auth_spike.session WHERE id = ${current.session.id}`;
     assert.ok(assuranceRow[0]?.mfa_verified_at instanceof Date, "TOTP verification persisted server-owned assurance");
 
