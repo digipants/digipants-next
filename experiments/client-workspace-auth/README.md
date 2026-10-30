@@ -146,10 +146,15 @@ Remaining **blocking #83/#78/#79 work**: controlled mail delivery, email
 verification linked atomically to identity provisioning, request rate limits,
 origin/CSRF integration, abuse/suppression monitoring, auditable recovery
 of the separate auth/workspace databases, production secret and cookie policy,
-staff MFA and least-privilege roles. The existing signup experiment still
-redeems a bearer invite without this separate mailbox proof; it must not be
-exposed or imported into the production Next app until its gate is replaced
-with a verified recipient workflow.
+staff MFA and least-privilege roles. The isolated Better Auth signup hook now requires BOTH the invitation bearer
+and a separately issued, pending-recipient mailbox challenge ID and code. The
+challenge is consumed before the invitation, while identity creation occurs
+in the other database afterwards. Each step fails closed, but partial failures
+can consume a valid proof/invitation without creating an account. Operations
+must have auditable reconciliation/reissue before real use. The proof code is
+returned only to the synthetic test; **no verified mail delivery, recipient
+ownership channel, rate limit or production signup endpoint exists**. Do not
+expose this to the public Next app until those remaining gates are approved.
 
 ## Isolated staff grant gate (#86)
 
