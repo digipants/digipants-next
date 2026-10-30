@@ -24,6 +24,30 @@ export class TrustedProjectStateDenied extends Error {
   }
 }
 
+function debugTrustedStateFailure(error: unknown): void {
+  if (process.env.AUTH_EXPERIMENT_DEBUG !== "1") return;
+  const value = error as {
+    code?: unknown;
+    message?: unknown;
+    meta?: { code?: unknown; message?: unknown };
+    cause?: { code?: unknown; message?: unknown };
+  };
+  const rawMessage = value?.meta?.message ?? value?.cause?.message ?? value?.message;
+  const message = typeof rawMessage === "string"
+    ? rawMessage
+      .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "[uuid]")
+      .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,63}/gi, "[email]")
+      .replace(/trusted-state-[a-z0-9-]+/gi, "[test-key]")
+      .slice(0, 180)
+    : null;
+  console.error("synthetic trusted-state diagnostic", {
+    code: typeof value?.code === "string" ? value.code : null,
+    databaseCode: typeof value?.meta?.code === "string" ? value.meta.code :
+      typeof value?.cause?.code === "string" ? value.cause.code : null,
+    message,
+  });
+}
+
 function actionForState(state: WorkspaceProjectState): "project.activate" | "project.close" | "delivery.edit" {
   if (state === "active") return "project.activate";
   if (state === "closed") return "project.close";
@@ -155,6 +179,7 @@ export async function commitVerifiedStaffProjectStateChange(input: {
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     if (error instanceof TrustedProjectStateDenied) throw error;
+    debugTrustedStateFailure(error);
     throw new TrustedProjectStateDenied();
   }
 }
