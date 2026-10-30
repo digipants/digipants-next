@@ -83,15 +83,21 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
 
     const result = await workspaceDb.$transaction(async tx => {
       // The dedicated runtime role may never own the schema, bypass RLS or
-      // read invitation bearer hashes. A misconfigured connection denies.
+      // read invitation bearer hashes. Check both session_user (original\n      // login) and current_user (possibly SET ROLE); a privileged underlying\n      // login switching into cw_runtime is NOT an acceptable connection.
       const identities = await tx.$queryRaw<Array<{ restricted: boolean }>>`
-        SELECT (NOT rolsuper AND NOT rolbypassrls AND NOT rolcreaterole
+        SELECT (NOT executor.rolsuper AND NOT executor.rolbypassrls AND NOT executor.rolcreaterole
+          AND NOT login.rolsuper AND NOT login.rolbypassrls AND NOT login.rolcreaterole
+          AND login.rolcanlogin
+          AND pg_has_role(session_user, 'cw_runtime', 'USAGE')
           AND pg_has_role(current_user, 'cw_runtime', 'USAGE')
+          AND NOT pg_has_role(session_user, 'cw_schema_owner', 'USAGE')
+          AND NOT pg_has_role(session_user, 'cw_audit_writer', 'USAGE')
           AND NOT pg_has_role(current_user, 'cw_schema_owner', 'USAGE')
           AND NOT pg_has_role(current_user, 'cw_audit_writer', 'USAGE')
-          AND NOT has_table_privilege(current_user, 'public.workspace_invitation_records', 'SELECT')
+          AND NOT has_table_privilege(session_user, 'public.workspace_invitation_records', 'SELECT')
         ) AS restricted
-        FROM pg_roles WHERE rolname = current_user
+        FROM pg_roles AS executor CROSS JOIN pg_roles AS login
+       WHERE executor.rolname = current_user AND login.rolname = session_user
       `;
       if (identities.length !== 1 || identities[0]?.restricted !== true) {
         throw new PublishedProjectAccessDenied();
