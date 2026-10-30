@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
+import { hashInvitationToken } from "./invitations.js";
 
 // Synthetic demonstration only; no mail transport, public endpoint, signup
 // hook or real onboarding. This can prove ownership of an email inbox only
@@ -43,6 +44,36 @@ async function pendingInvite(input: Scope, email: string): Promise<boolean> {
 function valid(input: Scope): string | null {
   if (!UUID.test(input.invitationId)) return null;
   return normalizeInvitedEmail(input.intendedEmail);
+}
+
+/**
+ * Resolve the invitation ID from a hashed bearer and expected recipient on
+ * the server. Never accept an invitation ID from a signup request as an
+ * alternative to this lookup. The proof is checked separately afterwards.
+ */
+export async function findPendingInvitationIdForBearer(input: {
+  workspaceDb: Query; token: string; intendedEmail: string;
+}): Promise<string | null> {
+  const email = normalizeInvitedEmail(input.intendedEmail);
+  if (!email || typeof input.token !== "string" ||
+      input.token.length < 32 || input.token.length > 512) return null;
+  try {
+    const rows = await input.workspaceDb.$queryRaw<Array<{ id: string }>>`
+      SELECT i.id::text AS id
+        FROM workspace_invitation_records AS i
+        JOIN workspace_tenants AS t ON t.id = i.tenant_id
+        JOIN workspace_projects AS p ON p.id = i.project_id AND p.tenant_id = i.tenant_id
+       WHERE i.invitation_token_hash = ${hashInvitationToken(input.token)}
+         AND lower(i.intended_email) = ${email}
+         AND i.status = 'pending'
+         AND i.expires_at > statement_timestamp()
+         AND t.status = 'active'
+       LIMIT 1
+    `;
+    return rows.length === 1 && UUID.test(rows[0]!.id) ? rows[0]!.id : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
