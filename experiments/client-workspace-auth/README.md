@@ -50,6 +50,40 @@ unlock, password-reset bypass, or factor reset route in this experiment. A
 future audited factor-recovery process must revoke existing sessions and clear
 the lock only after identity verification.
 
+## Bounded MFA recency and session revocation (Issue #76)
+
+The isolated authorization seam now requires a **DB-stored, server-created and bounded**
+`mfa_verified_at` timestamp in addition to a live Better Auth session, an
+enabled and verified second factor, an active DigiPants principal and an exact,
+active tenant/project grant. It rejects absent, future-dated, stale, revoked
+or otherwise invalid assurance. Its clock is PostgreSQL's
+`statement_timestamp()`, never a browser-supplied value. The action age is
+supplied to a parameterized Prisma query, not interpolated as SQL text.
+
+These are **provisional risk windows for the isolated experiment**, not
+production session defaults or proof of a real step-up challenge:
+
+| Action class | Maximum age | Examples |
+| --- | --- | --- |
+| Read-only | 12 hours | published project/proposal/invoice reads and internal read |
+| Routine change | 15 minutes | editing/reviewing briefs, requesting changes, delivery edits |
+| High-impact / contractual / financial | 5 minutes | proposal decision, milestone acceptance, contract signature, invoice approval, payment reconciliation, project activation/closure |
+
+Every current `WorkspaceAction` is assigned explicitly; unrecognized actions
+deny before database access. An integration test ages a real verified session
+inside disposable PostgreSQL and checks each boundary, rejects a fabricated
+future date, disables the factor and confirms denial, then signs out and verifies
+the old session ID cannot authorize actions even though its earlier MFA
+timestamp had been valid.
+
+**Important limitations:** This does not implement fresh TOTP prompting or a
+server-side step-up flow at the point of an approval. The experiment still
+restricts its principal lookup to `kind = 'client'`; staff MFA and staff
+session enrollment remain unproven. Reset/recovery must invalidate old sessions
+and assurance. Before real client/staff use, review all time windows against
+a product security policy and test factor reset, absolute/idle session expiry,
+audit, rate limits, cross-database consistency and clock/replica behavior.
+
 Invitation consumption and principal creation share one PostgreSQL transaction
 in the workspace database. Better Auth creates the identity in its separate
 database afterward. If that later identity write fails, the invitation remains
