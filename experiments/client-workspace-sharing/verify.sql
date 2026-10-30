@@ -81,7 +81,7 @@ BEGIN
     (tenant_id,project_id,publication_id,retracted_by_staff_id,audit_event_id,reason)
     VALUES(ta,pa,publication_id,reviewer,retract_audit_id,'Approved staff withdrawal');
   IF NOT EXISTS(SELECT 1 FROM workspace_shared_retractions
-    WHERE tenant_id=ta AND project_id=pa AND publication_id=publication_id) THEN
+    WHERE tenant_id=ta AND project_id=pa) THEN
     RAISE EXCEPTION 'retraction marker missing';
   END IF;
   BEGIN
