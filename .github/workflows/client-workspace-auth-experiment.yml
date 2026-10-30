@@ -1,0 +1,154 @@
+name: Client Workspace auth security experiment
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-auth-experiment.yml"
+      - "experiments/client-workspace-auth/**"
+      - "package.json"
+      - "package-lock.json"
+      - "prisma.config.ts"
+      - "prisma/**"
+      - "lib/client-workspace/access-policy.ts"
+      - "lib/client-workspace/effective-grants.ts"
+      - "tests/**"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  local-auth-security-validation:
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: digipants_ws_dev
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: digipants_workspace_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U digipants_ws_dev -d digipants_workspace_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install the locked repository dependencies with engine integrity checks enabled
+        run: npm ci
+      - name: Install the locked isolated experiment dependencies with engine integrity checks enabled
+        working-directory: experiments/client-workspace-auth
+        run: npm ci
+
+      - name: Create isolated loopback databases and synthetic runtime secret
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+          SHADOW_DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/workspace_shadow
+          AUTH_DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/auth_spike_test
+          AUTH_SHADOW_DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/auth_spike_shadow
+        run: |
+          set -euo pipefail
+          auth_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$auth_secret"
+          {
+            echo "DIRECT_URL=$DIRECT_URL"
+            echo "DATABASE_URL=$DIRECT_URL"
+            echo "SHADOW_DIRECT_URL=$SHADOW_DIRECT_URL"
+            echo "WORKSPACE_DATABASE_URL=$DIRECT_URL"
+            echo "AUTH_DATABASE_URL=$AUTH_DATABASE_URL"
+            echo "AUTH_SHADOW_DATABASE_URL=$AUTH_SHADOW_DATABASE_URL"
+            echo "WORKSPACE_DB_TEST_LOCAL=1"
+            echo "RUN_AUTH_EXPERIMENT_INTEGRATION=1"
+            echo "AUTH_EXPERIMENT_ENABLED=1"
+            echo "AUTH_BASE_URL=http://localhost:3000/api/auth"
+            echo "BETTER_AUTH_SECRET=$auth_secret"
+          } >> "$GITHUB_ENV"
+          for database in workspace_shadow auth_spike_test auth_spike_shadow; do
+            docker exec "$POSTGRES_CONTAINER_ID" psql \
+              -v ON_ERROR_STOP=1 \
+              -U digipants_ws_dev \
+              -d postgres \
+              -c "CREATE DATABASE $database;"
+          done
+
+      - name: Generate the root Prisma client
+        run: npm run db:generate
+      - name: Apply the root workspace migration
+        run: npm run db:migrate:deploy
+      - name: Confirm root migration rerun is idempotent
+        run: npm run db:migrate:deploy
+      - name: Check root migration status
+        run: npm run db:migrate:status
+      - name: Verify root migration ledger and schema drift
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          expected_name=20261029130000_client_workspace_foundation
+          success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
+            "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+          total_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
+            'SELECT count(*) FROM public."_prisma_migrations"')"
+          test "$success_count" = 1
+          test "$total_count" = 1
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+
+      - name: Generate and apply the isolated Better Auth schema
+        working-directory: experiments/client-workspace-auth
+        run: |
+          npm run auth:schema
+          npm run db:generate
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+      - name: Verify Better Auth migration ownership and drift
+        working-directory: experiments/client-workspace-auth
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          expected_name=20261030100000_better_auth_security_experiment
+          success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
+            "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+          total_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
+            'SELECT count(*) FROM public."_prisma_migrations"')"
+          auth_table_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'auth_spike' AND table_name IN ('user','session','account','verification','twoFactor','totp_code_use')")"
+          workspace_table_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'auth_spike' AND table_name LIKE 'workspace_%'")"
+          test "$success_count" = 1
+          test "$total_count" = 1
+          test "$auth_table_count" = 6
+          test "$workspace_table_count" = 0
+          npm run db:migrate:diff
+
+      - name: Run targeted authentication security integration tests
+        working-directory: experiments/client-workspace-auth
+        run: npm run test:integration
+      - name: Run the full isolated contract and integration suite
+        working-directory: experiments/client-workspace-auth
+        run: npm test
+      - name: Run the complete repository test suite
+        run: node --test tests/*.test.mjs
+      - name: Run existing workspace PostgreSQL persistence tests
+        run: node tests/client-workspace-persistence.integration.mjs
+      - name: Type-check the isolated auth experiment
+        working-directory: experiments/client-workspace-auth
+        run: npm run typecheck
+      - name: Type-check the repository
+        run: npx tsc --noEmit
+      - name: Build the normal production application
+        run: npm run build
+      - name: Check patch whitespace
+        run: git diff --check

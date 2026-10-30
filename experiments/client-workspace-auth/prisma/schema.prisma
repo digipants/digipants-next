@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["auth_spike"]
+}
+
+// These models belong only to Better Auth. Workspace tenant, membership and
+// grant records remain in the separate public workspace database.
+model User {
+  id              String      @id
+  name            String      @db.Text
+  email           String      @unique @db.Text
+  emailVerified   Boolean     @default(false) @map("email_verified")
+  image           String?     @db.Text
+  twoFactorEnabled Boolean?   @default(false) @map("two_factor_enabled")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions        Session[]
+  accounts        Account[]
+  twofactors      TwoFactor[]
+  totpCodeUses    TotpCodeUse[]
+
+  @@map("user")
+  @@schema("auth_spike")
+}
+
+model Session {
+  id             String   @id
+  userId         String   @map("user_id")
+  token          String   @unique @db.Text
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress      String?  @map("ip_address") @db.Text
+  userAgent      String?  @map("user_agent") @db.Text
+  mfaVerifiedAt  DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "auth_spike_session_user_id_idx")
+  @@map("session")
+  @@schema("auth_spike")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id") @db.Text
+  providerId            String    @map("provider_id") @db.Text
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token") @db.Text
+  refreshToken          String?   @map("refresh_token") @db.Text
+  idToken               String?   @map("id_token") @db.Text
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?   @db.Text
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "auth_spike_account_user_id_idx")
+  @@map("account")
+  @@schema("auth_spike")
+}
+
+model Verification {
+  id         String   @id
+  identifier String   @db.Text
+  value      String   @db.Text
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([identifier], map: "auth_spike_verification_identifier_idx")
+  @@map("verification")
+  @@schema("auth_spike")
+}
+
+model TwoFactor {
+  id                     String    @id
+  userId                 String    @map("user_id")
+  secret                 String    @db.Text
+  backupCodes            String    @map("backup_codes") @db.Text
+  verified               Boolean?  @default(true)
+  failedVerificationCount Int?     @default(0) @map("failed_verification_count")
+  lockedUntil            DateTime? @map("locked_until") @db.Timestamptz(6)
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret], map: "auth_spike_two_factor_secret_idx")
+  @@index([userId], map: "auth_spike_two_factor_user_id_idx")
+  @@map("twoFactor")
+  @@schema("auth_spike")
+}
+
+// TOTP steps are claimed once per account before an MFA session is persisted.
+model TotpCodeUse {
+  userId String   @map("user_id")
+  counter BigInt
+  usedAt DateTime @default(now()) @map("used_at") @db.Timestamptz(6)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, counter])
+  @@map("totp_code_use")
+  @@schema("auth_spike")
+}

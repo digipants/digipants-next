@@ -1,0 +1,30 @@
+{
+  "name": "@digipants/client-workspace-auth-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "auth:schema": "auth generate --config src/auth-schema-generation.ts --adapter prisma --dialect postgresql --output /tmp/digipants-better-auth-generated.prisma --yes",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:diff": "prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code",
+    "test": "node --import tsx --test tests/*.test.mjs",
+    "test:integration": "node --import tsx --test tests/auth.integration.test.mjs tests/invitation-postgres.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run db:generate && npm run test && npm run typecheck"
+  },
+  "dependencies": {
+    "@better-auth/prisma-adapter": "1.7.14",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "better-auth": "1.7.14",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "auth": "1.7.14",
+    "prisma": "7.10.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
