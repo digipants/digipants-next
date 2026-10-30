@@ -17,6 +17,37 @@ experiment.
 | Recovery | `pg_dump` custom archive is restored to a *second* disposable database; audit, state, trigger behavior and RLS flags are checked | Not an offsite encrypted backup, restore-time objective, retention policy or disaster recovery runbook |
 | Compatibility | Native Prisma 7.10.1 migration, ledger, drift, root tests, TypeScript and ordinary Next build run on Node 24/PostgreSQL 17 in pull-request CI | No hosted Neon migration and no production connection/Runtime Node deployment approval |
 
+## Neon non-superuser installer compatibility (#101)
+
+The hosted Neon Free rehearsal exposed two failures not exercised by a
+PostgreSQL superuser CI account: the installer lacked `SET ROLE` rights for
+the new object owner, and the target audit function owner lacked schema
+`CREATE` when ownership was transferred. The synthetic installer now grants
+the two temporary role memberships, grants the audit writer `CREATE` only
+around the function ownership transfer, and revokes all three elevations
+before commit. The roles and hardening scripts **must be installed together
+in one explicit database transaction**: on failure, the entire role setup
+must roll back, not leave partial, elevated credentials. The PR-only
+`client-workspace-neon-installer.yml` CI suite uses a dedicated
+non-superuser PostgreSQL 17 account with `CREATEROLE`, and verifies it
+retains no owner/audit membership after committing.
+
+This is still an isolated role installer, **not an approved production
+migration/hosted DBA runbook**. In particular `cw_lock_staff_project_grant`
+receives an asserted provider subject and cannot authenticate it itself.
+A real app must verify the signed Better Auth session, factor freshness,
+and exact operation before using that helper; no SQL caller may select its
+own provider subject. The RLS tenant GUC remains writable and spoofable by
+ordinary SQL clients, so RLS provides accidental-scope defense only.
+
+In the approved temporary Neon branch, transaction-local tenant variables
+reset in the Neon SQL interface and a `-pooler` connection host was
+advertised, but **no true end-to-end application connection through PgBouncer
+was proven**. Do not close #101 solely on this CI test; the actual pooled
+credential/client test, caller identity boundary, and hosted Prisma migration
+ledger remain release gates. No live credentials, paid upgrades or hosted
+primary writes are needed for this commit.
+
 ## Critical RLS limitation
 
 `SET LOCAL app.workspace_tenant_id` is an application-defined PostgreSQL

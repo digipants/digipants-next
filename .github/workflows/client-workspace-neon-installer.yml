@@ -1,0 +1,89 @@
+name: Client Workspace non-superuser Neon installer regression
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-neon-installer.yml"
+      - ".github/workflows/client-workspace-db-security.yml"
+      - "experiments/client-workspace-db-security/**"
+      - "prisma/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  non-superuser-installer:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/client-workspace-neon-installer-101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: root_ci
+          POSTGRES_PASSWORD: ephemeral_root_ci
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root_ci -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_db
+      DIRECT_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_db
+      SHADOW_DIRECT_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_shadow
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Capture ephemeral Postgres service
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: echo "POSTGRES_CONTAINER_ID=$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
+      - name: Create CREATEROLE non-superuser installer and isolated database
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE cw_installer_ci LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS PASSWORD 'synthetic_installer_pw'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE cw_installer_ci_db OWNER cw_installer_ci"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE cw_installer_ci_shadow OWNER cw_installer_ci"
+      - name: Install and migrate with non-superuser account
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run db:generate
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+      - name: Apply synthetic seed and entire privilege installation atomically
+        run: |
+          set -euo pipefail
+          psql_cmd=(docker exec -e PGPASSWORD=synthetic_installer_pw -i "$POSTGRES_CONTAINER_ID" \
+            psql -h 127.0.0.1 -U cw_installer_ci -d cw_installer_ci_db -v ON_ERROR_STOP=1)
+          "${psql_cmd[@]}" < experiments/client-workspace-db-security/sql/seed.sql
+          {
+            printf 'BEGIN;\n'
+            cat experiments/client-workspace-db-security/sql/roles.sql
+            cat experiments/client-workspace-db-security/sql/hardening.sql
+            printf '\nCOMMIT;\n'
+          } | "${psql_cmd[@]}"
+      - name: Prove no installer elevation and no runtime permissions
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD=synthetic_installer_pw -i "$POSTGRES_CONTAINER_ID" \
+            psql -h 127.0.0.1 -U cw_installer_ci -d cw_installer_ci_db -v ON_ERROR_STOP=1 \
+              < experiments/client-workspace-db-security/sql/verify-installer.sql
+      - name: Check pull-request whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD

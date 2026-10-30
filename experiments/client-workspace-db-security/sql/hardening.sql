@@ -115,8 +115,13 @@ BEGIN
      p_object_type, p_object_id, p_before_revision, p_after_revision, p_idempotency_key);
 END;
 $$;
+-- PostgreSQL requires the new function owner to possess CREATE on the
+-- containing schema *at the instant of ownership transfer*. Revoke it
+-- immediately in the same atomic installer transaction.
+GRANT CREATE ON SCHEMA public TO cw_audit_writer;
 ALTER FUNCTION public.cw_append_audit_event(uuid, uuid, uuid, text, text, text, text, bigint, bigint, text)
   OWNER TO cw_audit_writer;
+REVOKE CREATE ON SCHEMA public FROM cw_audit_writer;
 REVOKE ALL ON FUNCTION public.cw_append_audit_event(uuid, uuid, uuid, text, text, text, text, bigint, bigint, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cw_append_audit_event(uuid, uuid, uuid, text, text, text, text, bigint, bigint, text) TO cw_runtime;
 
@@ -132,3 +137,28 @@ CREATE TRIGGER cw_audit_reject_update_delete
 CREATE TRIGGER cw_audit_reject_truncate
   BEFORE TRUNCATE ON workspace_audit_events
   FOR EACH STATEMENT EXECUTE FUNCTION public.cw_reject_audit_mutation();
+
+-- Installer-role memberships are temporary. Run roles.sql and this script
+-- in the SAME SQL transaction, so any error rolls back the entire install.
+REVOKE cw_audit_writer FROM CURRENT_USER;
+REVOKE cw_schema_owner FROM CURRENT_USER;
+
+DO $$
+BEGIN
+  -- PostgreSQL 17 CREATEROLE may retain administrative membership in a
+  -- created role even after explicit SET/INHERIT rights are revoked. It is
+  -- NOT the same as the ability to SET ROLE or inherit its table privileges.
+  -- A superuser can assume any role by definition, so the membership test
+  -- applies only to a non-superuser installer.
+  IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AND
+     (pg_has_role(current_user, 'cw_schema_owner', 'SET') OR
+      pg_has_role(current_user, 'cw_schema_owner', 'USAGE') OR
+      pg_has_role(current_user, 'cw_audit_writer', 'SET') OR
+      pg_has_role(current_user, 'cw_audit_writer', 'USAGE')) THEN
+    RAISE EXCEPTION 'installer retained owner or audit writer SET/INHERIT rights';
+  END IF;
+  IF has_schema_privilege('cw_audit_writer', 'public', 'CREATE') THEN
+    RAISE EXCEPTION 'audit writer retained temporary schema CREATE';
+  END IF;
+END;
+$$;

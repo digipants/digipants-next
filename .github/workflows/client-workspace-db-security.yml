@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ephemeral-postgres-security:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97') }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'fix/client-workspace-neon-installer-101') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -71,8 +71,12 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/roles.sql
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
+          {
+            printf 'BEGIN;\n'
+            cat experiments/client-workspace-db-security/sql/roles.sql
+            cat experiments/client-workspace-db-security/sql/hardening.sql
+            printf '\nCOMMIT;\n'
+          } | docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1
       - name: Exercise least-privilege roles, RLS limits, append-only audit and rollback negatives
         run: |
           set -euo pipefail

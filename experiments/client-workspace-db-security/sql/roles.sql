@@ -8,6 +8,13 @@ CREATE ROLE cw_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
 CREATE ROLE cw_audit_writer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 CREATE ROLE cw_audit_reader NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 
+-- PostgreSQL 17 / Neon: ALTER OWNER requires the installer to have SET ROLE
+-- permission for the target owner. The install MUST be wrapped in a single
+-- transaction with hardening.sql, whose final statements revoke these grants.
+-- Never execute the two scripts independently in a hosted environment.
+GRANT cw_schema_owner TO CURRENT_USER WITH SET TRUE;
+GRANT cw_audit_writer TO CURRENT_USER WITH SET TRUE;
+
 GRANT cw_schema_owner TO cw_migrator;
 ALTER SCHEMA public OWNER TO cw_schema_owner;
 DO $$
