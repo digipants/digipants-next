@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import type { WorkspaceAction, WorkspaceResource, WorkspaceGrant } from "../../../lib/client-workspace/access-policy.ts";
+import { maxMfaAgeSecondsForAction } from "./mfa-freshness.js";
 
 // The repository is CommonJS-scoped while this isolated package is ESM. Load
 // the shared TypeScript policy through tsx's CommonJS hook instead of asking
@@ -28,6 +29,11 @@ export async function authorizeValidatedWorkspaceAction(input: {
   }) => Promise<WorkspaceGrant[]>;
 }): Promise<boolean> {
   try {
+    // No browser-supplied assurance and no permissive fallback for new actions.
+    // Use the PostgreSQL server clock to compare a persisted MFA challenge
+    // timestamp, not the client's local time or an unsigned session claim.
+    const maxAgeSeconds = maxMfaAgeSecondsForAction(input.action);
+    if (maxAgeSeconds === null) return false;
     const assurance = await input.authDb.$queryRaw<Array<{ userId: string }>>`
       SELECT s.user_id AS "userId"
         FROM auth_spike.session AS s
@@ -39,6 +45,7 @@ export async function authorizeValidatedWorkspaceAction(input: {
          AND s.expires_at > statement_timestamp()
          AND s.mfa_verified_at IS NOT NULL
          AND s.mfa_verified_at <= statement_timestamp()
+         AND s.mfa_verified_at >= statement_timestamp() - (${maxAgeSeconds} * interval '1 second')
        LIMIT 1
     `;
     if (assurance.length !== 1) return false;
