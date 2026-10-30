@@ -2,7 +2,7 @@ name: Client Workspace auth security experiment
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/client-workspace-trusted-tenant-96]
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - ".github/workflows/client-workspace-auth-experiment.yml"
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   local-auth-security-validation:
-    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:
@@ -94,13 +94,17 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          expected_name=20261029130000_client_workspace_foundation
-          success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
-            "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+          expected_count="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
           total_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
-            'SELECT count(*) FROM public."_prisma_migrations"')"
-          test "$success_count" = 1
-          test "$total_count" = 1
+            'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
+          test "$total_count" = "$expected_count"
+          for migration in prisma/migrations/*/; do
+            expected_name="${migration%/}"
+            expected_name="${expected_name##*/}"
+            success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
+              "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+            test "$success_count" = 1
+          done
           npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
 
       - name: Generate and apply the isolated Better Auth schema
@@ -117,26 +121,41 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          expected_name=20261030100000_better_auth_security_experiment
-          success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
-            "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+          expected_count="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
           total_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
-            'SELECT count(*) FROM public."_prisma_migrations"')"
+            'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
           auth_table_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'auth_spike' AND table_name IN ('user','session','account','verification','twoFactor','totp_code_use')")"
           workspace_table_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'auth_spike' AND table_name LIKE 'workspace_%'")"
-          test "$success_count" = 1
-          test "$total_count" = 1
+          test "$total_count" = "$expected_count"
+          for migration in prisma/migrations/*/; do
+            expected_name="${migration%/}"
+            expected_name="${expected_name##*/}"
+            success_count="$(docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 -U digipants_ws_dev -d auth_spike_test -Atqc \
+              "SELECT count(*) FROM public.\"_prisma_migrations\" WHERE migration_name = '$expected_name' AND finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+            test "$success_count" = 1
+          done
           test "$auth_table_count" = 6
-          test "$workspace_table_count" = 0
+          expected_workspace_table_count=0
+          if [ -d prisma/migrations/20261030120000_workspace_mailbox_proof_spends ]; then
+            expected_workspace_table_count=1
+          fi
+          test "$workspace_table_count" = "$expected_workspace_table_count"
           npm run db:migrate:diff
 
-      - name: Run targeted authentication security integration tests
+      - name: Run existing authentication integration suite
+        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
         run: npm run test:integration
+      - name: Run baseline authentication fixtures for enrollment PR
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+        run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
       - name: Run the full isolated non-database contract suite
         working-directory: experiments/client-workspace-auth
         run: npm test
@@ -153,6 +172,18 @@ jobs:
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/roles.sql
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify.sql
+      - name: Run durable enrollment recovery integration tests
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+        run: node --import tsx --test tests/enrollment-saga-postgres.test.mjs
+      - name: Exercise invitation-only Better Auth handler against PostgreSQL
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+        run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Exercise verified-subject state changes and concurrent revocation
         working-directory: experiments/client-workspace-auth
         env:
