@@ -170,14 +170,16 @@ if (!enabled) {
     await insertInvitation(mismatchedInviteId, `other-${randomUUID()}@example.invalid`, mismatchedToken, new Date(Date.now() + 60 * 60 * 1_000));
     await workspaceDb.$executeRaw`UPDATE workspace_invitation_records SET status = 'revoked' WHERE id = ${revokedInviteId}::uuid`;
 
-    const countBefore = await authDb.user.count();
+    const deniedEmail = `uninvited-${randomUUID()}@example.invalid`;
+    const countBefore = await authDb.user.count({ where: { email: deniedEmail } });
     const deniedDirectSignup = await send("/sign-up/email", {
       name: "Synthetic Uninvited",
-      email: `uninvited-${randomUUID()}@example.invalid`,
+      email: deniedEmail,
       password,
     }, jar);
     assert.equal(deniedDirectSignup.response.ok, false, "uninvited direct signup must fail");
-    assert.equal(await authDb.user.count(), countBefore, "denied signup must not create a Better Auth user");
+    assert.equal(await authDb.user.count({ where: { email: deniedEmail } }), countBefore,
+      "denied signup must not create a user for the uninvited email");
 
     for (const path of [
       "/sign-in/social", "/sign-in/magic-link", "/sign-in/email-otp", "/sign-in/phone-number",
