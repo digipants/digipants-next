@@ -1,6 +1,9 @@
 import "server-only";
 import type { WorkspaceAction, WorkspaceResource } from "../../../lib/client-workspace/access-policy.js";
-import { loadEffectiveWorkspaceGrants } from "../../../lib/client-workspace/effective-grants.js";
+// This isolated test package runs Node ESM through tsx; importing the source
+// extension avoids treating the repository's type=commonjs TS file as a
+// CommonJS default export during native ESM linking.
+import { loadEffectiveWorkspaceGrants } from "../../../lib/client-workspace/effective-grants.ts";
 import { auth } from "./auth.js";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { authorizeValidatedWorkspaceAction, authorizeValidatedStaffWorkspaceAction } from "./workspace-access-core.js";
