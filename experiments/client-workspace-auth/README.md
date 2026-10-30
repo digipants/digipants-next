@@ -118,6 +118,39 @@ production database writes occur here. The isolated SQL test inserts only
 synthetic fixtures on disposable loopback PostgreSQL, checks cross-tenant and
 unassigned-staff denials, token secrecy, audit linkage and revocation.
 
+## Isolated mailbox-ownership proof and request guard (#84)
+
+The `mailbox-proof.ts` experiment creates a second, separately random
+32-byte ownership secret for the **exact pending invitation recipient**.
+The challenge's SHA-256 digest lives in `auth_spike.verification` with a
+10-minute expiration. Two concurrent requests for the same invitation and
+recipient serialize on a PostgreSQL advisory transaction lock, limiting the
+fixture to one active code. Checking a proof deletes the matching hash
+atomically, denying replay, other emails, expired proofs and revoked invites.
+The code exists only in its private test return value; no email, account,
+tenant membership or grant is created. **A real provider must deliver it only
+to the address on the invite, and production signup must independently consume
+a valid proof; neither is implemented here.** Proof success alone cannot be
+relied on to enable sign-up.
+
+`enrollment-request-guard.ts` separately demonstrates a strict server-side
+same-origin POST/JSON and HMAC double-submit token contract, bound to an
+already verified, server-owned session and short validity window. It rejects
+mismatched Origin/Host, missing or cross-site fetch metadata, a wrong CSRF
+cookie/header, altered HMAC, incorrect session or expired/future timestamp.
+This experimental helper is **not middleware**, does not establish identity,
+does not replace Better Auth's built-in CSRF and session protection and does
+not secure routes merely because an HTTP client supplied Origin/Host headers.
+
+Remaining **blocking #83/#78/#79 work**: controlled mail delivery, email
+verification linked atomically to identity provisioning, request rate limits,
+origin/CSRF integration, abuse/suppression monitoring, auditable recovery
+of the separate auth/workspace databases, production secret and cookie policy,
+staff MFA and least-privilege roles. The existing signup experiment still
+redeems a bearer invite without this separate mailbox proof; it must not be
+exposed or imported into the production Next app until its gate is replaced
+with a verified recipient workflow.
+
 ## Local verification
 
 Use only four disposable loopback PostgreSQL databases with the exact names
