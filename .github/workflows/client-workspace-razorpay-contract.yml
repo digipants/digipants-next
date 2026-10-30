@@ -29,6 +29,8 @@ jobs:
           node-version: 24
       - name: Install locked dependencies
         run: npm ci
+      - name: Generate Prisma client offline for existing TypeScript code
+        run: npm run db:generate
       - name: Prove offline synthetic Razorpay signature and event contracts
         run: node --test experiments/client-workspace-razorpay/tests/*.test.mjs
       - name: Existing repository tests and TypeScript validation
