@@ -1,0 +1,112 @@
+name: Client Workspace real transaction pooler
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+    paths:
+      - ".github/workflows/client-workspace-pgbouncer.yml"
+      - "experiments/client-workspace-auth/tests/pooler-runtime.test.mjs"
+      - "experiments/client-workspace-db-security/**"
+      - "prisma/**"
+permissions:
+  contents: read
+jobs:
+  pgbouncer-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: root_ci
+          POSTGRES_PASSWORD: ephemeral_root_ci
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root_ci -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DIRECT_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_db
+      DATABASE_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_db
+      SHADOW_DIRECT_URL: postgresql://cw_installer_ci:synthetic_installer_pw@127.0.0.1:5432/cw_installer_ci_shadow
+      RUN_WORKSPACE_PGBOUNCER: "1"
+      WORKSPACE_PGBOUNCER_TEST_URL: postgresql://cw_runtime_ci:synthetic_runtime_pw@127.0.0.1:6432/cw_installer_ci_db
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Identify disposable Postgres service
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: echo "POSTGRES_CONTAINER_ID=$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
+      - name: Provision non-superuser installer
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE cw_installer_ci LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS PASSWORD 'synthetic_installer_pw'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE cw_installer_ci_db OWNER cw_installer_ci"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE cw_installer_ci_shadow OWNER cw_installer_ci"
+      - name: Install dependencies and migrate through direct connection
+        run: |
+          set -euo pipefail
+          npm ci
+          npm ci --prefix experiments/client-workspace-auth
+          npm run db:generate
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+      - name: Seed and harden least-privilege roles
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD=synthetic_installer_pw -i "$POSTGRES_CONTAINER_ID" psql -h 127.0.0.1 -U cw_installer_ci -d cw_installer_ci_db -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
+          {
+            printf 'BEGIN;\n'
+            cat experiments/client-workspace-db-security/sql/roles.sql
+            cat experiments/client-workspace-db-security/sql/hardening.sql
+            printf '\nCOMMIT;\n'
+          } | docker exec -e PGPASSWORD=synthetic_installer_pw -i "$POSTGRES_CONTAINER_ID" psql -h 127.0.0.1 -U cw_installer_ci -d cw_installer_ci_db -v ON_ERROR_STOP=1
+          docker exec -e PGPASSWORD=synthetic_installer_pw -i "$POSTGRES_CONTAINER_ID" psql -h 127.0.0.1 -U cw_installer_ci -d cw_installer_ci_db -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify-installer.sql
+      - name: Create synthetic least-privileged runtime login
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE cw_runtime_ci LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS PASSWORD 'synthetic_runtime_pw'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "GRANT cw_runtime TO cw_runtime_ci WITH INHERIT TRUE, SET FALSE"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U root_ci -d postgres -v ON_ERROR_STOP=1 -c "GRANT CONNECT ON DATABASE cw_installer_ci_db TO cw_runtime_ci"
+      - name: Start actual transaction-mode PgBouncer
+        run: |
+          set -euo pipefail
+          printf '"cw_runtime_ci" "synthetic_runtime_pw"\n' > "$RUNNER_TEMP/pgbouncer-userlist.txt"
+          chmod 644 "$RUNNER_TEMP/pgbouncer-userlist.txt"
+          docker run -d --rm --name cw_workspace_pooler --network host \
+            -v "$RUNNER_TEMP/pgbouncer-userlist.txt:/etc/pgbouncer/userlist.txt:ro" \
+            -e DATABASES_HOST=127.0.0.1 -e DATABASES_PORT=5432 \
+            -e DATABASES_DBNAME=cw_installer_ci_db \
+            -e DATABASES_CLIENT_SIDE_DBNAME=cw_installer_ci_db \
+            -e DATABASES_USER=cw_runtime_ci -e DATABASES_PASSWORD=synthetic_runtime_pw \
+            -e PGBOUNCER_LISTEN_ADDR=127.0.0.1 -e PGBOUNCER_LISTEN_PORT=6432 \
+            -e PGBOUNCER_POOL_MODE=transaction -e PGBOUNCER_AUTH_TYPE=scram-sha-256 \
+            -e PGBOUNCER_AUTH_FILE=/etc/pgbouncer/userlist.txt \
+            -e PGBOUNCER_DEFAULT_POOL_SIZE=1 -e PGBOUNCER_MAX_CLIENT_CONN=40 \
+            -e PGBOUNCER_MAX_PREPARED_STATEMENTS=100 -e QUIET=1 \
+            pgbouncer/pgbouncer:1.25.2-20260920
+          docker exec cw_workspace_pooler sh -c "grep -Eq '^[[:space:]]*pool_mode[[:space:]]*=[[:space:]]*transaction' /etc/pgbouncer/pgbouncer.ini"
+      - name: Exercise real pooler reuse, RLS scope and denied privileges
+        working-directory: experiments/client-workspace-auth
+        run: node --test tests/pooler-runtime.test.mjs
+      - name: Run root tests, TypeScript and standard production build
+        run: |
+          node --test tests/*.test.mjs
+          npx tsc --noEmit
+          npm run build
+      - name: Check patch
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
+      - name: Remove synthetic pooler
+        if: always()
+        run: docker rm -f cw_workspace_pooler >/dev/null 2>&1 || true
