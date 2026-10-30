@@ -94,14 +94,18 @@ PostgreSQL GUC is never identity; the row security experiment intentionally
 shows that an ordinary SQL role can spoof it.
 
 Project state changes additionally choose allowed staff roles from the requested
-transition before querying grants, lock the active principal, membership,
-tenant, project and permitted grant rows, and commit state revision plus audit
-in one serializable transaction. Concurrent grant revocation waits for that
-transaction; later operations deny. The isolated PostgreSQL role rehearsal
-defines separate NOLOGIN schema-owner/migrator, runtime, audit-writer and
-audit-reader roles. Runtime cannot do DDL or mutate audit directly. Its narrow
-security-definer audit append function is transaction-scoped, with immutable
-triggers denying update/delete/truncate.
+transition before querying grants. A narrow `SECURITY DEFINER` lock helper
+checks and locks the active principal, membership, tenant and action-permitted
+grant; the runtime role cannot lock those rows directly because it has no
+UPDATE privilege on them. The grant's composite foreign key proves project
+binding. After the helper returns the exact actor, the transaction sets the
+local RLS scope and commits state revision plus audit together at serializable
+isolation. Concurrent grant revocation waits for that transaction; later
+operations deny. The isolated PostgreSQL role rehearsal defines separate
+NOLOGIN schema-owner/migrator, runtime, audit-writer and audit-reader roles.
+Runtime cannot do DDL or mutate audit directly. Its narrow security-definer
+audit append function is transaction-scoped, with immutable triggers denying
+update/delete/truncate.
 
 This remains a local/CI experiment. The generic root persistence helper is a
 low-level fixture primitive, not an authorization boundary. No login roles,

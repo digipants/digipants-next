@@ -121,38 +121,16 @@ export async function commitVerifiedStaffProjectStateChange(input: {
     if (assured.length !== 1) throw new TrustedProjectStateDenied();
 
     return await workspaceDb.$transaction(async (tx) => {
-      // Select action-appropriate roles before touching the grant rows. FOR
-      // SHARE makes a concurrent membership/grant revocation wait until this
-      // authorized state+audit transaction finishes (or this transaction
-      // fails). User input can choose the requested transition, never the role.
-      // The grant's composite FK proves its project/tenant binding. Avoid
-      // reading the RLS-protected project row until after the exact grant is
-      // locked and the server sets the transaction-local tenant filter.
-      const actors = await tx.$queryRaw<Array<{ principalId: string }>>`
-        SELECT p.id::text AS "principalId"
-          FROM workspace_principals AS p
-          JOIN workspace_staff_memberships AS m ON m.principal_id = p.id
-          JOIN workspace_staff_project_grants AS g ON g.principal_id = p.id
-          JOIN workspace_tenants AS t ON t.id = g.tenant_id
-         WHERE p.provider = 'better_auth'
-           AND p.provider_subject = ${values.providerSubject}
-           AND p.kind = 'staff'
-           AND p.status = 'active'
-           AND m.principal_kind = 'staff'
-           AND m.status = 'active'
-           AND m.revoked_at IS NULL
-           AND g.status = 'active'
-           AND g.revoked_at IS NULL
-           AND g.tenant_id = ${values.tenantId}::uuid
-           AND g.project_id = ${values.projectId}::uuid
-           AND t.status = 'active'
-           AND ((${values.nextState}::text IN ('active', 'closed') AND g.role = 'workspace_owner')
-             OR (${values.nextState}::text NOT IN ('active', 'closed') AND g.role IN ('delivery_staff', 'delivery_lead')))
-         LIMIT 1
-         FOR SHARE OF p, m, g, t
+      // This definer helper only locks and returns an exact active grant. The
+      // caller already verified the Better Auth subject/session/MFA above; its
+      // custom-GUC value is set only after the exact grant check below.
+      const actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
+        SELECT cw_lock_staff_project_grant(
+          ${values.providerSubject}, ${values.tenantId}::uuid, ${values.projectId}::uuid, ${action}
+        )::text AS "principalId"
       `;
       const actor = actors[0];
-      if (!actor) throw new TrustedProjectStateDenied();
+      if (!actor?.principalId) throw new TrustedProjectStateDenied();
 
       // This value scopes the defense-in-depth RLS policy only. It is set
       // after the verified subject's exact active grant has been locked, and

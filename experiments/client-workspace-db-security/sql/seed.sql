@@ -8,6 +8,14 @@ INSERT INTO workspace_projects (id, tenant_id, title) VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'Synthetic Project A'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'Synthetic Project B');
 
+INSERT INTO workspace_principals (id, provider_subject, kind) VALUES
+  ('33333333-3333-4333-8333-333333333333', 'synthetic-security-staff-a', 'staff');
+INSERT INTO workspace_staff_memberships (principal_id) VALUES
+  ('33333333-3333-4333-8333-333333333333');
+INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id, role) VALUES
+  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+   '33333333-3333-4333-8333-333333333333', 'delivery_lead');
+
 INSERT INTO workspace_audit_events
   (tenant_id, project_id, origin, action, object_type, object_id, idempotency_key)
 VALUES

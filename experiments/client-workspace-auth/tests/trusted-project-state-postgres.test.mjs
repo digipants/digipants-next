@@ -17,7 +17,12 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
   const workspaceDb = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.WORKSPACE_DATABASE_URL, max: 4, connectionTimeoutMillis: 5_000 }),
   });
-  globalThis.authExperimentWorkspaceDb = workspaceDb;
+  const runtimeUrl = new URL(process.env.WORKSPACE_DATABASE_URL);
+  runtimeUrl.searchParams.set("options", "-c role=cw_runtime");
+  const workspaceRuntimeDb = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: runtimeUrl.toString(), max: 4, connectionTimeoutMillis: 5_000 }),
+  });
+  globalThis.authExperimentWorkspaceDb = workspaceRuntimeDb;
 
   test("verified subject, fresh MFA, exact action role and locked grants are required", async (t) => {
     const id = { user: randomUUID(), session: randomUUID(), principal: randomUUID(),
@@ -39,6 +44,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
         await authDb.twoFactor.deleteMany({ where: { userId: id.user } });
         await authDb.user.deleteMany({ where: { id: id.user } });
       } finally {
+        await workspaceRuntimeDb.$disconnect();
         await workspaceDb.$disconnect();
         await authDb.$disconnect();
         delete globalThis.authExperimentWorkspaceDb;

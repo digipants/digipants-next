@@ -30,6 +30,51 @@ CREATE POLICY cw_audit_reader_project_read ON workspace_projects
   FOR SELECT TO cw_audit_reader
   USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
 
+-- The runtime cannot take row locks on authorization tables because it has no
+-- UPDATE privilege there. This narrow definer function locks the exact active
+-- subject/membership/grant/tenant rows while the server-owned transaction is
+-- active. It is not a Better Auth verifier: callers must verify the session
+-- and MFA first, and the returned actor is used only for the paired audit.
+CREATE FUNCTION public.cw_lock_staff_project_grant(
+  p_provider_subject text, p_tenant_id uuid, p_project_id uuid, p_action text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  authorized_principal_id uuid;
+BEGIN
+  IF p_action NOT IN ('project.activate', 'project.close', 'delivery.edit') THEN
+    RETURN NULL;
+  END IF;
+  SELECT p.id INTO authorized_principal_id
+    FROM public.workspace_principals AS p
+    JOIN public.workspace_staff_memberships AS m ON m.principal_id = p.id
+    JOIN public.workspace_staff_project_grants AS g ON g.principal_id = p.id
+    JOIN public.workspace_tenants AS t ON t.id = g.tenant_id
+   WHERE p.provider = 'better_auth'
+     AND p.provider_subject = p_provider_subject
+     AND p.kind = 'staff'
+     AND p.status = 'active'
+     AND m.principal_kind = 'staff'
+     AND m.status = 'active'
+     AND m.revoked_at IS NULL
+     AND g.status = 'active'
+     AND g.revoked_at IS NULL
+     AND g.tenant_id = p_tenant_id
+     AND g.project_id = p_project_id
+     AND t.status = 'active'
+     AND ((p_action IN ('project.activate', 'project.close') AND g.role = 'workspace_owner')
+       OR (p_action = 'delivery.edit' AND g.role IN ('delivery_staff', 'delivery_lead')))
+   LIMIT 1
+   FOR SHARE OF p, m, g, t;
+  RETURN authorized_principal_id;
+END;
+$$;
+ALTER FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) OWNER TO cw_schema_owner;
+REVOKE ALL ON FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) TO cw_runtime;
+
 ALTER TABLE workspace_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_audit_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_audit_read ON workspace_audit_events

@@ -32,6 +32,27 @@ BEGIN
   IF (SELECT count(*) FROM workspace_audit_events) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed audit events';
   END IF;
+  IF cw_lock_staff_project_grant(
+       'synthetic-security-staff-a',
+       '11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'delivery.edit')
+       <> '33333333-3333-4333-8333-333333333333'::uuid THEN
+    RAISE EXCEPTION 'runtime could not verify and lock an exact active staff grant';
+  END IF;
+  IF cw_lock_staff_project_grant(
+       'synthetic-security-staff-a',
+       '22222222-2222-4222-8222-222222222222',
+       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'delivery.edit') IS NOT NULL OR
+     cw_lock_staff_project_grant(
+       'synthetic-security-staff-a',
+       '11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'project.activate') IS NOT NULL OR
+     cw_lock_staff_project_grant(
+       'synthetic-security-staff-a',
+       '11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'invoice.approve') IS NOT NULL THEN
+    RAISE EXCEPTION 'grant lock accepted a wrong tenant, action role, or unknown action';
+  END IF;
   IF pg_has_role(current_user, 'cw_schema_owner', 'MEMBER') OR
      pg_has_role(current_user, 'cw_migrator', 'MEMBER') OR
      pg_has_role(current_user, 'cw_audit_writer', 'MEMBER') THEN

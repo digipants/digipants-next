@@ -27,14 +27,17 @@ robust tenancy against compromised application code or arbitrary SQL.
 
 **Never treat the tenant setting as identity or authorization.** The isolated
 Better Auth server seam validates the session and persisted current MFA, then
-loads the active principal and exact requested tenant/project grant from
-parameterized SQL. State changes choose action-appropriate roles before the
-grant query, lock principal/membership/grant/tenant/project rows `FOR SHARE`,
-and commit the revision update plus audit append at `SERIALIZABLE`. A concurrent
-revocation waits behind that lock; later actions deny. The helper sets the
-transaction-local GUC only after this server-side authorization and continues
-to include exact scope predicates. Reads and writes fail closed on database,
-session, MFA, role or audit errors.
+uses a narrow `SECURITY DEFINER` helper to select and lock the active
+principal/membership/grant/tenant rows for the exact tenant, project, subject
+and action-appropriate role. The runtime role has no UPDATE privilege on those
+authorization tables, so it cannot take these locks itself. The grant's
+composite foreign key proves the project/tenant binding; only after the locked
+grant is returned does the transaction set its local GUC and touch the RLS
+protected project row. State revision plus audit append commit at
+`SERIALIZABLE`. A concurrent revocation waits behind the lock; later actions
+deny. The helper only locks and checks workspace grants; the server separately
+verifies Better Auth session and current MFA first. Reads and writes fail
+closed on database, session, MFA, role or audit errors.
 
 This addresses the demonstrated GUC bypass at the server authorization layer;
 it does **not** make arbitrary SQL executed with a runtime credential safe. No
