@@ -3,13 +3,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "prisma generate",
+    "prebuild": "prisma generate && npm ci --include=dev --prefix experiments/client-workspace-auth && npm run db:generate:auth",
     "build": "next build",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
-    "test:client-workspace:db": "node tests/client-workspace-persistence.integration.mjs"
+    "test:client-workspace:db": "node tests/client-workspace-persistence.integration.mjs",
+    "db:generate:auth": "npm --prefix experiments/client-workspace-auth run db:generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

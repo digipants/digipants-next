@@ -79,6 +79,7 @@ web_modules/
 
 # Next.js build output
 .next
+.netlify/
 experiments/client-workspace-auth/generated/
 experiments/client-workspace-payments/generated/
 out

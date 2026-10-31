@@ -6,6 +6,10 @@ on:
     paths:
       - package.json
       - package-lock.json
+      - experiments/client-workspace-auth/package.json
+      - experiments/client-workspace-auth/package-lock.json
+      - experiments/client-workspace-auth/prisma/schema.prisma
+      - netlify.toml
       - .github/workflows/dependency-security.yml
   push:
     branches: [main]
@@ -30,6 +34,8 @@ jobs:
         run: npm ci
       - name: Block high or critical production dependency advisories
         run: npm audit --omit=dev --audit-level=high
+      - name: Block high or critical isolated auth runtime dependency advisories
+        run: npm audit --prefix experiments/client-workspace-auth --omit=dev --audit-level=high
       - name: Verify exact installed framework and lockfile versions
         run: |
           node - <<'NODE'

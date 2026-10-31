@@ -1,15 +1,26 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/client/index.js";
 import { assertDisposableLoopbackDatabaseUrl } from "./test-target.js";
+import {
+  assertStagingRuntimeDatabaseUrl, workspaceRuntimeMode,
+} from "./workspace-runtime.js";
 
 function clientFor(connectionString: string | undefined, name: string, expectedDatabase: string): PrismaClient {
-  if (process.env.NODE_ENV === "production" || process.env.AUTH_EXPERIMENT_ENABLED !== "1") {
-    throw new Error("The Better Auth experiment is disabled outside an explicitly enabled local/CI test.");
+  const mode = workspaceRuntimeMode();
+  if (mode === "disabled") throw new Error("Client Workspace database access is disabled in this deployment context.");
+  if (!connectionString) throw new Error(`${name} is required for the enabled Client Workspace runtime.`);
+  if (mode === "local-test") {
+    assertDisposableLoopbackDatabaseUrl(connectionString, expectedDatabase);
+  } else {
+    assertStagingRuntimeDatabaseUrl(connectionString, expectedDatabase, name);
   }
-  if (!connectionString) throw new Error(`${name} is required for the local auth experiment.`);
-  assertDisposableLoopbackDatabaseUrl(connectionString, expectedDatabase);
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString, max: 1, connectionTimeoutMillis: 5_000 }),
+    adapter: new PrismaPg({
+      connectionString,
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 5_000,
+    }),
   });
 }
 
