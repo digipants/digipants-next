@@ -58,7 +58,7 @@ export default function WorkspaceLogin() {
 
   async function verifyMfa(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !/^\\d{6}$/.test(code)) return;
+    if (busy || !/^\d{6}$/.test(code)) return;
     setBusy(true);
     setError("");
     try {
