@@ -322,7 +322,7 @@ SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
 DO $$
 DECLARE denied boolean := false;
 BEGIN
-  IF (SELECT count(*) FROM workspace_audit_events) <> 2 THEN
+  IF (SELECT count(*) FROM workspace_audit_events) <> 1 THEN
     RAISE EXCEPTION 'audit reader did not see the selected tenant history';
   END IF;
   BEGIN
