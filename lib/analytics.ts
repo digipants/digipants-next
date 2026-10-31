@@ -32,12 +32,24 @@ function safePathname(pathname: string) {
   return withoutQueryOrFragment.startsWith("/") ? withoutQueryOrFragment : "/";
 }
 
+/**
+ * Private workspace URLs (including synthetic preview and invitation landing)
+ * are never analytics page locations. In particular, avoid disclosing
+ * tenant/project UUIDs, invitation fragments or recipient onboarding paths.
+ */
+export function isPrivateWorkspacePath(pathname: string): boolean {
+  const path = safePathname(pathname).replace(/\\/+$/, "") || "/";
+  return path === "/workspace" || path.startsWith("/workspace/") ||
+    path === "/workspace-preview" || path.startsWith("/workspace-preview/");
+}
+
 function safePageLocation(pathname: string) {
   return `${window.location.origin}${safePathname(pathname)}`;
 }
 
 function initializeAnalytics() {
-  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent() ||
+      isPrivateWorkspacePath(window.location.pathname)) return;
 
   window[`ga-disable-${ANALYTICS_MEASUREMENT_ID}`] = false;
 
@@ -117,6 +129,11 @@ export function clearAnalyticsConsent() {
 export function trackPageView(pathname: string) {
   if (!hasAnalyticsConsent()) return;
   const path = safePathname(pathname);
+  if (isPrivateWorkspacePath(path) || isPrivateWorkspacePath(window.location.pathname)) {
+    window[`ga-disable-${ANALYTICS_MEASUREMENT_ID}`] = true;
+    lastTrackedPath = null;
+    return;
+  }
   if (lastTrackedPath === path) return;
   initializeAnalytics();
   window.gtag?.("event", "page_view", {
@@ -127,13 +144,13 @@ export function trackPageView(pathname: string) {
 }
 
 export function trackContactIntent(location: "header" | "footer" | "main" | "other") {
-  if (!hasAnalyticsConsent()) return;
+  if (!hasAnalyticsConsent() || isPrivateWorkspacePath(window.location.pathname)) return;
   initializeAnalytics();
   window.gtag?.("event", "contact_intent", { cta_location: location });
 }
 
 export function trackConfirmedLead() {
-  if (!hasAnalyticsConsent()) return;
+  if (!hasAnalyticsConsent() || isPrivateWorkspacePath(window.location.pathname)) return;
   initializeAnalytics();
   window.gtag?.("event", "generate_lead");
 }
