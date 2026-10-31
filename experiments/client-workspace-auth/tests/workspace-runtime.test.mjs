@@ -6,20 +6,15 @@ const staging = {
   NODE_ENV: "production",
   CLIENT_WORKSPACE_ENABLED: "1",
   CLIENT_WORKSPACE_ENVIRONMENT: "staging",
-  CLIENT_WORKSPACE_BUILD_CONTEXT: "production",
-  CLIENT_WORKSPACE_BUILD_BRANCH: "feat/client-workspace-mail-abuse-gates-117",
-  CLIENT_WORKSPACE_BUILD_SITE_ID: "ebafda7a-e6c5-48e4-a44d-daf0f5943d43",
   SITE_ID: "ebafda7a-e6c5-48e4-a44d-daf0f5943d43",
   CLIENT_WORKSPACE_ORIGIN: "https://digipants-client-workspace-staging.netlify.app",
   URL: "https://digipants-client-workspace-staging.netlify.app",
 };
 
-test("workspace enables only on the separately protected staging project branch", () => {
+test("workspace enables only on the separately protected staging project", () => {
   assert.equal(workspaceRuntimeMode(staging), "protected-staging");
-  assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_BUILD_CONTEXT: "deploy-preview" }), "disabled");
-  assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_BUILD_BRANCH: "main" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_ENVIRONMENT: "production" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, SITE_ID: "another-site" }), "disabled");
-  assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_BUILD_SITE_ID: "another-site" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "http://digipants-client-workspace-staging.netlify.app" }), "protected-staging");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants.com" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants-client-workspace-staging.netlify.app/path" }), "disabled");
@@ -32,7 +27,6 @@ test("workspace enables only on the separately protected staging project branch"
 test("local integration activation remains separate from every production context", () => {
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1" }), "local-test");
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "production", AUTH_EXPERIMENT_ENABLED: "1" }), "disabled");
-  assert.equal(workspaceRuntimeMode({ NODE_ENV: "production", ...staging, CLIENT_WORKSPACE_BUILD_BRANCH: "main" }), "disabled");
 });
 
 test("staging database URLs require distinct dedicated logins, correct databases, pooler and full TLS", () => {

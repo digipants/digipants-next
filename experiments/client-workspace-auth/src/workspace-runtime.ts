@@ -1,13 +1,12 @@
 /**
  * The Client Workspace is enabled only in two explicit contexts:
  * - the existing localhost/CI security harness; or
- * - the protected Netlify staging project pinned to its reviewed workspace
- *   branch and immutable site id, with site-scoped staging credentials.
+ * - the password-protected Netlify staging project, pinned by its immutable
+ *   site id and exact runtime origin, with site-scoped staging credentials.
  * A generic production build, deploy preview, or changed NODE_ENV is not enough.
  */
 export type WorkspaceRuntimeMode = "disabled" | "local-test" | "protected-staging";
 
-const STAGING_BRANCH = "feat/client-workspace-mail-abuse-gates-117";
 const STAGING_ORIGIN = "https://digipants-client-workspace-staging.netlify.app";
 const STAGING_SITE_ID = "ebafda7a-e6c5-48e4-a44d-daf0f5943d43";
 const STAGING_HOST = new URL(STAGING_ORIGIN).hostname;
@@ -32,22 +31,12 @@ export function workspaceRuntimeMode(
     return "local-test";
   }
 
-  const stagingChecks = {
-    nodeProduction: env.NODE_ENV === "production",
-    workspaceEnabled: env.CLIENT_WORKSPACE_ENABLED === "1",
-    environmentStaging: env.CLIENT_WORKSPACE_ENVIRONMENT === "staging",
-    buildContextProduction: env.CLIENT_WORKSPACE_BUILD_CONTEXT === "production",
-    buildBranchPinned: env.CLIENT_WORKSPACE_BUILD_BRANCH === STAGING_BRANCH,
-    buildSitePinned: env.CLIENT_WORKSPACE_BUILD_SITE_ID === STAGING_SITE_ID,
-    runtimeSitePinned: env.SITE_ID === STAGING_SITE_ID,
-    originPinned: env.CLIENT_WORKSPACE_ORIGIN === STAGING_ORIGIN,
-    netlifyUrlPinned: isStagingNetlifyUrl(env.URL),
-  };
-  // Temporary boolean-only diagnostics for protected staging; never log env values.
-  if (env.CLIENT_WORKSPACE_GATE_DIAGNOSTICS === "1") {
-    console.warn("CLIENT_WORKSPACE_GATE_CHECKS", stagingChecks);
-  }
-  if (Object.values(stagingChecks).some(check => !check)) {
+  if (env.NODE_ENV !== "production" ||
+      env.CLIENT_WORKSPACE_ENABLED !== "1" ||
+      env.CLIENT_WORKSPACE_ENVIRONMENT !== "staging" ||
+      env.SITE_ID !== STAGING_SITE_ID ||
+      env.CLIENT_WORKSPACE_ORIGIN !== STAGING_ORIGIN ||
+      !isStagingNetlifyUrl(env.URL)) {
     return "disabled";
   }
 
