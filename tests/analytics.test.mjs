@@ -130,3 +130,26 @@ test("queues a parameter-free lead only after confirmed API success", async () =
   assert.equal(failure.success, false);
   assert.equal(queuedCommands().filter((entry) => entry[0] === "event").length, eventCount);
 });
+
+
+test("workspace routes and invitation landing never load GA or send tenant IDs", () => {
+  resetBrowser();
+  window.location.pathname = "/workspace/invite/";
+  analytics.setAnalyticsConsent("accepted");
+  analytics.trackPageView("/workspace/invite/#invite=never-send");
+  analytics.trackPageView("/workspace/tenants/11111111-1111-4111-8111-111111111111/projects/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/");
+  assert.equal(scripts.length, 0, "private landing cannot load GA scripts");
+  assert.equal(window.dataLayer, undefined, "invitation data cannot enter analytics queue");
+  assert.equal(window["ga-disable-" + analytics.ANALYTICS_MEASUREMENT_ID], true);
+  assert.equal(analytics.isPrivateWorkspacePath("/workspace-preview/"), true);
+  assert.equal(analytics.isPrivateWorkspacePath("/workspace-vendor/"), false);
+
+  window.location.pathname = "/services/";
+  analytics.trackPageView("/services/");
+  assert.equal(scripts.length, 1, "public marketing page resumes normal consented GA");
+  const before = queuedCommands().filter((event) => event[0] === "event").length;
+  analytics.trackPageView("/workspace/tenants/11111111-1111-4111-8111-111111111111/");
+  assert.equal(queuedCommands().filter((event) => event[0] === "event").length, before,
+    "even forged private paths must never be logged by public page instrumentation");
+  assert.equal(window["ga-disable-" + analytics.ANALYTICS_MEASUREMENT_ID], true);
+});
