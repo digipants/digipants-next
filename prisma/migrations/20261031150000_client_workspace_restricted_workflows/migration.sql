@@ -239,7 +239,7 @@ BEGIN
   INSERT INTO public.workspace_principals
     (id, provider, provider_subject, kind, status)
   VALUES (p_principal_id, 'better_auth', p_provider_subject, 'client', 'disabled')
-  ON CONFLICT (provider, provider_subject) DO NOTHING;
+  ON CONFLICT (provider_subject) DO NOTHING;
   RETURN QUERY
     SELECT p.id, p.kind, p.status
       FROM public.workspace_principals AS p
