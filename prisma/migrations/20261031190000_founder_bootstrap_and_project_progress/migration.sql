@@ -101,8 +101,8 @@ SET search_path = pg_catalog, public
 AS $$
 DECLARE
   saved_subject text;
-  tenant_id uuid := '11111111-1111-4111-8111-111111111111';
-  project_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  v_tenant_id uuid := '11111111-1111-4111-8111-111111111111';
+  v_project_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 BEGIN
   IF p_email_hash IS NULL OR octet_length(p_email_hash) <> 32 OR
      p_candidate_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
@@ -123,7 +123,7 @@ BEGIN
     IF NOT EXISTS (
       SELECT 1 FROM public.workspace_projects AS p
       JOIN public.workspace_tenants AS t ON t.id = p.tenant_id
-      WHERE p.id = project_id AND p.tenant_id = tenant_id
+      WHERE p.id = v_project_id AND p.tenant_id = v_tenant_id
         AND p.title = 'Synthetic Project A' AND t.legal_name = 'Synthetic Tenant A'
         AND p.publication = 'published' AND t.status = 'active'
     ) THEN
@@ -143,9 +143,9 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
 DECLARE
-  tenant_id uuid := '11111111-1111-4111-8111-111111111111';
-  project_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-  principal_id uuid;
+  v_tenant_id uuid := '11111111-1111-4111-8111-111111111111';
+  v_project_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  v_principal_id uuid;
   saved_subject text;
   completed_subject text;
   done_at timestamptz;
@@ -168,7 +168,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.workspace_projects AS p
     JOIN public.workspace_tenants AS t ON t.id = p.tenant_id
-    WHERE p.id = project_id AND p.tenant_id = tenant_id
+    WHERE p.id = v_project_id AND p.tenant_id = v_tenant_id
       AND p.title = 'Synthetic Project A' AND t.legal_name = 'Synthetic Tenant A'
       AND p.publication = 'published' AND t.status = 'active'
   ) THEN
@@ -177,17 +177,17 @@ BEGIN
 
   INSERT INTO public.workspace_principals(provider, provider_subject, kind, status)
   VALUES ('better_auth', p_provider_subject, 'staff', 'active')
-  RETURNING id INTO principal_id;
+  RETURNING id INTO v_principal_id;
   INSERT INTO public.workspace_staff_memberships(principal_id, principal_kind, status)
-  VALUES (principal_id, 'staff', 'active');
+  VALUES (v_principal_id, 'staff', 'active');
   INSERT INTO public.workspace_staff_project_grants
     (tenant_id, project_id, principal_id, role, status)
-  VALUES (tenant_id, project_id, principal_id, 'delivery_lead', 'active');
+  VALUES (v_tenant_id, v_project_id, v_principal_id, 'delivery_lead', 'active');
 
-  PERFORM set_config('app.workspace_tenant_id', tenant_id::text, true);
+  PERFORM set_config('app.workspace_tenant_id', v_tenant_id::text, true);
   PERFORM public.cw_append_audit_event(
-    tenant_id, project_id, principal_id, 'system', 'founder.bootstrap.completed',
-    'workspace_staff_membership', principal_id::text, NULL, NULL,
+    v_tenant_id, v_project_id, v_principal_id, 'system', 'founder.bootstrap.completed',
+    'workspace_staff_membership', v_principal_id::text, NULL, NULL,
     'founder-bootstrap:' || p_provider_subject || ':completed');
   UPDATE public.workspace_founder_bootstrap_control
      SET completed_provider_subject = p_provider_subject,
