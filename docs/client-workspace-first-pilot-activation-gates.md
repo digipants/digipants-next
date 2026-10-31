@@ -18,11 +18,32 @@ Last reviewed: 31 October 2026. **No production activation approved.** This docu
 | DigiPants production | Site accessible at digipants.com; workspace routes intentionally 404 in production | Preserve public pages and consent analytics |
 | Site env | Resend sender/config present; **no workspace-specific auth/database configuration** found | Dedicated encrypted runtime-only credentials, no build/exposure leakage |
 | Neon development primary | No workspace tables on primary in prior hosted rehearsal; owner login `digipants_ws_dev` has `BYPASSRLS`; pooler currently off | Never use owner for runtime; prove restricted `-pooler` TLS connection |
-| Disposable Neon | Earlier Free child passed restricted-role/RLS transaction resets, then was deleted | Actual pooled hostname connection through TLS with verified CA and hostname is still **unproven** |
+| Disposable Neon | A fresh Free child passed real restricted-login, two-tenant RLS and negative privilege probes on 31 October; branch then deleted | The public **client-to-`-pooler`** TLS certificate/hostname proof remains **unverified** |
 | Application | CI verifies real mounted Next.js auth/TOTP/project read and local headless Chrome invitation/login/guest denial | Production-grade auth secret rotation, real MFA recovery, deployment packaging, UAT |
-| Dependencies | npm CI install reported 12 advisories, including 1 critical, on the root dependency tree | Triage advisories, patch and validate before customer exposure |
+| Dependencies | Next.js security patch **15.5.28** squash-merged as #118 to `main` (`ebdf650`); automatic Netlify production deploy ready; `npm audit --omit=dev --audit-level=high`, immutable install and production build all passed | Review remaining **development** advisories and repeat prod audit on exact workspace release head |
 
 Do not rely on a `-pooler` hostname being returned or a compute metadata flag to claim an **actual pooled TLS connection**.
+
+### Hosted Neon evidence — 31 October 2026
+
+Tested on approved, branch-local Free child `tmp-cw118-pool-tls-20261031` (`br-lucky-lake-zaidjlls`, now **deleted**). Only the original three Neon branches remain. Two real workspace SQL migrations, six synthetic seed statements and the complete role/RLS hardening were applied in transactions. A distinct SQL-created `cw_pilot118_restricted` role used a password generated **inside PostgreSQL** and had `NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE` attributes. Login through the Neon SQL connector proved:
+- `session_user=current_user=cw_pilot118_restricted` with no invitation-token SELECT, audit INSERT or schema CREATE.
+- Zero project records before tenant context; precisely Tenant A's project under Tenant A; precisely Tenant B's project under Tenant B; zero after transaction reset.
+- Execution of unauthorized invitation, audit and schema operations was denied.
+
+**This is not public pooled TLS proof.** The Neon SQL connector reported `pg_stat_ssl.ssl=false` (internal database connection). That reflects the backend transport and says nothing about an independent Node.js connection to the public `-pooler` frontend. The updated [pooled acceptance script](../experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs) now verifies the actual Node `TLSSocket`, certificate authorization and hostname. It also validates the restricted login and exact synthetic rows. Its current CI test uses injected mock connections; **no real pooled socket was tested**. See [Issue #101](https://github.com/digipants/digipants-next/issues/101).
+
+### Run the remaining pooled-TLS gate securely
+
+Run from an approved GitHub Actions runner or another network-capable, isolated environment; do not run from the live production app or store credentials in Git. The test requires a **new temporary Neon child** with the reviewed schema, two synthetic tenant fixtures and a separate SQL-created restricted login. The temp branch must be deleted after the probe.
+
+1. Provision a restricted login using credentials generated through a secure operator flow, never the Neon API-created privileged role or `digipants_ws_dev`. Its own `session_user` must be nonprivileged and inherit only `cw_runtime`.
+2. Store the pooled URL only in a protected environment secret, with `sslmode=verify-full` and the actual `-pooler` hostname. Do not print, paste into issue comments or expose it in Actions logs. The current GitHub connector cannot create an Actions secret on the user's behalf.
+3. In the isolated auth experiment, run `WORKSPACE_POOLER_ACCEPTANCE_ENABLED=1 node scripts/neon-pooler-acceptance.mjs`, supplying `WORKSPACE_POOLER_TEST_URL`, `WORKSPACE_POOLER_TEST_TENANT_A`, and `WORKSPACE_POOLER_TEST_TENANT_B` from protected runner configuration. The test's failure message is intentionally generic.
+4. Save **only** the boolean pass/fail indicators, exact Git commit, runtime restricted role attributes, disposal confirmation and synthetic tenant checks. Verify hostname/certificate, role separation, no-scoped/after-transaction zero, and A/B exact records. On failure keep customer routes closed.
+
+Caution: node-postgres documents that `sslmode` inside `connectionString` can override a separately supplied `ssl` configuration. The script deliberately parses the URL and passes explicit socket verification settings instead: https://node-postgres.com/features/ssl.
+
 
 ## Mandatory activation phases
 
