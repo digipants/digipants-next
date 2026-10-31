@@ -74,7 +74,7 @@ test("mocked Resend sends ONLY to normalized intended recipient, no browser toke
   assert.equal(captured[0].init.headers["Idempotency-Key"], "cw-invite-" + id);
   const payload = JSON.parse(captured[0].init.body);
   assert.deepEqual(payload.to, ["synthetic.client+1@example.invalid"]);
-  assert.deepEqual(Object.keys(payload).sort(), ["from", "subject", "text"]);
+  assert.deepEqual(Object.keys(payload).sort(), ["from", "subject", "text", "to"]);
   assert.ok(payload.text.includes("#invite=" + token));
   assert.ok(!JSON.stringify(captured[0].init.headers).includes(token));
 });
