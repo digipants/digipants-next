@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   local-auth-security-validation:
-    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116'))) }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:
@@ -67,8 +67,10 @@ jobs:
           set -euo pipefail
           auth_secret="$(openssl rand -hex 32)"
           mail_outbox_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
+          mail_rate_hmac_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           echo "::add-mask::$auth_secret"
           echo "::add-mask::$mail_outbox_key"
+          echo "::add-mask::$mail_rate_hmac_key"
           {
             echo "DIRECT_URL=$DIRECT_URL"
             echo "DATABASE_URL=$DIRECT_URL"
@@ -81,6 +83,7 @@ jobs:
             echo "AUTH_BASE_URL=http://localhost:3000/api/auth"
             echo "BETTER_AUTH_SECRET=$auth_secret"
             echo "WORKSPACE_MAIL_OUTBOX_KEY=$mail_outbox_key"
+            echo "WORKSPACE_MAIL_RATE_HMAC_KEY=$mail_rate_hmac_key"
           } >> "$GITHUB_ENV"
           for database in workspace_shadow auth_spike_test auth_spike_shadow; do
             docker exec "$POSTGRES_CONTAINER_ID" psql \
@@ -154,14 +157,14 @@ jobs:
           npm run db:migrate:diff
 
       - name: Run existing authentication integration suite
-        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' && github.event.pull_request.head.ref != 'feat/client-workspace-pilot-activation-114' && github.event.pull_request.head.ref != 'feat/client-workspace-invite-onboarding-115' && github.event.pull_request.head.ref != 'feat/client-workspace-delivery-reliability-116' }}
+        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' && github.event.pull_request.head.ref != 'feat/client-workspace-pilot-activation-114' && github.event.pull_request.head.ref != 'feat/client-workspace-invite-onboarding-115' && github.event.pull_request.head.ref != 'feat/client-workspace-delivery-reliability-116' && github.event.pull_request.head.ref != 'feat/client-workspace-mail-abuse-gates-117' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           NODE_OPTIONS: --conditions=react-server
         run: npm run test:integration
       - name: Run invitation and grant fixtures BEFORE append-only audit hardening
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116'))) }}
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
@@ -178,16 +181,28 @@ jobs:
           tests/trusted-invitation-delivery-postgres.test.mjs
           tests/mailbox-proof-delivery-postgres.test.mjs
       - name: Verify encrypted atomic mailbox outbox, failure retry and ownership
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' }}
+        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117') }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           WORKSPACE_MAIL_OUTBOX_TEST_ENABLED: 1
+          WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117' && '1' || '0' }}
           NODE_OPTIONS: --conditions=react-server
         run: >-
           node --import tsx --test
           tests/trusted-invitation-delivery-postgres.test.mjs
           tests/mailbox-proof-delivery-postgres.test.mjs
+      - name: Verify atomic HMAC quotas and no-live-send Resend transport
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED: 1
+          NODE_OPTIONS: --conditions=react-server
+        run: >-
+          node --import tsx --test
+          tests/mailbox-request-quota-postgres.test.mjs
+          tests/resend-mailbox-transport.test.mjs
       - name: Run baseline authentication fixtures for enrollment PR
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
         working-directory: experiments/client-workspace-auth
@@ -240,7 +255,7 @@ jobs:
           NODE_OPTIONS: --conditions=react-server
         run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Provision distinct NON-superuser runtime login for published read test
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116'))) }}
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
@@ -249,7 +264,7 @@ jobs:
           docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "GRANT cw_runtime TO cw_client_read_ci WITH INHERIT TRUE, SET FALSE"
           docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "GRANT CONNECT ON DATABASE digipants_workspace_dev TO cw_client_read_ci"
       - name: Verify session-bound published client project read, revocation and tenant isolation
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116'))) }}
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
@@ -257,7 +272,7 @@ jobs:
           WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:synthetic_read_ci_pw@127.0.0.1:5432/digipants_workspace_dev
         run: node --import tsx --test tests/trusted-published-project-postgres.test.mjs
       - name: Verify authentic MFA cookie through restricted client HTTP read and deny routes
-        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116'))) }}
+        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
@@ -266,7 +281,7 @@ jobs:
           WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:synthetic_read_ci_pw@127.0.0.1:5432/digipants_workspace_dev
         run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Verify mounted Next.js authentication plus actual project read end to end
-        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116')) }}
+        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117'))) }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
@@ -276,7 +291,7 @@ jobs:
           WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:synthetic_read_ci_pw@127.0.0.1:5432/digipants_workspace_dev
         run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Chrome browser smoke for private invitation, login and denied project
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' }}
+        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117') }}
         env:
           AUTH_EXPERIMENT_ENABLED: "1"
           WORKSPACE_NEXT_ROUTE_TEST_ENABLED: "1"
@@ -331,7 +346,7 @@ jobs:
           "$chrome" --headless --no-sandbox --disable-gpu             --disable-dev-shm-usage --disable-background-networking             --window-size=1280,960 --virtual-time-budget=8000             --screenshot=/tmp/workspace-invite-ci.png             "http://localhost:3000/workspace/invite/#invite=$fake_bearer"             >/dev/null 2>> /tmp/workspace-chrome-stderr.log
           "$chrome" --headless --no-sandbox --disable-gpu             --disable-dev-shm-usage --disable-background-networking             --window-size=1280,960 --virtual-time-budget=8000             --screenshot=/tmp/workspace-login-ci.png             "http://localhost:3000/workspace/login/"             >/dev/null 2>> /tmp/workspace-chrome-stderr.log
       - name: Upload synthetic browser screenshots
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' }}
+        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117') }}
         uses: actions/upload-artifact@v4
         with:
           name: workspace-browser-synthetic
