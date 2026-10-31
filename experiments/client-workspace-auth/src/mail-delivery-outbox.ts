@@ -12,7 +12,7 @@ type Db = Query & {
   $transaction<T>(fn:(tx:Query)=>Promise<T>):Promise<T>;
 };
 export type MailPayload = Readonly<{
-  to: string; subject: string; text: string; idempotencyKey: string;
+  challengeId: string; to: string; subject: string; text: string; idempotencyKey: string;
 }>;
 type OutboxRow = {
   id: string; ciphertext: string; idempotencyKey: string;
@@ -37,13 +37,15 @@ function safeMessage(value:unknown):MailPayload|null {
   if(!value||typeof value!=="object") return null;
   const m=value as Record<string,unknown>;
   const recipient=normalizeInvitedEmail(m.to);
-  if(!recipient||typeof m.subject!=="string"||
+  if(!UUID.test(m.challengeId as string)||
+      !recipient||typeof m.subject!=="string"||
       m.subject!=="Verify your DigiPants Workspace invitation"||
       typeof m.text!=="string"||m.text.length>1500||
       !m.text.startsWith("Use this one-time code to verify the mailbox")||
       typeof m.idempotencyKey!=="string"||
       !/^cw-mailproof-[0-9a-f-]{36}$/i.test(m.idempotencyKey))return null;
-  return Object.freeze({to:recipient,subject:m.subject,
+  return Object.freeze({challengeId:m.challengeId as string,
+    to:recipient,subject:m.subject,
     text:m.text,idempotencyKey:m.idempotencyKey});
 }
 /**
