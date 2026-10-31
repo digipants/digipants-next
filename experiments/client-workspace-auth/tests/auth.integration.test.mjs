@@ -39,6 +39,15 @@ if (!enabled) {
     import("../src/workspace-access.ts"),
   ]);
 
+  const useNextAuthRoute = process.env.RUN_NEXT_AUTH_INTEGRATION === "1";
+  if (useNextAuthRoute) {
+    process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED = "1";
+    process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED = "1";
+  }
+  const nextAuthRoute = useNextAuthRoute
+    ? await import("../../../app/api/auth/[...all]/route.ts")
+    : null;
+
   function totp(secret, at = Date.now()) {
     const counter = BigInt(Math.floor(at / 30_000));
     const bytes = Buffer.alloc(8);
@@ -83,11 +92,14 @@ if (!enabled) {
       ...extraHeaders,
     });
     if (jar?.header()) headers.set("cookie", jar.header());
-    const response = await auth.handler(new Request(`http://localhost:3000/api/auth${path}`, {
+    const request = new Request(`http://localhost:3000/api/auth${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body ?? {}),
-    }));
+    });
+    const response = nextAuthRoute
+      ? await nextAuthRoute.POST(request)
+      : await auth.handler(request);
     jar?.absorb(response.headers);
     let payload = null;
     try { payload = await response.json(); } catch {}
@@ -108,6 +120,41 @@ if (!enabled) {
     }).outputText;
     const module = await import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`);
     return module.loadEffectiveWorkspaceGrants;
+  }
+
+  if (nextAuthRoute) {
+    test("mounted Next.js auth handler denies cross-origin, absent Origin, and production", async () => {
+      const attempt = (origin) => nextAuthRoute.POST(new Request(
+        "http://localhost:3000/api/auth/sign-in/email", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(origin === undefined ? {} : { origin }),
+          },
+          body: JSON.stringify({
+            email: "nobody@example.invalid", password: "not-real-password",
+          }),
+        },
+      ));
+      assert.equal((await attempt("https://evil.example")).status, 404,
+        "cross-origin sign-in must not initialize auth service");
+      assert.equal((await attempt(undefined)).status, 404,
+        "missing Origin for a state-changing request must be rejected");
+      const previousEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = "production";
+        assert.equal((await attempt("http://localhost:3000")).status, 404,
+          "production login remains unavailable even with all flags enabled");
+      } finally {
+        if (previousEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previousEnv;
+      }
+      const guest = await nextAuthRoute.GET(new Request(
+        "http://localhost:3000/api/auth/get-session",
+      ));
+      assert.equal(guest.status, 200,
+        "local Next.js GET session handler is routed to the real auth backend");
+    });
   }
 
   test("invitation-only enrollment, real 2FA assurance, lockout, replay and revocation", async (t) => {
