@@ -1,0 +1,63 @@
+name: Disposable Neon public pooler TLS acceptance
+
+on:
+  push:
+    branches:
+      - feat/client-workspace-pooler-tls-acceptance-119
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-workspace-pooler-acceptance
+  cancel-in-progress: false
+
+jobs:
+  hosted-pooler-acceptance:
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && github.event.before == 'c0ca6284f86ea95a40d3a0ad77e784430fce81ee' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: neon-pooler-acceptance
+    steps:
+      - name: Check out the reviewed workspace commit
+        uses: actions/checkout@v4
+        with:
+          ref: 886c940bd0e9f3e70d6bff9d82a98776f4701fa9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install locked test client without lifecycle scripts
+        working-directory: experiments/client-workspace-auth
+        run: npm ci --ignore-scripts
+
+      - name: Run the pooled acceptance contract tests without credentials
+        working-directory: experiments/client-workspace-auth
+        run: node --import tsx --test tests/neon-pooler-acceptance.test.mjs
+
+      - name: Check the protected environment opt-in
+        id: gate
+        shell: bash
+        env:
+          ACCEPTANCE_RUN: ${{ vars.WORKSPACE_POOLER_ACCEPTANCE_RUN }}
+        run: |
+          set -euo pipefail
+          if [[ "${ACCEPTANCE_RUN:-}" == "1" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Hosted TLS test skipped: protected environment opt-in is not enabled."
+          fi
+
+      - name: Verify hosted Neon public pooler TLS and tenant isolation
+        if: ${{ steps.gate.outputs.enabled == 'true' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          WORKSPACE_POOLER_ACCEPTANCE_ENABLED: "1"
+          WORKSPACE_POOLER_TEST_URL: ${{ secrets.WORKSPACE_POOLER_TEST_URL }}
+          WORKSPACE_POOLER_TEST_TENANT_A: 11111111-1111-4111-8111-111111111111
+          WORKSPACE_POOLER_TEST_TENANT_B: 22222222-2222-4222-8222-222222222222
+        run: node scripts/neon-pooler-acceptance.mjs
