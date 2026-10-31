@@ -630,7 +630,9 @@ if (!enabled) {
     assert.equal(await authorizeWithAction("project.read_published"), false, "disabled MFA denies a fresh session");
     await authDb.user.update({ where: { id: ids.authUser }, data: { twoFactorEnabled: true } });
 
-    await send("/sign-out", {}, jar);
+    const signOutResult = await send("/sign-out", {}, jar);
+    assert.equal(signOutResult.response.ok, true,
+      `Next mounted sign-out must succeed: status=${signOutResult.response.status}, code=${signOutResult.payload?.code ?? "none"}`);
     assert.equal(await authorizeWithAction("project.read_published"), false, "signed-out session cannot be reused even with a recent MFA marker");
     const replayChallenge = await send("/sign-in/email", { email: ids.clientEmail, password }, jar);
     assert.equal(replayChallenge.payload.twoFactorRedirect, true);
