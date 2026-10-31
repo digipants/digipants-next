@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, KeyRound, LockKeyhole, MailCheck, ShieldCheck } from "lucide-react";
+import { consumePrivateInvitationFragment } from "@/lib/client-workspace/invite-fragment";
 
 const BEARER = /^[A-Za-z0-9_-]{43}$/;
 const CHALLENGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,13 +43,14 @@ export default function WorkspaceInvitation() {
     // Fragment never reaches an HTTP path/query or any server access log.
     // Remove it on mount, before any mail/identity request. No localStorage,
     // sessionStorage, analytics or third-party component receives the bearer.
-    const match = /^#invite=([A-Za-z0-9_-]{43})$/.exec(window.location.hash);
-    window.history.replaceState(window.history.state,"","/workspace/invite/");
-    if (!match || !BEARER.test(match[1])) {
+    const token = consumePrivateInvitationFragment(window.location.hash, () => {
+      window.history.replaceState(window.history.state, "", "/workspace/invite/");
+    });
+    if (!token) {
       setPhase("unavailable");
       return;
     }
-    setBearer(match[1]);
+    setBearer(token);
     setPhase("recipient");
   }, []);
 
