@@ -45,6 +45,14 @@ Run from an approved GitHub Actions runner or another network-capable, isolated 
 Caution: node-postgres documents that `sslmode` inside `connectionString` can override a separately supplied `ssl` configuration. The script deliberately parses the URL and passes explicit socket verification settings instead: https://node-postgres.com/features/ssl.
 
 
+### Clean production packaging — 31 October 2026
+
+An independent dependency-security CI run on the stacked workspace candidate initially **failed** its normal clean `npm ci && npm run build`: the root Next.js build could not resolve `better-auth`, `@better-auth/prisma-adapter`, or the isolated Prisma-generated client. The older auth-specific workflow had been installing the isolated package separately, masking this packaging gap.
+
+The root `prebuild` script now invokes an **immutable nested `npm ci --include=dev`** for `experiments/client-workspace-auth` and generates the isolated Prisma client before the regular `next build`. A clean independent production build and root high/critical production dependency audit both passed in [workflow #41176151541](https://github.com/digipants/digipants-next/actions/runs/41176151541) on commit `bda63a65b`. The updated `dependency-security.yml` additionally audits the isolated Better Auth runtime package, a distinct gate that must pass on the **final head** before production readiness can be claimed.
+
+Netlify production still uses `npm run build`; **no deployed customer login is enabled** by this packaging fix. The experimental auth/database code still rejects `NODE_ENV=production` and hosted workspace access. A clean build is necessary but not sufficient for release approval.
+
 ## Mandatory activation phases
 
 1. **Review & consolidate stacked drafts.** Security-review auth, tenant policies, RLS, invitations, mail outbox, and audit trails. Confirm dependencies between #111, #112, #113, #114, #115, #116, #117 and earlier foundation PRs; no independent merge of a stacked leaf.
