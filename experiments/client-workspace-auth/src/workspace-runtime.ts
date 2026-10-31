@@ -32,15 +32,22 @@ export function workspaceRuntimeMode(
     return "local-test";
   }
 
-  if (env.NODE_ENV !== "production" ||
-      env.CLIENT_WORKSPACE_ENABLED !== "1" ||
-      env.CLIENT_WORKSPACE_ENVIRONMENT !== "staging" ||
-      env.CLIENT_WORKSPACE_BUILD_CONTEXT !== "production" ||
-      env.CLIENT_WORKSPACE_BUILD_BRANCH !== STAGING_BRANCH ||
-      env.CLIENT_WORKSPACE_BUILD_SITE_ID !== STAGING_SITE_ID ||
-      env.SITE_ID !== STAGING_SITE_ID ||
-      env.CLIENT_WORKSPACE_ORIGIN !== STAGING_ORIGIN ||
-      !isStagingNetlifyUrl(env.URL)) {
+  const stagingChecks = {
+    nodeProduction: env.NODE_ENV === "production",
+    workspaceEnabled: env.CLIENT_WORKSPACE_ENABLED === "1",
+    environmentStaging: env.CLIENT_WORKSPACE_ENVIRONMENT === "staging",
+    buildContextProduction: env.CLIENT_WORKSPACE_BUILD_CONTEXT === "production",
+    buildBranchPinned: env.CLIENT_WORKSPACE_BUILD_BRANCH === STAGING_BRANCH,
+    buildSitePinned: env.CLIENT_WORKSPACE_BUILD_SITE_ID === STAGING_SITE_ID,
+    runtimeSitePinned: env.SITE_ID === STAGING_SITE_ID,
+    originPinned: env.CLIENT_WORKSPACE_ORIGIN === STAGING_ORIGIN,
+    netlifyUrlPinned: isStagingNetlifyUrl(env.URL),
+  };
+  // Temporary boolean-only diagnostics for protected staging; never log env values.
+  if (env.CLIENT_WORKSPACE_GATE_DIAGNOSTICS === "1") {
+    console.warn("CLIENT_WORKSPACE_GATE_CHECKS", stagingChecks);
+  }
+  if (Object.values(stagingChecks).some(check => !check)) {
     return "disabled";
   }
 

@@ -61,11 +61,11 @@ test("auth-owned schema is isolated and session assurance is not client writable
   assert.match(database, /workspaceRuntimeMode\(\)/);
   assert.match(database, /assertDisposableLoopbackDatabaseUrl/);
   assert.match(database, /assertStagingRuntimeDatabaseUrl/);
-  assert.match(runtime, /CLIENT_WORKSPACE_ENABLED !== "1"/);
-  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_CONTEXT !== "production"/);
-  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_BRANCH !== STAGING_BRANCH/);
-  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_SITE_ID !== STAGING_SITE_ID/);
-  assert.match(runtime, /env\.SITE_ID !== STAGING_SITE_ID/);
+  assert.match(runtime, /workspaceEnabled: env\.CLIENT_WORKSPACE_ENABLED === "1"/);
+  assert.match(runtime, /buildContextProduction: env\.CLIENT_WORKSPACE_BUILD_CONTEXT === "production"/);
+  assert.match(runtime, /buildBranchPinned: env\.CLIENT_WORKSPACE_BUILD_BRANCH === STAGING_BRANCH/);
+  assert.match(runtime, /buildSitePinned: env\.CLIENT_WORKSPACE_BUILD_SITE_ID === STAGING_SITE_ID/);
+  assert.match(runtime, /runtimeSitePinned: env\.SITE_ID === STAGING_SITE_ID/);
   assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_CONTEXT: process\.env\.CONTEXT/);
   assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_BRANCH: process\.env\.BRANCH/);
   assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_SITE_ID: process\.env\.SITE_ID/);
