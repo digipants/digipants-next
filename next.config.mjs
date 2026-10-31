@@ -11,6 +11,23 @@ export default {
   // Next.js hydration currently needs inline script execution; remove the
   // unsafe-inline exception when per-request nonces are independently tested.
   async headers() {
+    // Next dev uses eval-based HMR and a localhost websocket. Permit those
+    // only in the already production-disabled local experiment; the release
+    // policy remains strict and cannot enable this invitation route.
+    const localExperiment = process.env.NODE_ENV !== "production";
+    const inviteCsp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'" + (localExperiment ? " 'unsafe-eval'" : ""),
+      "style-src 'self' 'unsafe-inline'",
+      "connect-src 'self'" + (localExperiment ? " ws://localhost:3000 ws://127.0.0.1:3000" : ""),
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      ...(!localExperiment ? ["upgrade-insecure-requests"] : []),
+    ].join("; ");
     return [{
       source: "/workspace/invite/:path*",
       headers: [
@@ -21,7 +38,7 @@ export default {
         { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
         { key: "Content-Security-Policy",
-          value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; upgrade-insecure-requests" },
+          value: inviteCsp },
       ],
     }];
   },
