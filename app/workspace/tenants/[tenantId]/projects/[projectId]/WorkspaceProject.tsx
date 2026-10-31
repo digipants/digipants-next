@@ -22,7 +22,7 @@ function acceptProject(value: unknown, projectId: string): Project | null {
   if (p.id !== projectId || !UUID.test(projectId) ||
       typeof p.title !== "string" || p.title.trim().length < 1 || p.title.length > 200 ||
       typeof p.state !== "string" || !Object.hasOwn(STATES, p.state) ||
-      typeof p.revision !== "string" || !/^[1-9]\\d{0,18}$/.test(p.revision)) return null;
+      typeof p.revision !== "string" || !/^[1-9]\d{0,18}$/.test(p.revision)) return null;
   // Never preserve extra properties from the server or future API fields.
   return { id: projectId, title: p.title, state: p.state, revision: p.revision };
 }
