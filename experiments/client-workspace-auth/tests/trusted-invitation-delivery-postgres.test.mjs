@@ -86,7 +86,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
         VALUES (${id.principal}::uuid)`;
       await tx.$executeRaw`INSERT INTO workspace_projects(id,tenant_id,title) VALUES
         (${id.projectA}::uuid,${id.tenantA}::uuid,'Synthetic approved project'),
-        (${id.projectB}::uuid,${id.tenantB}::uuid,'Another company's project')`;
+        (${id.projectB}::uuid,${id.tenantB}::uuid,'Another tenant project')`;
       await tx.$executeRaw`INSERT INTO workspace_staff_project_grants
         (tenant_id,project_id,principal_id,role) VALUES
         (${id.tenantA}::uuid,${id.projectA}::uuid,${id.principal}::uuid,'workspace_owner')`;
