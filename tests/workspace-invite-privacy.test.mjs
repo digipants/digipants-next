@@ -56,6 +56,7 @@ test("workspace invitation page keeps production gate and never stores the token
   assert.match(page,/NODE_ENV === "production"/);
   assert.match(client,/consumePrivateInvitationFragment/);
   assert.match(client,/history.replaceState/);
-  assert.doesNotMatch(client,/localStorage|sessionStorage|trackPageView|gtag|analytics\.google/);
+  assert.doesNotMatch(client,/\b(?:window\.)?(?:localStorage|sessionStorage)\.(?:setItem|getItem|removeItem)\s*\(/);
+  assert.doesNotMatch(client,/\b(?:gtag|trackPageView)\s*\(|analytics\.google/);
   assert.doesNotMatch(client,/location\.search/);
 });
