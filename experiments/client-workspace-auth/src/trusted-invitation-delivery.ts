@@ -6,6 +6,7 @@ import { issueClientInvitation, revokeClientInvitation } from "./invite-issuance
 import type { ClientInvitationRole } from "./invite-issuance.js";
 import { composePrivateInvitationEmail } from "./invitation-delivery.js";
 import type { InvitationMessage } from "./invitation-delivery.js";
+import { isLocalWorkspaceTest, isProtectedWorkspaceStaging, workspaceOrigin } from "./workspace-runtime.js";
 
 type Sql = {
   $queryRaw<T = unknown>(sql: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -14,14 +15,13 @@ const MAX_STAFF_MFA_AGE_SECONDS = 5 * 60;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * This experiment deliberately cannot run in production. The existing
- * public DigiPants contact-mail service and live invite routes are untouched.
- * Test-only activation requires BOTH explicit flags and disposable local DBs.
+ * Invitation creation is available only on the protected staging branch or
+ * the explicitly enabled local harness. Runtime authorization remains bound
+ * to a recent MFA-verified project-owner session.
  */
 function experimentEnabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
-    process.env.WORKSPACE_INVITE_TEST_DELIVERY_ENABLED === "1";
+  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+    process.env.WORKSPACE_INVITE_TEST_DELIVERY_ENABLED === "1");
 }
 
 async function hasPersistedStaffAssurance(authDb: Sql, values: {
@@ -110,10 +110,11 @@ export async function dispatchInvitationForTrustedStaff(input: {
     if (!(await hasPersistedStaffAssurance(authDb, {
       sessionId: values.sessionId, subject: values.providerSubject,
     }))) return false;
-    const message = composePrivateInvitationEmail({
+    const origin = workspaceOrigin();
+    const message = origin ? composePrivateInvitationEmail({
       invitationId: invite.id, recipient: invite.email,
-      bearerToken: invite.token, workspaceOrigin: "https://digipants.com",
-    });
+      bearerToken: invite.token, workspaceOrigin: origin,
+    }) : null;
     if (!message) return false;
     successfullyDelivered = (await values.send(message)) === true;
     return successfullyDelivered;

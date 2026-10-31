@@ -1,8 +1,8 @@
 import { normalizeInvitedEmail } from "./invite-issuance.js";
+import { isProtectedWorkspaceStaging, workspaceOrigin } from "./workspace-runtime.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BEARER = /^[A-Za-z0-9_-]{43}$/;
-const ORIGIN = "https://digipants.com";
 const INVITE_PATH = "/workspace/invite/";
 
 export type InvitationMessage = Readonly<{
@@ -32,10 +32,15 @@ export function composePrivateInvitationEmail(input: {
       bearerToken: input.bearerToken,
       workspaceOrigin: input.workspaceOrigin,
     };
+    const expectedOrigin = isProtectedWorkspaceStaging()
+      ? workspaceOrigin()
+      : (process.env.WORKSPACE_INVITE_TEST_DELIVERY_ENABLED === "1"
+          ? workspaceOrigin()
+          : "https://digipants.com");
     const email = normalizeInvitedEmail(values.recipient);
     if (!UUID.test(values.invitationId) || !email ||
-        !BEARER.test(values.bearerToken) || values.workspaceOrigin !== ORIGIN) return null;
-    const link = new URL(INVITE_PATH, ORIGIN);
+        !BEARER.test(values.bearerToken) || values.workspaceOrigin !== expectedOrigin) return null;
+    const link = new URL(INVITE_PATH, expectedOrigin);
     link.hash = "invite=" + encodeURIComponent(values.bearerToken);
     return Object.freeze({
       to: email,
@@ -48,7 +53,7 @@ export function composePrivateInvitationEmail(input: {
         "",
         "You must also verify ownership of your email address and complete account security checks.",
         "If you were not expecting this invitation, you can ignore it.",
-        "For your security, check that the link begins with https://digipants.com/.",
+        `For your security, check that the link begins with ${expectedOrigin}/.`,
       ].join("\n"),
       idempotencyKey: "cw-invite-" + values.invitationId,
     });
@@ -81,7 +86,7 @@ export async function sendInvitationThroughResend(input: {
         typeof message.idempotencyKey !== "string" ||
         !/^cw-invite-[0-9a-f-]{36}$/i.test(message.idempotencyKey) ||
         typeof from !== "string" || from.length < 3 || from.length > 254 ||
-        /[\r\n<>]/.test(from) || !/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(from) ||
+        !/^(?:DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>|[A-Za-z0-9._%+-]+@digipants\.com)$/.test(from) ||
         typeof apiKey !== "string" || apiKey.trim() !== apiKey || apiKey.length < 16 ||
         typeof fetcher !== "function") return false;
 
@@ -100,6 +105,7 @@ export async function sendInvitationThroughResend(input: {
       }),
       redirect: "error",
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return false;
     const result: unknown = await response.json();

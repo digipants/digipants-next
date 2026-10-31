@@ -12,8 +12,7 @@ export default {
   // unsafe-inline exception when per-request nonces are independently tested.
   async headers() {
     // Next dev uses eval-based HMR and a localhost websocket. Permit those
-    // only in the already production-disabled local experiment; the release
-    // policy remains strict and cannot enable this invitation route.
+    // only for local development; staging retains the stricter policy.
     const localExperiment = process.env.NODE_ENV !== "production";
     const inviteCsp = [
       "default-src 'self'",
@@ -28,7 +27,21 @@ export default {
       "base-uri 'none'",
       ...(!localExperiment ? ["upgrade-insecure-requests"] : []),
     ].join("; ");
+    const privateWorkspaceHeaders = [
+      { key: "Cache-Control", value: "private, no-store, no-cache, max-age=0, must-revalidate" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+    ];
     return [{
+      source: "/workspace/:path*",
+      headers: privateWorkspaceHeaders,
+    }, {
+      source: "/api/workspace/:path*",
+      headers: privateWorkspaceHeaders,
+    }, {
       source: "/workspace/invite/:path*",
       headers: [
         { key: "Cache-Control", value: "private, no-store, max-age=0" },

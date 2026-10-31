@@ -1,8 +1,7 @@
 import "server-only";
-
-// This is a real Next.js App Router entrypoint, but NOT a live customer API.
-// Production and Netlify deploy previews are always closed; the isolated
-// Better Auth package supports disposable localhost test databases only.
+import {
+  isLocalWorkspaceTest, isWorkspaceEnabled,
+} from "../../../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,20 +20,18 @@ function unavailable(): Response {
   return new Response(null, { status: 404, headers: NO_DATA_HEADERS });
 }
 
-function localPilotEnabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
-    process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1" &&
-    process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1";
+function workspacePilotEnabled(): boolean {
+  return isWorkspaceEnabled() && (!isLocalWorkspaceTest() ||
+    (process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1" &&
+     process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1"));
 }
 
 /** Never permit a caller-controlled identity or an unreviewed production DB. */
 export async function GET(request: Request): Promise<Response> {
-  if (!localPilotEnabled()) return unavailable();
+  if (!workspacePilotEnabled()) return unavailable();
   try {
-    // This experiment's database.ts rejects production or any DB URL other
-    // than the expected named disposable loopback PostgreSQL fixtures.
-    // Import only behind the development/test-only guard.
+    // Import only after the route gate. database.ts independently verifies
+    // exact protected staging context and restricted pooled database logins.
     const { handleClientProjectHttpRequest } = await import(
       "../../../../../../../experiments/client-workspace-auth/src/client-project-http"
     );

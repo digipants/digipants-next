@@ -85,8 +85,10 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
       // The dedicated runtime role may never own the schema, bypass RLS or
       // read invitation bearer hashes. Check both session_user (original\n      // login) and current_user (possibly SET ROLE); a privileged underlying\n      // login switching into cw_runtime is NOT an acceptable connection.
       const identities = await tx.$queryRaw<Array<{ restricted: boolean }>>`
-        SELECT (NOT executor.rolsuper AND NOT executor.rolbypassrls AND NOT executor.rolcreaterole
-          AND NOT login.rolsuper AND NOT login.rolbypassrls AND NOT login.rolcreaterole
+        SELECT (NOT executor.rolsuper AND NOT executor.rolbypassrls
+          AND NOT executor.rolcreatedb AND NOT executor.rolcreaterole
+          AND NOT login.rolsuper AND NOT login.rolbypassrls
+          AND NOT login.rolcreatedb AND NOT login.rolcreaterole
           AND login.rolcanlogin
           AND pg_has_role(session_user, 'cw_runtime', 'USAGE')
           AND pg_has_role(current_user, 'cw_runtime', 'USAGE')

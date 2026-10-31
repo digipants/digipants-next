@@ -12,10 +12,23 @@ import {
   reconcileEnrollmentAttempt,
 } from "./enrollment-saga.js";
 import { stampMfaAssurance } from "./mfa-assurance.js";
+import { workspaceOrigin, workspaceRuntimeMode } from "./workspace-runtime.js";
 
 const secret = process.env.BETTER_AUTH_SECRET;
-if (!secret || secret.length < 32) {
-  throw new Error("Set a synthetic BETTER_AUTH_SECRET of at least 32 characters for this local experiment.");
+const runtimeMode = workspaceRuntimeMode();
+const origin = workspaceOrigin();
+if (!secret || Buffer.byteLength(secret) < 32) {
+  throw new Error("Client Workspace authentication requires a 256-bit-or-stronger server secret.");
+}
+if (!origin || runtimeMode === "disabled") {
+  throw new Error("Client Workspace authentication is disabled in this deployment context.");
+}
+
+const baseURL = runtimeMode === "protected-staging"
+  ? process.env.AUTH_BASE_URL
+  : (process.env.AUTH_BASE_URL ?? `${origin}/api/auth`);
+if (baseURL !== `${origin}/api/auth`) {
+  throw new Error("AUTH_BASE_URL must exactly match the enabled workspace origin.");
 }
 
 const disabledPaths = [
@@ -32,8 +45,9 @@ const disabledPaths = [
 ];
 
 export const auth = betterAuth({
-  appName: "DigiPants Client Workspace Security Experiment",
-  baseURL: process.env.AUTH_BASE_URL ?? "http://localhost:3000/api/auth",
+  appName: "DigiPants Client Workspace",
+  baseURL,
+  trustedOrigins: [origin],
   secret,
   telemetry: { enabled: false },
   database: prismaAdapter(getAuthPrisma(), { provider: "postgresql" }),
@@ -48,6 +62,8 @@ export const auth = betterAuth({
   },
   session: {
     modelName: "session",
+    expiresIn: 60 * 60 * 12,
+    updateAge: 60 * 60,
     additionalFields: {
       mfaVerifiedAt: {
         type: "date",
@@ -58,6 +74,7 @@ export const auth = betterAuth({
     },
   },
   advanced: {
+    useSecureCookies: runtimeMode === "protected-staging",
     database: {
       generateId: () => randomUUID(),
     },
@@ -92,7 +109,7 @@ export const auth = betterAuth({
           // Better Auth's own user insert is the next, separate database
           // commit. The stable subject is journaled before this insert so a
           // crash can be reconciled without creating a different identity.
-          return { data: { id: attempt.providerSubject } };
+          return { data: { id: attempt.providerSubject, emailVerified: true } };
         },
         after: async (user) => {
           const state = await markAuthIdentityCreated(user.id, user.email);

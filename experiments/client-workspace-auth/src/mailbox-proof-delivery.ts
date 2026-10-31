@@ -6,6 +6,8 @@ import {
   deliverNextLocalMailboxMessage, enqueueLocalMailboxMessage,
   mailboxOutboxTestEnabled,
 } from "./mail-delivery-outbox.js";
+import type { MailPayload } from "./mail-delivery-outbox.js";
+import { isLocalWorkspaceTest, isProtectedWorkspaceStaging } from "./workspace-runtime.js";
 import {
   createSyntheticMailboxChallenge, findPendingInvitationIdForBearer,
 } from "./mailbox-proof.js";
@@ -18,6 +20,7 @@ type Db = Sql & {
   $transaction<T>(operation: (tx: Sql) => Promise<T>): Promise<T>;
 };
 export type MailboxProofMessage = Readonly<{
+  kind: "mailbox_proof";
   challengeId: string;
   to: string;
   subject: string;
@@ -33,6 +36,7 @@ export function composeMailboxProofMessage(input: {
   const to = normalizeInvitedEmail(input?.recipient);
   if (!to || !UUID.test(input.challengeId) || !CODE.test(input.code)) return null;
   return Object.freeze({
+    kind: "mailbox_proof" as const,
     challengeId: input.challengeId,
     to,
     subject: "Verify your DigiPants Workspace invitation",
@@ -51,13 +55,10 @@ export function composeMailboxProofMessage(input: {
 export type MailboxSender = (message: MailboxProofMessage) => Promise<boolean>;
 
 /**
- * Local/disposable orchestration ONLY. Recipient and invitation are bound
- * through the hashed token in the workspace DB, then a code hash is stored
- * separately in the auth DB. The raw code is only provided to an injected
- * mockable private mail transport, NEVER to an HTTP caller.
- *
- * A failure tries to delete the provisional one-time code. This is not a
- * durable transactional outbox and is insufficient for a production rollout.
+ * The exact recipient is bound through the invitation hash in the workspace
+ * DB, then a code hash and encrypted delivery payload are written atomically
+ * in the auth DB. The raw code is provided only to the private mail transport,
+ * never to an HTTP caller.
  */
 export async function dispatchMailboxProofForBearer(input: {
   workspaceDb: Sql; authDb: Db;
@@ -65,9 +66,10 @@ export async function dispatchMailboxProofForBearer(input: {
   send: MailboxSender;
 }): Promise<{ challengeId: string } | null> {
   try {
-    if (process.env.NODE_ENV === "production" ||
-        process.env.AUTH_EXPERIMENT_ENABLED !== "1" ||
-        process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED !== "1" ||
+    const staging = isProtectedWorkspaceStaging();
+    const localTest = isLocalWorkspaceTest() &&
+      process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED === "1";
+    if ((!staging && !localTest) ||
         typeof input.send !== "function") return null;
 
     const email = normalizeInvitedEmail(input.intendedEmail);
@@ -77,7 +79,7 @@ export async function dispatchMailboxProofForBearer(input: {
       workspaceDb: input.workspaceDb, token: input.bearer, intendedEmail: email,
     });
     if (!invitationId) return null;
-    const queued = process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
+    const queued = staging || process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
     const queueReady = mailboxOutboxTestEnabled();
     // Opt-in queue mode MUST NOT silently fall back to inline mail delivery
     // when its encryption key or durable journal is misconfigured.
@@ -99,11 +101,13 @@ export async function dispatchMailboxProofForBearer(input: {
     });
     if (!challenge) return null;
     if (queued) {
-      // This is a local synchronous test drain. Production needs an
-      // authenticated background worker, bounded retry scheduling and
-      // provider-side idempotent acknowledgements.
+      // Try delivery immediately. A missed acknowledgement remains encrypted
+      // in the durable queue for the protected staging scheduled worker.
       await deliverNextLocalMailboxMessage({
-        authDb: input.authDb, send: input.send,
+        authDb: input.authDb,
+        send: (message: MailPayload) => message.kind === "mailbox_proof"
+          ? input.send(message as MailboxProofMessage)
+          : Promise.resolve(false),
       });
       return { challengeId: challenge.challengeId };
     }

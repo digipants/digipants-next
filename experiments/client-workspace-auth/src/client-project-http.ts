@@ -1,15 +1,18 @@
 import "server-only";
 
-// This adapter is intentionally NOT mounted as a Next.js route. It exercises
-// the complete Request -> Better Auth -> restricted PostgreSQL -> JSON boundary
-// only in disposable local/CI environments. No production feature flag can
-// override the NODE_ENV production hard stop.
+// Server-only data seam for the feature-gated Next.js project route. It
+// exercises the complete Request -> Better Auth -> restricted PostgreSQL ->
+// JSON boundary in the disposable local/CI harness or exact protected staging.
+// Generic production and preview contexts remain fail-closed.
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const PROJECT_PATH = new RegExp(
   "^/api/workspace/tenants/(" + UUID + ")/projects/(" + UUID + ")/?$",
   "i",
 );
-const EXPECTED_ORIGIN = "http://localhost:3000";
+import {
+  isLocalWorkspaceTest, isTrustedWorkspaceRequest, isWorkspaceEnabled,
+  workspaceOrigin,
+} from "./workspace-runtime.js";
 
 const PRIVATE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
@@ -26,9 +29,8 @@ function unavailable(): Response {
 }
 
 function pilotHttpEnabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
-    process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1";
+  return isWorkspaceEnabled() && (!isLocalWorkspaceTest() ||
+    process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1");
 }
 
 /**
@@ -45,15 +47,9 @@ export async function handleClientProjectHttpRequest(request: Request): Promise<
 
   try {
     const url = new URL(request.url);
-    if (url.origin !== EXPECTED_ORIGIN || url.search || url.hash ||
+    if (!isTrustedWorkspaceRequest(request) || url.search || url.hash ||
         request.headers.has("range") || request.headers.has("authorization")) return unavailable();
-
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
-      return unavailable();
-    }
-    const origin = request.headers.get("origin");
-    if (origin && origin !== EXPECTED_ORIGIN) return unavailable();
+    if (!workspaceOrigin()) return unavailable();
 
     const match = PROJECT_PATH.exec(url.pathname);
     if (!match) return unavailable();

@@ -1,8 +1,10 @@
-import "server-only";
 import {
   createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID,
 } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
+import {
+  isLocalWorkspaceTest, isProtectedWorkspaceStaging, workspaceOrigin,
+} from "./workspace-runtime.js";
 
 type Query = {
   $queryRaw<T=unknown>(strings:TemplateStringsArray,...values:unknown[]):Promise<T>;
@@ -12,10 +14,11 @@ type Db = Query & {
   $transaction<T>(fn:(tx:Query)=>Promise<T>):Promise<T>;
 };
 export type MailPayload = Readonly<{
+  kind?: "mailbox_proof" | "workspace_invitation";
   challengeId: string; to: string; subject: string; text: string; idempotencyKey: string;
 }>;
 type OutboxRow = {
-  id: string; ciphertext: string; idempotencyKey: string;
+  id: string; kind: string; ciphertext: string; idempotencyKey: string;
   attempts: number; expiresAt: Date;
 };
 const CODE = /^[A-Za-z0-9_-]{43}$/;
@@ -23,9 +26,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const NEXT_RETRY_SECONDS = 15;
 const MAX_ATTEMPTS = 5;
 function enabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
-    process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
+  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+    process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1");
 }
 function key():Buffer|null {
   const value=process.env.WORKSPACE_MAIL_OUTBOX_KEY;
@@ -37,16 +39,32 @@ function safeMessage(value:unknown):MailPayload|null {
   if(!value||typeof value!=="object") return null;
   const m=value as Record<string,unknown>;
   const recipient=normalizeInvitedEmail(m.to);
-  if(!UUID.test(m.challengeId as string)||
-      !recipient||typeof m.subject!=="string"||
-      m.subject!=="Verify your DigiPants Workspace invitation"||
-      typeof m.text!=="string"||m.text.length>1500||
-      !m.text.startsWith("Use this one-time code to verify the mailbox")||
-      typeof m.idempotencyKey!=="string"||
-      !/^cw-mailproof-[0-9a-f-]{36}$/i.test(m.idempotencyKey))return null;
-  return Object.freeze({challengeId:m.challengeId as string,
-    to:recipient,subject:m.subject,
-    text:m.text,idempotencyKey:m.idempotencyKey});
+  const kind = m.kind ?? "mailbox_proof";
+  const challengeId = typeof m.challengeId === "string" ? m.challengeId : "";
+  const subject = typeof m.subject === "string" ? m.subject : "";
+  const text = typeof m.text === "string" ? m.text : "";
+  const idempotencyKey = typeof m.idempotencyKey === "string" ? m.idempotencyKey : "";
+  if (!UUID.test(challengeId) || !recipient || text.length > 2200) return null;
+  if (kind === "mailbox_proof") {
+    if (subject !== "Verify your DigiPants Workspace invitation" ||
+        !text.startsWith("Use this one-time code to verify the mailbox") ||
+        !/^cw-mailproof-[0-9a-f-]{36}$/i.test(idempotencyKey) ||
+        idempotencyKey !== "cw-mailproof-" + challengeId) return null;
+  } else if (kind === "workspace_invitation") {
+    if (subject !== "Your DigiPants Client Workspace invitation" ||
+        !text.startsWith("You have been invited to a private DigiPants") ||
+        !/^cw-invite-[0-9a-f-]{36}$/i.test(idempotencyKey) ||
+        idempotencyKey !== "cw-invite-" + challengeId) return null;
+    const link = (text.match(/https:\/\/[^\s]+/g) ?? [])[0];
+    const allowedOrigin = workspaceOrigin();
+    if (!link || !allowedOrigin) return null;
+    try {
+      const url = new URL(link);
+      if (url.origin !== allowedOrigin || url.pathname !== "/workspace/invite/" ||
+          url.search || !/^#invite=[A-Za-z0-9_-]{43}$/.test(url.hash)) return null;
+    } catch { return null; }
+  } else return null;
+  return Object.freeze({challengeId, kind, to:recipient, subject, text, idempotencyKey});
 }
 /**
  * Store email contents encrypted, not plain. The key must be a separately
@@ -102,7 +120,7 @@ export async function enqueueLocalMailboxMessage(input:{
     INSERT INTO auth_spike.mail_delivery_outbox
       (id,kind,idempotency_key,payload_ciphertext,payload_sha256,expires_at)
     VALUES (
-      ${input.challengeId}::uuid,'mailbox_proof',
+      ${input.challengeId}::uuid,${input.message.kind ?? "mailbox_proof"},
       ${input.message.idempotencyKey},
       ${sealed},${digest},
       statement_timestamp()+ interval '10 minutes'
@@ -125,10 +143,10 @@ export async function deliverNextLocalMailboxMessage(input:{
   try{
     selected=await input.authDb.$transaction(async tx=>{
       const rows=await tx.$queryRaw<Array<{
-        id:string; ciphertext:string; idempotencyKey:string;
+        id:string; kind:string; ciphertext:string; idempotencyKey:string;
         attempts:number; expiresAt:Date;
       }>>`
-        SELECT id::text AS id, payload_ciphertext AS ciphertext,
+        SELECT id::text AS id, kind, payload_ciphertext AS ciphertext,
           idempotency_key AS "idempotencyKey",
           attempt_count AS attempts, expires_at AS "expiresAt"
         FROM auth_spike.mail_delivery_outbox
@@ -153,7 +171,8 @@ export async function deliverNextLocalMailboxMessage(input:{
     // Never send after expiry, including after a worker crash/restart.
     const expired=new Date(selected.expiresAt).getTime()<=Date.now();
     const payload=expired?null:decryptLocalMailboxMessage(selected.ciphertext);
-    const valid=payload?.idempotencyKey===selected.idempotencyKey;
+    const valid=payload?.idempotencyKey===selected.idempotencyKey &&
+      (payload.kind ?? "mailbox_proof")===selected.kind;
     let acknowledged=false;
     if(valid&&payload){
       try{acknowledged=(await input.send(payload))===true;}catch{acknowledged=false;}

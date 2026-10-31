@@ -53,7 +53,8 @@ test("workspace invitation page keeps production gate and never stores the token
   const root=new URL("../app/workspace/invite/",import.meta.url);
   const client=await readFile(new URL("WorkspaceInvitation.tsx",root),"utf8");
   const page=await readFile(new URL("page.tsx",root),"utf8");
-  assert.match(page,/NODE_ENV === "production"/);
+  assert.match(page,/isWorkspaceEnabled\(\)/);
+  assert.match(page,/isLocalWorkspaceTest\(\)/);
   assert.match(client,/consumePrivateInvitationFragment/);
   assert.match(client,/history.replaceState/);
   assert.doesNotMatch(client,/\b(?:window\.)?(?:localStorage|sessionStorage)\.(?:setItem|getItem|removeItem)\s*\(/);

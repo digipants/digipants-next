@@ -1,7 +1,7 @@
-import "server-only";
-
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import type { MailPayload } from "./mail-delivery-outbox.js";
+import { isProtectedWorkspaceStaging } from "./workspace-runtime.js";
+import { sendInvitationThroughResend } from "./invitation-delivery.js";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const KEY = /^re_[A-Za-z0-9_-]{12,}$/;
@@ -10,15 +10,15 @@ const VERIFIED_FROM = /^DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\
 type Http = (url: string, options: RequestInit) => Promise<Response>;
 
 /**
- * Provider adapter prepared for a reviewed worker. It is intentionally NOT
- * connected to public workspace HTTP routes or live Netlify runtime. The
- * activation gate is local-only; no actual email is sent in tests.
+ * Provider adapter. Unit tests use an injected fake fetcher; deployed use is
+ * allowed only by the protected, exact-branch staging runtime gate.
  */
 export function makeLocalResendMailboxTransport(input: {
   apiKey: string; from: string; request: Http;
 }): ((message: MailPayload) => Promise<boolean>) | null {
-  if (process.env.NODE_ENV==="production" ||
-      process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED!=="1" ||
+  const testTransport = process.env.NODE_ENV !== "production" &&
+    process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED === "1";
+  if ((!isProtectedWorkspaceStaging() && !testTransport) ||
       typeof input.apiKey!=="string" || !KEY.test(input.apiKey) ||
       !VERIFIED_FROM.test(input.from) ||
       typeof input.request!=="function") return null;
@@ -57,5 +57,32 @@ export function makeLocalResendMailboxTransport(input: {
       // Never log recipient, request/response, bearer, token or API key.
       return false;
     }
+  };
+}
+
+/** Construct the only live mail sender, and only for protected staging. */
+export function createStagingResendMailboxTransport():
+  ((message: MailPayload) => Promise<boolean>) | null {
+  if (!isProtectedWorkspaceStaging() ||
+      process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1") return null;
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.WORKSPACE_EMAIL_FROM;
+  if (!apiKey || !from) return null;
+  const proofTransport = makeLocalResendMailboxTransport({
+    apiKey,
+    from,
+    request: (url, options) => fetch(url, options),
+  });
+  if (!proofTransport) return null;
+  return async message => {
+    if (message.kind !== "workspace_invitation") return proofTransport(message);
+    return sendInvitationThroughResend({
+      message: {
+        to: message.to, subject: message.subject,
+        text: message.text, idempotencyKey: message.idempotencyKey,
+      },
+      from, apiKey,
+      fetcher: async (url, options) => fetch(url, options),
+    });
   };
 }

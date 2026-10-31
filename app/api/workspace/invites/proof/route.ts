@@ -1,8 +1,7 @@
 import "server-only";
 
-// This route is deliberately a LOCAL/DISPOSABLE pilot seam. The production
-// site, all deployed previews, and other origins MUST receive an empty 404.
-// There is no mail-provider fallback. A fake sender is installed by CI only.
+// This route is available only to the local test harness or exact protected
+// staging runtime. Production and every deploy preview fail closed.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,11 +10,16 @@ import { randomBytes } from "node:crypto";
 import {
   allowSyntheticMutation, issueSyntheticCsrfToken,
 } from "../../../../../experiments/client-workspace-auth/src/enrollment-request-guard";
+import {
+  isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
+  isWorkspaceEnabled, workspaceOrigin,
+} from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 
-const BASE = "http://localhost:3000";
 const ENDPOINT = "/api/workspace/invites/proof";
-const COOKIE_SID = "cw-local-invite-sid";
-const COOKIE_CSRF = "cw-local-invite-csrf";
+const LOCAL_COOKIE_SID = "cw-local-invite-sid";
+const LOCAL_COOKIE_CSRF = "cw-local-invite-csrf";
+const STAGING_COOKIE_SID = "__Secure-cw-invite-sid";
+const STAGING_COOKIE_CSRF = "__Secure-cw-invite-csrf";
 const MAX_BODY_BYTES = 900;
 const HEADERS: Record<string, string> = {
   "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
@@ -32,8 +36,7 @@ type MailSender = (message: {
 }) => Promise<boolean>;
 
 declare global {
-  // Disposable CI only, never provided by requests or enabled in production.
-  // Real delivery needs audited queue, controlled provider and rate limiting.
+  // A fake sender is injected only by disposable CI; it is never request data.
   var __workspaceMailboxTestSender: MailSender | undefined;
 }
 
@@ -41,22 +44,20 @@ function unavailable(): Response {
   return new Response(null, { status: 404, headers: HEADERS });
 }
 function enabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
+  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
     process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED === "1" &&
-    process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1";
+    process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1");
 }
 function baseRequest(request: Request, method: "GET" | "POST"): boolean {
   try {
+    const expectedOrigin = workspaceOrigin();
+    if (!expectedOrigin || !isTrustedWorkspaceRequest(request)) return false;
     const url = new URL(request.url);
-    if (url.origin !== BASE ||
+    if (url.origin !== expectedOrigin ||
         (url.pathname !== ENDPOINT && url.pathname !== ENDPOINT + "/") ||
         url.search || url.hash || request.method !== method ||
         request.headers.has("authorization") || request.headers.has("range")) return false;
-    const site = request.headers.get("sec-fetch-site");
-    return method === "GET"
-      ? (!site || site === "same-origin" || site === "none")
-      : site === "same-origin";
+    return true;
   } catch {
     return false;
   }
@@ -108,9 +109,12 @@ export async function GET(request: Request): Promise<Response> {
     const sid = randomBytes(32).toString("base64url");
     const csrf = issueSyntheticCsrfToken({secret,trustedSessionId:sid});
     const headers = new Headers(HEADERS);
-    const attrs = "; HttpOnly; SameSite=Strict; Path=/api/workspace/invites/proof; Max-Age=900";
-    headers.append("Set-Cookie", COOKIE_SID + "=" + sid + attrs);
-    headers.append("Set-Cookie", COOKIE_CSRF + "=" + csrf + attrs);
+    const secure = isProtectedWorkspaceStaging() ? "; Secure" : "";
+    const attrs = "; HttpOnly; SameSite=Strict; Path=/api/workspace/invites/proof; Max-Age=900" + secure;
+    const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+    const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+    headers.append("Set-Cookie", sidName + "=" + sid + attrs);
+    headers.append("Set-Cookie", csrfName + "=" + csrf + attrs);
     return Response.json({csrf}, {status:200,headers});
   } catch {
     return unavailable();
@@ -119,10 +123,14 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   if (!enabled() || !baseRequest(request,"POST")) return unavailable();
-  const sid = cookieValue(request.headers, COOKIE_SID);
-  const csrfCookie = cookieValue(request.headers, COOKIE_CSRF);
+  const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+  const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+  const sid = cookieValue(request.headers, sidName);
+  const csrfCookie = cookieValue(request.headers, csrfName);
   const secret = process.env.BETTER_AUTH_SECRET;
+  const expectedOrigin = workspaceOrigin();
   if (!sid || !/^[A-Za-z0-9_-]{43}$/.test(sid) || !secret ||
+      !expectedOrigin ||
       !allowSyntheticMutation({
         method: request.method,
         origin: request.headers.get("origin"),
@@ -130,13 +138,15 @@ export async function POST(request: Request): Promise<Response> {
         contentType: request.headers.get("content-type"),
         fetchSite: request.headers.get("sec-fetch-site"),
         csrfCookie, csrfHeader: request.headers.get("x-workspace-csrf"),
-        expectedOrigin: BASE, secret, trustedSessionId: sid,
+        expectedOrigin, secret, trustedSessionId: sid,
       })) return unavailable();
 
-  // A real provider is not wired. Without the controlled CI test adapter,
-  // do not touch the database or pretend that any email was delivered.
-  const sender = process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
-    ? globalThis.__workspaceMailboxTestSender : undefined;
+  // Local CI uses only an injected mock. Protected staging uses the scoped
+  // Resend sender; absence of its branch-scoped key fails closed.
+  const sender = isProtectedWorkspaceStaging()
+    ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport()
+    : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
+      ? globalThis.__workspaceMailboxTestSender : undefined;
   if (!sender) return unavailable();
 
   const body = await readSmallJson(request);

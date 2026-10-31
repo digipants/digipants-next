@@ -1,13 +1,13 @@
 import "server-only";
+import {
+  isTrustedWorkspaceRequest, isLocalWorkspaceTest,
+  isWorkspaceEnabled,
+} from "../../../../experiments/client-workspace-auth/src/workspace-runtime";
 
-// Local integration seam only. The actual Better Auth config and database.ts
-// explicitly reject production and any non-loopback connection; no deploy flag
-// can turn this into a public customer auth service.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ORIGIN = "http://localhost:3000";
 const NO_STORE = "private, no-store, no-cache, max-age=0, must-revalidate";
 
 function unavailable(): Response {
@@ -24,10 +24,9 @@ function unavailable(): Response {
 }
 
 function enabled(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED === "1" &&
-    process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1" &&
-    process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1";
+  return isWorkspaceEnabled() && (!isLocalWorkspaceTest() ||
+    (process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1" &&
+     process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1"));
 }
 
 async function handle(request: Request): Promise<Response> {
@@ -37,19 +36,11 @@ async function handle(request: Request): Promise<Response> {
   }
   try {
     const url = new URL(request.url);
-    if (url.origin !== ORIGIN || !url.pathname.startsWith("/api/auth/") ||
+    if (!isTrustedWorkspaceRequest(request) || !url.pathname.startsWith("/api/auth/") ||
         request.headers.has("authorization") || request.headers.has("range")) {
-      if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") console.error("synthetic auth URL/header guard denied", { expectedOrigin: url.origin === ORIGIN, validPrefix: url.pathname.startsWith("/api/auth/"), hasAuthorization: request.headers.has("authorization"), hasRange: request.headers.has("range") });
+      if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") console.error("synthetic auth URL/header guard denied", { trustedRequest: isTrustedWorkspaceRequest(request), validPrefix: url.pathname.startsWith("/api/auth/"), hasAuthorization: request.headers.has("authorization"), hasRange: request.headers.has("range") });
       return unavailable();
     }
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if (fetchSite && !["same-origin", "none"].includes(fetchSite)) return unavailable();
-    const origin = request.headers.get("origin");
-    // POST is state-changing: do not allow requests with an absent Origin,
-    // or any origin other than the only allowed local app origin.
-    if (request.method === "POST" && origin !== ORIGIN) return unavailable();
-    if (origin && origin !== ORIGIN) return unavailable();
-
     const { auth } = await import("../../../../experiments/client-workspace-auth/src/auth");
     const response = await auth.handler(request);
     // Some auth handlers return immutable Headers (especially cookie and

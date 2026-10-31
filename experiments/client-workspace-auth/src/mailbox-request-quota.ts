@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
+import { isLocalWorkspaceTest, isProtectedWorkspaceStaging } from "./workspace-runtime.js";
 
 type Sql = {
   $queryRaw<T=unknown>(strings: TemplateStringsArray, ...params: unknown[]): Promise<T>;
@@ -13,14 +14,12 @@ const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 const SESSION=TOKEN;
 
 /**
- * Local-only, isolated auth DB anti-abuse gate. The user-provided identity
- * is NEVER a trusted edge IP. A production release requires a separate
- * trusted-edge/IP quota, CAPTCHA/abuse strategy, and monitoring.
+ * Atomic auth DB quotas for session, recipient, and invitation. Network-level
+ * per-IP limiting is enforced separately by Netlify's trusted edge.
  */
 export function localRateLimitEnabled(): boolean {
-  return process.env.NODE_ENV!=="production" &&
-    process.env.AUTH_EXPERIMENT_ENABLED==="1" &&
-    process.env.WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED==="1";
+  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+    process.env.WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED==="1");
 }
 function rateKey():Buffer|null{
   const value=process.env.WORKSPACE_MAIL_RATE_HMAC_KEY;

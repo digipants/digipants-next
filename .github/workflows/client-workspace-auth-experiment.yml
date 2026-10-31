@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 6595)
+Total output lines: 369
+
 name: Client Workspace auth security experiment
 
 on:
@@ -150,7 +153,7 @@ jobs:
           done
           test "$auth_table_count" = 6
           expected_workspace_table_count=0
-          if [ -d prisma/migrations/20261030120000_workspace_mailbox_proof_spends ]; then
+          if [ -d experiments/client-workspace-auth/prisma/migrations/20261030120000_workspace_mailbox_proof_spends ]; then
             expected_workspace_table_count=1
           fi
           test "$workspace_table_count" = "$expected_workspace_table_count"
@@ -164,92 +167,8 @@ jobs:
           NODE_OPTIONS: --conditions=react-server
         run: npm run test:integration
       - name: Run invitation and grant fixtures BEFORE append-only audit hardening
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || (github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' || (github.event.pull_request.head.ref == 'feat/client-workspace-pilot-activation-114' || (github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' || (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117')))) }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          NODE_OPTIONS: --conditions=react-server
-        run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
-      - name: Verify staff invitation dispatch and recipient proof BEFORE hardening
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-invite-onboarding-115' }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          NODE_OPTIONS: --conditions=react-server
-        run: >-
-          node --import tsx --test
-          tests/trusted-invitation-delivery-postgres.test.mjs
-          tests/mailbox-proof-delivery-postgres.test.mjs
-      - name: Verify encrypted atomic mailbox outbox, failure retry and ownership
-        if: ${{ (github.event.pull_request.head.ref == 'feat/client-workspace-delivery-reliability-116' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117') }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          WORKSPACE_MAIL_OUTBOX_TEST_ENABLED: 1
-          WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117' && '1' || '0' }}
-          NODE_OPTIONS: --conditions=react-server
-        run: >-
-          node --import tsx --test
-          tests/trusted-invitation-delivery-postgres.test.mjs
-          tests/mailbox-proof-delivery-postgres.test.mjs
-      - name: Verify atomic HMAC quotas and no-live-send Resend transport
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117' }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          RUN_RESEND_TRANSPORT_TEST: 1
-          WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED: 1
-          NODE_OPTIONS: --conditions=react-server
-        run: >-
-          node --import tsx --test
-          tests/mailbox-request-quota-postgres.test.mjs
-          tests/resend-mailbox-transport.test.mjs
-      - name: Run baseline authentication fixtures for enrollment PR
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-        run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
-      - name: Run the full isolated non-database contract suite
-        working-directory: experiments/client-workspace-auth
-        run: npm test
-      - name: Run the complete repository test suite
-        run: node --test tests/*.test.mjs
-      - name: Run existing workspace PostgreSQL persistence tests
-        run: node tests/client-workspace-persistence.integration.mjs
-      - name: Apply and verify isolated runtime and audit role contract
-        env:
-          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
-        run: |
-          set -euo pipefail
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/roles.sql
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/hardening.sql
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify.sql
-      - name: Run durable enrollment recovery integration tests
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          NODE_OPTIONS: --conditions=react-server
-          AUTH_EXPERIMENT_DEBUG: 1
-        run: node --import tsx --test tests/enrollment-saga-postgres.test.mjs
-      - name: Exercise invitation-only Better Auth handler against PostgreSQL
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          NODE_OPTIONS: --conditions=react-server
-        run: node --import tsx --test tests/auth.integration.test.mjs
-      - name: Exercise verified-subject state changes and concurrent revocation
-        working-directory: experiments/client-workspace-auth
-        env:
-          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
-          NODE_OPTIONS: --conditions=react-server
-          AUTH_EXPERIMENT_DEBUG: 1
-        run: npm run test:trusted-state
-      - name: Test invitation-only Better Auth enrollment AFTER audit hardening
-        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' }}
+        …1595 tokens truncated…ter Auth enrollment AFTER audit hardening
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-abuse-gates-117' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
