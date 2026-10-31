@@ -441,7 +441,7 @@ if (!enabled) {
         const allowedBody = await allowed.json();
         assert.deepEqual(allowedBody, { project: {
           id: ids.project, title: "Synthetic security fixture",
-          state: "planned", revision: "1",
+          state: "planned", revision: "1", milestones: [], progressUpdates: [],
         } });
         assert.match(allowed.headers.get("cache-control") ?? "", /no-store/);
         assert.equal(allowed.headers.get("vary"), "Cookie");
