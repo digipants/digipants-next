@@ -10,6 +10,20 @@ export type WorkspaceRuntimeMode = "disabled" | "local-test" | "protected-stagin
 const STAGING_BRANCH = "feat/client-workspace-mail-abuse-gates-117";
 const STAGING_ORIGIN = "https://digipants-client-workspace-staging.netlify.app";
 const STAGING_SITE_ID = "ebafda7a-e6c5-48e4-a44d-daf0f5943d43";
+const STAGING_HOST = new URL(STAGING_ORIGIN).hostname;
+
+function isStagingNetlifyUrl(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") &&
+      url.hostname === STAGING_HOST && !url.port &&
+      url.pathname === "/" && !url.username && !url.password &&
+      !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
 
 export function workspaceRuntimeMode(
   env: NodeJS.ProcessEnv = process.env,
@@ -26,7 +40,7 @@ export function workspaceRuntimeMode(
       env.CLIENT_WORKSPACE_BUILD_SITE_ID !== STAGING_SITE_ID ||
       env.SITE_ID !== STAGING_SITE_ID ||
       env.CLIENT_WORKSPACE_ORIGIN !== STAGING_ORIGIN ||
-      env.URL !== STAGING_ORIGIN) {
+      !isStagingNetlifyUrl(env.URL)) {
     return "disabled";
   }
 

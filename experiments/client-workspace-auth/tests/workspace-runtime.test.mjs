@@ -20,7 +20,11 @@ test("workspace enables only on the separately protected staging project branch"
   assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_BUILD_BRANCH: "main" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, SITE_ID: "another-site" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_BUILD_SITE_ID: "another-site" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...staging, URL: "http://digipants-client-workspace-staging.netlify.app" }), "protected-staging");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants.com" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants-client-workspace-staging.netlify.app/path" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants-client-workspace-staging.netlify.app/?next=x" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...staging, URL: undefined }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, NODE_ENV: "development" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_ENABLED: "0" }), "disabled");
 });
