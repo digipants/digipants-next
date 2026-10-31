@@ -31,11 +31,15 @@ function enabled(): boolean {
 }
 
 async function handle(request: Request): Promise<Response> {
-  if (!enabled()) return unavailable();
+  if (!enabled()) {
+    if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") console.error("synthetic auth gate denied", { production: process.env.NODE_ENV === "production", authEnabled: process.env.AUTH_EXPERIMENT_ENABLED === "1", httpEnabled: process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED === "1", routeEnabled: process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1" });
+    return unavailable();
+  }
   try {
     const url = new URL(request.url);
     if (url.origin !== ORIGIN || !url.pathname.startsWith("/api/auth/") ||
         request.headers.has("authorization") || request.headers.has("range")) {
+      if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") console.error("synthetic auth URL/header guard denied", { expectedOrigin: url.origin === ORIGIN, validPrefix: url.pathname.startsWith("/api/auth/"), hasAuthorization: request.headers.has("authorization"), hasRange: request.headers.has("range") });
       return unavailable();
     }
     const fetchSite = request.headers.get("sec-fetch-site");
