@@ -102,7 +102,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     assert.equal(await dispatch(), true);
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].to, "invited.client+1@example.invalid");
-    assert.equal(delivered[0].text.includes("https://digipants.com/workspace/invite/#invite="), true);
+    assert.equal(delivered[0].text.includes("http://localhost:3000/workspace/invite/#invite="), true);
     const first = await db.$queryRaw`SELECT status, invitation_token_hash AS hash,
         intended_email AS email FROM workspace_invitation_records WHERE tenant_id=${id.tenantA}::uuid`;
     assert.equal(first.length, 1);
