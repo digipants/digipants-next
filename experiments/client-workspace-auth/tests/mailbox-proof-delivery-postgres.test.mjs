@@ -14,6 +14,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
   process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED="1";
   process.env.RUN_WORKSPACE_MAIL_INTEGRATION="1";
   process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED="1";
+  process.env.WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED="1";
 
   const [{getAuthPrisma,getWorkspacePrisma},route,proof,outbox]=await Promise.all([
     import("../src/database.ts"),
@@ -216,6 +217,27 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     assert.equal(recovered[0].state,"sent");
     assert.equal(recovered[0].attempt_count,2);
     assert.equal(recovered[0].payload_ciphertext,null);
+
+    // The route must conceal rate limits behind the identical 202 response
+    // and must not permit further delivery from an exhausted browser session.
+    for(let n=0;n<4;n++){
+      const denied=await route.POST(POST({
+        email:`rotate-${randomUUID()}@example.invalid`,
+        invite:randomBytes(32).toString("base64url"),
+      }));
+      assert.equal(denied.status,202);
+      const shape=await denied.json();
+      assert.deepEqual(Object.keys(shape),["challengeId"]);
+      assert.match(shape.challengeId,/^[0-9a-f-]{36}$/i);
+    }
+    const exhausted=await route.POST(POST({
+      email:`exhausted-${randomUUID()}@example.invalid`,
+      invite:randomBytes(32).toString("base64url"),
+    }));
+    assert.equal(exhausted.status,202,"rate limit may not reveal its decision");
+    assert.deepEqual(Object.keys(await exhausted.json()),["challengeId"]);
+    assert.equal(recorded.length,1,
+      "exhausted anonymous session cannot trigger a new email");
 
     const previousEnv=process.env.NODE_ENV;
     try{
