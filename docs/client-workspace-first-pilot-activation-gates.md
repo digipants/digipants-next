@@ -1,0 +1,49 @@
+# DigiPants Client Workspace — first invited pilot activation gate
+
+Last reviewed: 31 October 2026. **No production activation approved.** This document records only verified readiness evidence and outstanding release blockers.
+
+## Pilot target and outbound email policy
+
+- Initial test recipient: founder's connected **personal Gmail** account, selected by the owner. Do not hard-code a personal email address in Git, website HTML, build logs, or analytics.
+- Existing DigiPants Netlify site currently has `RESEND_API_KEY` and `EMAIL_FROM` for the public contact route. These **do not** imply workspace mail sending is authorized or correctly scoped.
+- The local/CI Resend adapter uses the official `Idempotency-Key` header for one message ID. It is disabled in production and uses fake HTTP responses in tests. **No real emails were sent.**
+- Never reuse Gmail OAuth refresh tokens, a personal Gmail password, or the public contact form's unrestricted sending context in workspace server code.
+- Live sending requires a dedicated least-privilege worker, provider-side idempotency, durable retry/reconciliation, privacy-safe bounce handling, recipient allowlist for the pilot, per-origin limits, and explicit go/no-go.
+- The encrypted local outbox is not a production worker. Code delivery/acknowledgement, idle scheduling, key rotation and challenge expiry must be independently tested before enabling mail.
+
+## Environment inventory (read-only inspection)
+
+| Component | Verified finding | Required for activation |
+| --- | --- | --- |
+| DigiPants production | Site accessible at digipants.com; workspace routes intentionally 404 in production | Preserve public pages and consent analytics |
+| Site env | Resend sender/config present; **no workspace-specific auth/database configuration** found | Dedicated encrypted runtime-only credentials, no build/exposure leakage |
+| Neon development primary | No workspace tables on primary in prior hosted rehearsal; owner login `digipants_ws_dev` has `BYPASSRLS`; pooler currently off | Never use owner for runtime; prove restricted `-pooler` TLS connection |
+| Disposable Neon | Earlier Free child passed restricted-role/RLS transaction resets, then was deleted | Actual pooled hostname connection through TLS with verified CA and hostname is still **unproven** |
+| Application | CI verifies real mounted Next.js auth/TOTP/project read and local headless Chrome invitation/login/guest denial | Production-grade auth secret rotation, real MFA recovery, deployment packaging, UAT |
+| Dependencies | npm CI install reported 12 advisories, including 1 critical, on the root dependency tree | Triage advisories, patch and validate before customer exposure |
+
+Do not rely on a `-pooler` hostname being returned or a compute metadata flag to claim an **actual pooled TLS connection**.
+
+## Mandatory activation phases
+
+1. **Review & consolidate stacked drafts.** Security-review auth, tenant policies, RLS, invitations, mail outbox, and audit trails. Confirm dependencies between #111, #112, #113, #114, #115, #116, #117 and earlier foundation PRs; no independent merge of a stacked leaf.
+2. **Hosted pooled-TLS proof.** Use a new approved temporary Free Neon child of the dev branch with strictly synthetic data. Install the reviewed schema transactionally and create a limited `NOBYPASSRLS NOCREATEROLE NOCREATEDB` login. Run `scripts/neon-pooler-acceptance.mjs` with a verified TLS `-pooler` connection and independent tenant fixtures. Do not paste database passwords in tickets, chat, logs or Git. Document proof and remove disposable branch.
+3. **Production-safe runtime.** Do not set experimental `AUTH_EXPERIMENT_ENABLED`, `WORKSPACE_MAIL_PROOF_TEST_ENABLED`, `WORKSPACE_NEXT_ROUTE_TEST_ENABLED` to enable deployed access. Replace disposable-only auth and DB guards with an independently reviewed architecture using production secrets, strict host allowlists, nonprivileged DB and reliable migrations. Add rate limiting at a **trusted edge** (the local HMAC quota is not a substitute).
+4. **Real worker and invite proof.** Verify sender domain and separate workspace Resend permissions. Require rate controls, audit and retries. Exercise one explicitly approved invitation to the founder's Gmail, without forwarding the code to logs or third parties. Review mailbox ownership, registration, TOTP, MFA recovery and true staff membership approval.
+5. **Independent browser UAT.** Invite → proof email → password registration → TOTP setup → fresh MFA sign-in → exactly one approved project → revoked grant denied → logout invalidates session. Check wrong tenant/recipient, no analytics, page titles and accessibility. Verify all under a protected staging hostname before touching live deployment.
+6. **Rollback and monitoring.** Prepared emergency off switch, server-side session revocation, mail queue pause, read-only DB backup/restore rehearsal, error-rate alerts, staff on-call and incident handling. A failed gate leaves production routes closed.
+7. **Go/no-go approval.** Review green exact-commit CI, tests under trusted hosted resources, production env audit, dependencies, and recovery. Only then explicitly authorize squash-merge and automatic deployment; no manual deployment.
+
+## Deterministic pilot limits
+
+- Initially one project, one invited recipient, one authorized staff approver; no self-service signup or public browsing.
+- Client-facing progress must be actually reviewed/published. Do not depict placeholder invoices, payments or requirements as operational.
+- Use manually reconciled payment status until Razorpay merchant policy, webhook signature, idempotency and payout reconciliation are independently verified.
+- No paid Neon upgrade, no production-data access, no background use of personal Gmail credentials.
+
+## Evidence reference
+
+- [CI #41171851692](https://github.com/digipants/digipants-next/actions/runs/41171851692): earlier local auth security, root build and headless Chrome (synthetic screenshots).
+- [Issue #101](https://github.com/digipants/digipants-next/issues/101): hosted Neon rehearsal and unresolved actual `-pooler` TLS acceptance.
+- [Resend idempotency keys](https://resend.com/changelog/idempotency-keys): same-key retries within provider's published 24-hour retention window.
+- [Next.js LTS policy](https://nextjs.org/support-policy): Next 15 maintenance security releases, upgrade plan must stay current.
