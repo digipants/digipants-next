@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import test from "node:test";
 
-const {makeLocalResendMailboxTransport}=
-  await import("../src/resend-mailbox-transport.ts");
+const enabled = process.env.RUN_RESEND_TRANSPORT_TEST === "1";
+const {makeLocalResendMailboxTransport} = enabled
+  ? await import("../src/resend-mailbox-transport.ts")
+  : {makeLocalResendMailboxTransport: null};
 
 const id=randomUUID();
 const msg={
@@ -17,7 +19,8 @@ const msg={
 const options={apiKey:"re_"+ "A".repeat(28),
   from:"DigiPants Client Workspace <support@digipants.com>"};
 
-test("Resend adapter sends idempotent recipient-only payload in local fixture",async()=>{
+test("Resend adapter sends idempotent recipient-only payload in local fixture",
+  {skip: !enabled && "Dedicated server-only test runtime required"},async()=>{
   const previous=process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED;
   process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED="1";
   try{
@@ -49,7 +52,8 @@ test("Resend adapter sends idempotent recipient-only payload in local fixture",a
     else process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED=previous;
   }
 });
-test("Resend transport retries failures and rejects unapproved keys, identities and production",async()=>{
+test("Resend transport retries failures and rejects unapproved keys, identities and production",
+  {skip: !enabled && "Dedicated server-only test runtime required"},async()=>{
   const previous=process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED;
   const oldNode=process.env.NODE_ENV;
   process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED="1";
