@@ -6,6 +6,25 @@ export default {
   // intentionally name their eventual .js output. Next's server-only bundler
   // must map that extension to the checked-in .ts sources in this draft PR.
   // Do not modify the browser/client resolution pipeline.
+  // Invitation bearers arrive in URL fragments and must not be exposed to
+  // external scripts, referrers, iframe embeds, service workers or indexing.
+  // Next.js hydration currently needs inline script execution; remove the
+  // unsafe-inline exception when per-request nonces are independently tested.
+  async headers() {
+    return [{
+      source: "/workspace/invite/:path*",
+      headers: [
+        { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+        { key: "Content-Security-Policy",
+          value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; upgrade-insecure-requests" },
+      ],
+    }];
+  },
   webpack(config, { isServer }) {
     if (isServer) {
       config.resolve.extensionAlias = {
