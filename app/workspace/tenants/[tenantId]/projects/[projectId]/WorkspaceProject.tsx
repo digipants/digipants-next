@@ -34,6 +34,7 @@ export default function WorkspaceProject({ tenantId, projectId }: {
   const [status, setStatus] = useState<Status>("loading");
   const [project, setProject] = useState<Project | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,10 +77,11 @@ export default function WorkspaceProject({ tenantId, projectId }: {
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
+    setSignOutError("");
     setProject(null);
     setStatus("unavailable");
     try {
-      await fetch("/api/auth/sign-out", {
+      const response = await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -87,9 +89,13 @@ export default function WorkspaceProject({ tenantId, projectId }: {
         cache: "no-store",
         referrerPolicy: "no-referrer",
       });
-    } finally {
-      // Never keep protected project content on-screen after sign-out attempt.
+      if (!response.ok) throw new Error("Sign-out not acknowledged");
+      // Clear the screen BEFORE leaving. The server has acknowledged logout.
       window.location.replace("/workspace/login/");
+    } catch {
+      // Never claim logout when the server did not confirm session revocation.
+      setSignOutError("Sign-out could not be confirmed. Your project data has been hidden; close this browser tab and contact support if the problem continues.");
+      setSigningOut(false);
     }
   }
 
@@ -111,7 +117,7 @@ export default function WorkspaceProject({ tenantId, projectId }: {
         <section role="alert" className="rounded-2xl border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-950">
           <LockKeyhole size={26} aria-hidden className="text-zinc-500" />
           <h2 className="mt-4 text-xl font-semibold">This project is unavailable</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">We could not verify current access. Sign in again or ask your DigiPants project owner to check the invitation and project permissions.</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">{signOutError || "We could not verify current access. Sign in again or ask your DigiPants project owner to check the invitation and project permissions."}</p>
           <a className="mt-5 inline-block text-sm font-semibold text-emerald-700 underline underline-offset-4 dark:text-emerald-300" href="/workspace/login/">Return to sign in</a>
         </section>
       )}
