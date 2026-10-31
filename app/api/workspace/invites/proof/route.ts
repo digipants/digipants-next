@@ -147,13 +147,25 @@ export async function POST(request: Request): Promise<Response> {
     const [
       { getAuthPrisma, getWorkspacePrisma },
       { dispatchMailboxProofForBearer, publicMailboxChallengeId },
+      { admitLocalMailboxRequest },
     ] = await Promise.all([
       import("../../../../../experiments/client-workspace-auth/src/database"),
       import("../../../../../experiments/client-workspace-auth/src/mailbox-proof-delivery"),
+      import("../../../../../experiments/client-workspace-auth/src/mailbox-request-quota"),
     ]);
+    const authDb = getAuthPrisma();
+    const allowed = await admitLocalMailboxRequest({
+      authDb, sid, intendedEmail: body.email, invite: body.invite,
+    });
+    if (!allowed) {
+      // No status/timing detail identifying quota, unknown invitation,
+      // recipient mismatch or a database failure.
+      return Response.json({challengeId: publicMailboxChallengeId(null)},
+        {status:202,headers:HEADERS});
+    }
     const result = await dispatchMailboxProofForBearer({
       workspaceDb: getWorkspacePrisma(),
-      authDb: getAuthPrisma(),
+      authDb,
       bearer: body.invite,
       intendedEmail: body.email,
       send: sender,
