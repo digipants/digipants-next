@@ -19,7 +19,7 @@ test("Pooled acceptance refuses direct, privileged, malformed and insecure conne
     pooled.replace("cw_runtime_ci","postgres_admin"),
     pooled.replace("digipants_workspace_dev","production"),
     pooled.replace("postgresql://","http://"),
-    pooled.replace("5432","5433"),
+    pooled.replace(".neon.tech/",".neon.tech:5433/"),
     "postgresql://cw_runtime_ci:secret@localhost/digipants_workspace_dev?sslmode=verify-full",
     pooled+"#fragment",
     "",
