@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   local-auth-security-validation:
-    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-auth-74' || github.event.pull_request.head.ref == 'feat/client-workspace-mfa-freshness-76' || github.event.pull_request.head.ref == 'feat/client-workspace-invite-issuance-81' || github.event.pull_request.head.ref == 'feat/client-workspace-mail-ownership-84' || github.event.pull_request.head.ref == 'feat/client-workspace-staff-auth-86' || github.event.pull_request.head.ref == 'feat/client-workspace-proven-signup-88' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     services:
@@ -145,12 +145,19 @@ jobs:
           npm run db:migrate:diff
 
       - name: Run existing authentication integration suite
-        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' }}
+        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
           NODE_OPTIONS: --conditions=react-server
         run: npm run test:integration
+      - name: Run invitation and grant fixtures BEFORE append-only audit hardening
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
+        run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
       - name: Run baseline authentication fixtures for enrollment PR
         if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' }}
         working-directory: experiments/client-workspace-auth
@@ -195,6 +202,39 @@ jobs:
           NODE_OPTIONS: --conditions=react-server
           AUTH_EXPERIMENT_DEBUG: 1
         run: npm run test:trusted-state
+      - name: Test invitation-only Better Auth enrollment AFTER audit hardening
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
+        run: node --import tsx --test tests/auth.integration.test.mjs
+      - name: Provision distinct NON-superuser runtime login for published read test
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' }}
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE cw_client_read_ci LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB PASSWORD 'synthetic_read_ci_pw'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "GRANT cw_runtime TO cw_client_read_ci WITH INHERIT TRUE, SET FALSE"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "GRANT CONNECT ON DATABASE digipants_workspace_dev TO cw_client_read_ci"
+      - name: Verify session-bound published client project read, revocation and tenant isolation
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-read-111' || github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
+          WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:synthetic_read_ci_pw@127.0.0.1:5432/digipants_workspace_dev
+        run: node --import tsx --test tests/trusted-published-project-postgres.test.mjs
+      - name: Verify authentic MFA cookie through restricted client HTTP read and deny routes
+        if: ${{ github.event.pull_request.head.ref == 'feat/client-workspace-authenticated-http-113' }}
+        working-directory: experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          RUN_CLIENT_HTTP_INTEGRATION: 1
+          NODE_OPTIONS: --conditions=react-server
+          WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:synthetic_read_ci_pw@127.0.0.1:5432/digipants_workspace_dev
+        run: node --import tsx --test tests/auth.integration.test.mjs
       - name: Type-check the isolated auth experiment
         working-directory: experiments/client-workspace-auth
         run: npm run typecheck
