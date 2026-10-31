@@ -6,7 +6,7 @@ import "server-only";
 // override the NODE_ENV production hard stop.
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const PROJECT_PATH = new RegExp(
-  "^/api/workspace/tenants/(" + UUID + ")/projects/(" + UUID + ")$",
+  "^/api/workspace/tenants/(" + UUID + ")/projects/(" + UUID + ")/?$",
   "i",
 );
 const EXPECTED_ORIGIN = "http://localhost:3000";
