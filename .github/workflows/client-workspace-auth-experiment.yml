@@ -150,10 +150,13 @@ jobs:
           done
           test "$auth_table_count" = 6
           expected_workspace_table_count=0
-          if [ -d experiments/client-workspace-auth/prisma/migrations/20261030120000_workspace_mailbox_proof_spends ]; then
+          if [ -d prisma/migrations/20261030120000_workspace_mailbox_proof_spends ]; then
             expected_workspace_table_count=1
           fi
-          test "$workspace_table_count" = "$expected_workspace_table_count"
+          if [ "$workspace_table_count" != "$expected_workspace_table_count" ]; then
+            echo "Expected $expected_workspace_table_count auth workspace tables, found $workspace_table_count"
+            exit 1
+          fi
           npm run db:migrate:diff
 
       - name: Run existing authentication integration suite
