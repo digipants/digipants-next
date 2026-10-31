@@ -321,12 +321,12 @@ SET LOCAL ROLE cw_audit_reader;
 SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
 DO $$
 DECLARE denied boolean := false;
-        visible_audit_count integer;
 BEGIN
-  SELECT count(*) INTO visible_audit_count FROM workspace_audit_events;
-  IF visible_audit_count <> 1 THEN
-    RAISE EXCEPTION 'audit reader scope mismatch: visible %, role %, tenant context %',
-      visible_audit_count, current_user, current_setting('app.workspace_tenant_id', true);
+  IF NOT EXISTS (SELECT 1 FROM workspace_audit_events
+      WHERE tenant_id='11111111-1111-4111-8111-111111111111') OR
+     EXISTS (SELECT 1 FROM workspace_audit_events
+      WHERE tenant_id <> '11111111-1111-4111-8111-111111111111') THEN
+    RAISE EXCEPTION 'audit reader did not see only the selected tenant history';
   END IF;
   BEGIN
     INSERT INTO workspace_audit_events
