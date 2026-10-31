@@ -197,6 +197,7 @@ jobs:
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
+          RUN_RESEND_TRANSPORT_TEST: 1
           WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED: 1
           NODE_OPTIONS: --conditions=react-server
         run: >-
