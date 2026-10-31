@@ -562,8 +562,8 @@ if (!enabled) {
           "reapproval and verified session restore only exact project access");
       } finally {
         globalThis.authExperimentWorkspaceDb = previousWorkspace;
-        process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED = "0";
-        process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED = "0";
+        process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED = useNextAuthRoute ? "1" : "0";
+        process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED = useNextAuthRoute ? "1" : "0";
         await authDb.user.update({
           where: { id: ids.authUser },
           data: { emailVerified: userBefore.emailVerified },
