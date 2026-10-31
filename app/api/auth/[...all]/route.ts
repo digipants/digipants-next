@@ -48,13 +48,28 @@ async function handle(request: Request): Promise<Response> {
 
     const { auth } = await import("../../../../experiments/client-workspace-auth/src/auth");
     const response = await auth.handler(request);
-    response.headers.set("Cache-Control", NO_STORE);
-    response.headers.set("Pragma", "no-cache");
-    response.headers.set("Referrer-Policy", "no-referrer");
-    response.headers.set("X-Content-Type-Options", "nosniff");
-    response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
-    return response;
-  } catch {
+    // Some auth handlers return immutable Headers (especially cookie and
+    // sign-out responses). Never mutate the provider's Response in place.
+    // Reconstruct a response with the original body and Set-Cookie headers.
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", NO_STORE);
+    headers.set("Pragma", "no-cache");
+    headers.set("Referrer-Policy", "no-referrer");
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Cross-Origin-Resource-Policy", "same-origin");
+    if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1" &&
+        url.pathname === "/api/auth/sign-out" && !response.ok) {
+      console.error("synthetic mounted sign-out provider status", response.status);
+    }
+    return new Response(response.body, {
+      status: response.status, statusText: response.statusText, headers,
+    });
+  } catch (error) {
+    if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") {
+      // Test-only, deliberately excludes URL, cookies, body, subjects and
+      // provider error messages. Never log authentication secrets.
+      console.error("synthetic mounted auth adapter failure", error instanceof Error ? error.name : "unknown");
+    }
     return unavailable();
   }
 }
