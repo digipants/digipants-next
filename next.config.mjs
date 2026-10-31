@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 export default {
+  // Netlify exposes CONTEXT and BRANCH during builds, but only URL, SITE_NAME,
+  // and SITE_ID at function runtime. Inline the non-secret build identity so
+  // the runtime gate can still pin the reviewed staging branch.
+  env: {
+    CLIENT_WORKSPACE_BUILD_CONTEXT: process.env.CONTEXT ?? "",
+    CLIENT_WORKSPACE_BUILD_BRANCH: process.env.BRANCH ?? "",
+    CLIENT_WORKSPACE_BUILD_SITE_ID: process.env.SITE_ID ?? "",
+  },
   images: { unoptimized: true },
   trailingSlash: true,
   // The isolated Better Auth experiment is NodeNext TypeScript: local imports

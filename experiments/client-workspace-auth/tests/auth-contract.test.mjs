@@ -51,6 +51,7 @@ test("auth-owned schema is isolated and session assurance is not client writable
   const database = await readFile(new URL("../src/database.ts", import.meta.url), "utf8");
   const runtime = await readFile(new URL("../src/workspace-runtime.ts", import.meta.url), "utf8");
   const workspace = await readFile(new URL("../../../prisma/schema.prisma", import.meta.url), "utf8");
+  const nextConfig = await readFile(new URL("../../../next.config.mjs", import.meta.url), "utf8");
   assert.match(schema, /@@schema\("auth_spike"\)/);
   for (const model of ["User", "Session", "Account", "Verification", "TwoFactor"]) {
     assert.match(schema, new RegExp(`model ${model}\\s*\\{`));
@@ -61,8 +62,13 @@ test("auth-owned schema is isolated and session assurance is not client writable
   assert.match(database, /assertDisposableLoopbackDatabaseUrl/);
   assert.match(database, /assertStagingRuntimeDatabaseUrl/);
   assert.match(runtime, /CLIENT_WORKSPACE_ENABLED !== "1"/);
-  assert.match(runtime, /env\.CONTEXT !== "production"/);
-  assert.match(runtime, /env\.BRANCH !== STAGING_BRANCH/);
+  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_CONTEXT !== "production"/);
+  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_BRANCH !== STAGING_BRANCH/);
+  assert.match(runtime, /env\.CLIENT_WORKSPACE_BUILD_SITE_ID !== STAGING_SITE_ID/);
+  assert.match(runtime, /env\.SITE_ID !== STAGING_SITE_ID/);
+  assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_CONTEXT: process\.env\.CONTEXT/);
+  assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_BRANCH: process\.env\.BRANCH/);
+  assert.match(nextConfig, /CLIENT_WORKSPACE_BUILD_SITE_ID: process\.env\.SITE_ID/);
   assert.match(workspace, /model WorkspaceClientProjectGrant/);
   assert.match(workspace, /model WorkspaceInvitationRecord/);
 });

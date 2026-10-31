@@ -1,14 +1,15 @@
 /**
  * The Client Workspace is enabled only in two explicit contexts:
  * - the existing localhost/CI security harness; or
- * - the protected Netlify staging project pinned to the reviewed workspace
- *   branch, with site-scoped staging credentials.
+ * - the protected Netlify staging project pinned to its reviewed workspace
+ *   branch and immutable site id, with site-scoped staging credentials.
  * A generic production build, deploy preview, or changed NODE_ENV is not enough.
  */
 export type WorkspaceRuntimeMode = "disabled" | "local-test" | "protected-staging";
 
 const STAGING_BRANCH = "feat/client-workspace-mail-abuse-gates-117";
 const STAGING_ORIGIN = "https://digipants-client-workspace-staging.netlify.app";
+const STAGING_SITE_ID = "ebafda7a-e6c5-48e4-a44d-daf0f5943d43";
 
 export function workspaceRuntimeMode(
   env: NodeJS.ProcessEnv = process.env,
@@ -20,8 +21,10 @@ export function workspaceRuntimeMode(
   if (env.NODE_ENV !== "production" ||
       env.CLIENT_WORKSPACE_ENABLED !== "1" ||
       env.CLIENT_WORKSPACE_ENVIRONMENT !== "staging" ||
-      env.CONTEXT !== "production" ||
-      env.BRANCH !== STAGING_BRANCH ||
+      env.CLIENT_WORKSPACE_BUILD_CONTEXT !== "production" ||
+      env.CLIENT_WORKSPACE_BUILD_BRANCH !== STAGING_BRANCH ||
+      env.CLIENT_WORKSPACE_BUILD_SITE_ID !== STAGING_SITE_ID ||
+      env.SITE_ID !== STAGING_SITE_ID ||
       env.CLIENT_WORKSPACE_ORIGIN !== STAGING_ORIGIN ||
       env.URL !== STAGING_ORIGIN) {
     return "disabled";
