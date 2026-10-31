@@ -3,6 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import {
+  deliverNextLocalMailboxMessage, enqueueLocalMailboxMessage,
+  mailboxOutboxTestEnabled,
+} from "./mail-delivery-outbox.js";
+import {
   createSyntheticMailboxChallenge, findPendingInvitationIdForBearer,
 } from "./mailbox-proof.js";
 
@@ -73,11 +77,36 @@ export async function dispatchMailboxProofForBearer(input: {
       workspaceDb: input.workspaceDb, token: input.bearer, intendedEmail: email,
     });
     if (!invitationId) return null;
+    const queued = process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
+    const queueReady = mailboxOutboxTestEnabled();
+    // Opt-in queue mode MUST NOT silently fall back to inline mail delivery
+    // when its encryption key or durable journal is misconfigured.
+    if (queued && !queueReady) return null;
     const challenge = await createSyntheticMailboxChallenge({
       workspaceDb: input.workspaceDb, authDb: input.authDb,
       invitationId, intendedEmail: email,
+      ...(queued ? {
+        queueInTransaction: async (tx, values) => {
+          const message = composeMailboxProofMessage({
+            challengeId: values.challengeId,
+            recipient: values.email, code: values.code,
+          });
+          return message ? await enqueueLocalMailboxMessage({
+            tx, challengeId: values.challengeId, message,
+          }) : false;
+        },
+      } : {}),
     });
     if (!challenge) return null;
+    if (queued) {
+      // This is a local synchronous test drain. Production needs an
+      // authenticated background worker, bounded retry scheduling and
+      // provider-side idempotent acknowledgements.
+      await deliverNextLocalMailboxMessage({
+        authDb: input.authDb, send: input.send,
+      });
+      return { challengeId: challenge.challengeId };
+    }
     let delivered = false;
     try {
       const message = composeMailboxProofMessage({
