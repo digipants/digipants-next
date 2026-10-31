@@ -13,11 +13,13 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
   process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED="1";
   process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED="1";
   process.env.RUN_WORKSPACE_MAIL_INTEGRATION="1";
+  process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED="1";
 
-  const [{getAuthPrisma,getWorkspacePrisma},route,proof]=await Promise.all([
+  const [{getAuthPrisma,getWorkspacePrisma},route,proof,outbox]=await Promise.all([
     import("../src/database.ts"),
     import("../../../app/api/workspace/invites/proof/route.ts"),
     import("../src/mailbox-proof.ts"),
+    import("../src/mail-delivery-outbox.ts"),
   ]);
   const authDb=getAuthPrisma(),db=getWorkspacePrisma();
 
@@ -27,9 +29,21 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     const failedToken=randomBytes(32).toString("base64url");
     const email=`private-${randomUUID()}@example.invalid`;
     const failedEmail=`retry-${randomUUID()}@example.invalid`;
+    let failedChallengeId=null;
     const originalSender=globalThis.__workspaceMailboxTestSender;
     const recorded=[];
     globalThis.__workspaceMailboxTestSender=async message=>{
+      const rows=await authDb.$queryRaw`
+        SELECT state,payload_ciphertext FROM auth_spike.mail_delivery_outbox
+        WHERE id=${message.challengeId}::uuid
+      `;
+      assert.equal(rows.length,1,"encrypted message must exist before transport");
+      assert.equal(rows[0].state,"sending","worker must hold a lease");
+      assert.ok(rows[0].payload_ciphertext.startsWith("v1."));
+      assert.ok(!rows[0].payload_ciphertext.includes(message.to),
+        "recipient must not appear as plaintext in durable outbox");
+      assert.ok(!rows[0].payload_ciphertext.includes(message.text),
+        "one-time code must not appear as plaintext in durable outbox");
       recorded.push(message);
       return true;
     };
@@ -37,9 +51,15 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     t.after(async ()=>{
       globalThis.__workspaceMailboxTestSender=originalSender;
       try {
+        await authDb.$executeRaw`
+          DELETE FROM auth_spike.mail_delivery_outbox
+          WHERE id IN (SELECT id FROM auth_spike.mail_delivery_outbox
+            WHERE id IN (${recorded[0]?.challengeId ?? randomUUID()}::uuid,
+                         ${failedChallengeId ?? randomUUID()}::uuid))
+        `;
         await authDb.verification.deleteMany({where:{
           identifier:{startsWith:"cw-mail-ownership-v1:"},
-          id: {in: recorded.map(x=>x.challengeId)}
+          id: {in: [recorded[0]?.challengeId, failedChallengeId].filter(Boolean)}
         }});
         await db.$executeRaw`DELETE FROM workspace_invitation_records WHERE id IN (${ids.invite}::uuid,${ids.failedInvite}::uuid)`;
         await db.$executeRaw`DELETE FROM workspace_staff_memberships WHERE principal_id=${ids.staff}::uuid`;
@@ -121,6 +141,17 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     assert.ok(stored);
     assert.notEqual(stored.value,code);
     assert.equal(stored.value.length,64);
+    const sentJournal=await authDb.$queryRaw`
+      SELECT state,attempt_count,payload_ciphertext,lease_id,sent_at
+      FROM auth_spike.mail_delivery_outbox WHERE id=${response.challengeId}::uuid
+    `;
+    assert.equal(sentJournal.length,1);
+    assert.equal(sentJournal[0].state,"sent");
+    assert.equal(sentJournal[0].attempt_count,1);
+    assert.equal(sentJournal[0].payload_ciphertext,null,
+      "remove sensitive plaintext-equivalent ciphertext after provider ack");
+    assert.equal(sentJournal[0].lease_id,null);
+    assert.ok(sentJournal[0].sent_at);
     assert.equal(await proof.consumeSyntheticMailboxChallenge({
       authDb,workspaceDb:db,invitationId:ids.invite,intendedEmail:email,
       challengeId:response.challengeId,code:"X".repeat(43),
@@ -150,7 +181,41 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     const pending=await authDb.verification.findMany({
       where:{identifier:{startsWith:`cw-mail-ownership-v1:${ids.failedInvite}:`}},
     });
-    assert.equal(pending.length,0,"failed send must not retain usable proof hash");
+    assert.equal(pending.length,1,
+      "transient delivery failure keeps a recoverable one-time proof");
+    failedChallengeId=pending[0].id;
+    const waiting=await authDb.$queryRaw`
+      SELECT state,attempt_count,payload_ciphertext,lease_id
+        FROM auth_spike.mail_delivery_outbox
+       WHERE id=${failedChallengeId}::uuid
+    `;
+    assert.equal(waiting.length,1);
+    assert.equal(waiting[0].state,"pending","failed delivery is durably retryable");
+    assert.equal(waiting[0].attempt_count,1);
+    assert.ok(waiting[0].payload_ciphertext.startsWith("v1."));
+    assert.equal(waiting[0].lease_id,null);
+    assert.equal(await outbox.deliverNextLocalMailboxMessage({
+      authDb,send:async()=>{throw Error("synthetic sender outage");},
+    }),"idle","backoff blocks instant retry loops");
+    await authDb.$executeRaw`
+      UPDATE auth_spike.mail_delivery_outbox
+         SET next_attempt_at=statement_timestamp()-interval '1 second'
+       WHERE id=${failedChallengeId}::uuid
+    `;
+    const retries=[];
+    assert.equal(await outbox.deliverNextLocalMailboxMessage({
+      authDb,send:async message=>{retries.push(message);return true;},
+    }),"sent","a later worker retry can acknowledge the same message");
+    assert.equal(retries.length,1);
+    assert.equal(retries[0].challengeId,failedChallengeId);
+    assert.equal(retries[0].idempotencyKey,"cw-mailproof-"+failedChallengeId);
+    const recovered=await authDb.$queryRaw`
+      SELECT state,attempt_count,payload_ciphertext,sent_at
+      FROM auth_spike.mail_delivery_outbox WHERE id=${failedChallengeId}::uuid
+    `;
+    assert.equal(recovered[0].state,"sent");
+    assert.equal(recovered[0].attempt_count,2);
+    assert.equal(recovered[0].payload_ciphertext,null);
 
     const previousEnv=process.env.NODE_ENV;
     try{
