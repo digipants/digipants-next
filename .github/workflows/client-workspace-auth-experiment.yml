@@ -308,7 +308,19 @@ jobs:
           "$chrome" --headless --no-sandbox --disable-gpu             --disable-dev-shm-usage --disable-background-networking             --virtual-time-budget=10000             --dump-dom "http://localhost:3000/workspace/invite/#invite=$fake_bearer"             > /tmp/workspace-invite-dom.html 2> /tmp/workspace-chrome-stderr.log
           if ! grep -q 'Confirm the invited mailbox' /tmp/workspace-invite-dom.html; then
             echo "Invitation UI did not hydrate into its private recipient step"
-            tail -n 45 /tmp/workspace-chrome-stderr.log
+            node - <<'NODE'
+          const fs=require("node:fs");
+          const html=fs.readFileSync("/tmp/workspace-invite-dom.html","utf8");
+          const words=["Checking your invitation link","Invitation unavailable",
+            "Confirm the invited mailbox","404","Internal Server Error","Error"];
+          console.log("Synthetic invite HTML diagnostics:",JSON.stringify({
+            bytes:html.length,
+            matches:Object.fromEntries(words.map(x=>[x,html.includes(x)])),
+            appScripts:(html.match(/<script\\b/g)||[]).length,
+          }));
+          NODE
+            grep -E '(Error|error|warn|compiled|Ready|GET /workspace)' /tmp/workspace-browser-next.log | tail -n 24 || true
+            tail -n 12 /tmp/workspace-chrome-stderr.log
             exit 1
           fi
           "$chrome" --headless --no-sandbox --disable-gpu             --disable-dev-shm-usage --disable-background-networking             --virtual-time-budget=10000             --dump-dom "http://localhost:3000/workspace/login/"             > /tmp/workspace-login-dom.html 2>> /tmp/workspace-chrome-stderr.log
