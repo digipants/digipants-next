@@ -14,7 +14,7 @@ type Db = Query & {
   $transaction<T>(fn:(tx:Query)=>Promise<T>):Promise<T>;
 };
 export type MailPayload = Readonly<{
-  kind?: "mailbox_proof" | "workspace_invitation";
+  kind?: "mailbox_proof" | "workspace_invitation" | "founder_bootstrap";
   challengeId: string; to: string; subject: string; text: string; idempotencyKey: string;
 }>;
 type OutboxRow = {
@@ -50,6 +50,12 @@ function safeMessage(value:unknown):MailPayload|null {
         !text.startsWith("Use this one-time code to verify the mailbox") ||
         !/^cw-mailproof-[0-9a-f-]{36}$/i.test(idempotencyKey) ||
         idempotencyKey !== "cw-mailproof-" + challengeId) return null;
+  } else if (kind === "founder_bootstrap") {
+    if (subject !== "Verify your DigiPants founder account" ||
+        !text.startsWith("You requested one-time mailbox verification for the DigiPants Client Workspace founder staff account.") ||
+        !/^cw-founder-bootstrap-[0-9a-f-]{36}$/i.test(idempotencyKey) ||
+        idempotencyKey !== "cw-founder-bootstrap-" + challengeId ||
+        !/\n[A-Za-z0-9_-]{43}\n/.test(text)) return null;
   } else if (kind === "workspace_invitation") {
     if (subject !== "Your DigiPants Client Workspace invitation" ||
         !text.startsWith("You have been invited to a private DigiPants") ||
@@ -136,13 +142,28 @@ export async function enqueueLocalMailboxMessage(input:{
 export async function deliverNextLocalMailboxMessage(input:{
   authDb:Db;
   send:(message:MailPayload)=>Promise<boolean>;
+  challengeId?:string;
 }):Promise<"sent"|"retry"|"expired"|"idle"> {
   if(!enabled()||!key()||typeof input.send!=="function")return "idle";
   const lease=randomUUID();
   let selected:OutboxRow|null=null;
   try{
     selected=await input.authDb.$transaction(async tx=>{
-      const rows=await tx.$queryRaw<Array<{
+      const rows=input.challengeId
+        ? await tx.$queryRaw<Array<{
+        id:string; kind:string; ciphertext:string; idempotencyKey:string;
+        attempts:number; expiresAt:Date;
+      }>>`
+        SELECT id::text AS id, kind, payload_ciphertext AS ciphertext,
+          idempotency_key AS "idempotencyKey",
+          attempt_count AS attempts, expires_at AS "expiresAt"
+        FROM auth_spike.mail_delivery_outbox
+        WHERE id=${input.challengeId}::uuid
+          AND ((state='pending' AND next_attempt_at<=statement_timestamp())
+            OR (state='sending' AND leased_until<=statement_timestamp()))
+        FOR UPDATE SKIP LOCKED LIMIT 1
+      `
+        : await tx.$queryRaw<Array<{
         id:string; kind:string; ciphertext:string; idempotencyKey:string;
         attempts:number; expiresAt:Date;
       }>>`

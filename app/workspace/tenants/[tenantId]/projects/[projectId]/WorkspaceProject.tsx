@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { BadgeCheck, FolderKanban, LockKeyhole, LogOut } from "lucide-react";
 
-type Project = { id: string; title: string; state: string; revision: string };
+type Milestone = { id: string; title: string; detail: string; state: "planned" | "in_progress" | "complete" };
+type ProgressUpdate = { id: string; body: string; nextAction: string; approvedAt: string };
+type Project = { id: string; title: string; state: string; revision: string; milestones: Milestone[]; progressUpdates: ProgressUpdate[] };
 type Status = "loading" | "ready" | "unavailable";
 
 const STATES: Record<string, string> = {
@@ -15,6 +17,7 @@ const STATES: Record<string, string> = {
   closed: "Closed",
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MILESTONE_STATES = new Set(["planned", "in_progress", "complete"]);
 
 function acceptProject(value: unknown, projectId: string): Project | null {
   if (!value || typeof value !== "object") return null;
@@ -22,9 +25,32 @@ function acceptProject(value: unknown, projectId: string): Project | null {
   if (p.id !== projectId || !UUID.test(projectId) ||
       typeof p.title !== "string" || p.title.trim().length < 1 || p.title.length > 200 ||
       typeof p.state !== "string" || !Object.hasOwn(STATES, p.state) ||
-      typeof p.revision !== "string" || !/^[1-9]\d{0,18}$/.test(p.revision)) return null;
+      typeof p.revision !== "string" || !/^[1-9]\d{0,18}$/.test(p.revision) ||
+      !Array.isArray(p.milestones) || p.milestones.length > 20 ||
+      !Array.isArray(p.progressUpdates) || p.progressUpdates.length > 10) return null;
+  const milestones: Milestone[] = [];
+  for (const value of p.milestones) {
+    if (!value || typeof value !== "object") return null;
+    const milestone = value as Record<string, unknown>;
+    if (typeof milestone.id !== "string" || !UUID.test(milestone.id) ||
+        typeof milestone.title !== "string" || milestone.title.length < 1 || milestone.title.length > 160 ||
+        typeof milestone.detail !== "string" || milestone.detail.length < 1 || milestone.detail.length > 800 ||
+        typeof milestone.state !== "string" || !MILESTONE_STATES.has(milestone.state)) return null;
+    milestones.push({ id: milestone.id, title: milestone.title, detail: milestone.detail,
+      state: milestone.state as Milestone["state"] });
+  }
+  const progressUpdates: ProgressUpdate[] = [];
+  for (const value of p.progressUpdates) {
+    if (!value || typeof value !== "object") return null;
+    const update = value as Record<string, unknown>;
+    if (typeof update.id !== "string" || !UUID.test(update.id) ||
+        typeof update.body !== "string" || update.body.length < 1 || update.body.length > 1200 ||
+        typeof update.nextAction !== "string" || update.nextAction.length < 1 || update.nextAction.length > 500 ||
+        typeof update.approvedAt !== "string" || Number.isNaN(Date.parse(update.approvedAt))) return null;
+    progressUpdates.push({ id: update.id, body: update.body, nextAction: update.nextAction, approvedAt: update.approvedAt });
+  }
   // Never preserve extra properties from the server or future API fields.
-  return { id: projectId, title: p.title, state: p.state, revision: p.revision };
+  return { id: projectId, title: p.title, state: p.state, revision: p.revision, milestones, progressUpdates };
 }
 
 export default function WorkspaceProject({ tenantId, projectId }: {
@@ -141,9 +167,20 @@ export default function WorkspaceProject({ tenantId, projectId }: {
               <p className="mt-3 text-xs text-zinc-500">Read-only source record</p>
             </section>
           </div>
-          <section className="mt-6 rounded-2xl border border-dashed border-zinc-300 p-6 dark:border-zinc-700">
-            <div className="flex items-center gap-2"><FolderKanban size={20} className="text-emerald-700 dark:text-emerald-300" /><h3 className="text-lg font-semibold">Project updates and approvals</h3></div>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">Detailed milestones, requirements, private documents and invoices are not connected to this authenticated view yet. They will appear only after staff approval, access controls and independent security checks are complete. No sample progress or payment status is presented as real.</p>
+          <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center gap-2"><FolderKanban size={20} className="text-emerald-700 dark:text-emerald-300" /><h3 className="text-lg font-semibold">Milestones</h3></div>
+            {project.milestones.length ? <ol className="mt-5 space-y-4">{project.milestones.map(milestone => <li key={milestone.id} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+              <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{milestone.title}</h4><span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold capitalize dark:bg-zinc-900">{milestone.state.replace("_", " ")}</span></div>
+              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{milestone.detail}</p>
+            </li>)}</ol> : <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">No client-visible milestones have been approved.</p>}
+          </section>
+          <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center gap-2"><BadgeCheck size={20} className="text-emerald-700 dark:text-emerald-300" /><h3 className="text-lg font-semibold">Staff-approved progress</h3></div>
+            {project.progressUpdates.length ? <ol className="mt-5 space-y-4">{project.progressUpdates.map(update => <li key={update.id} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+              <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">{update.body}</p>
+              <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Next action</p>
+              <p className="mt-1 text-sm leading-6">{update.nextAction}</p>
+            </li>)}</ol> : <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">No staff-approved progress updates are available.</p>}
           </section>
         </>
       )}

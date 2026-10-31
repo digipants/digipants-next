@@ -8,6 +8,7 @@ on:
       - ".github/workflows/client-workspace-auth-experiment.yml"
       - "experiments/client-workspace-auth/**"
       - "app/api/auth/**"
+      - "app/api/workspace/**"
       - "app/workspace/**"
       - "next.config.mjs"
       - "lib/client-workspace/invite-fragment.ts"

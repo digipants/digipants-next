@@ -5,7 +5,7 @@ import { sendInvitationThroughResend } from "./invitation-delivery.js";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const KEY = /^re_[A-Za-z0-9_-]{12,}$/;
-const IDEMPOTENCY = /^cw-mailproof-[0-9a-f-]{36}$/i;
+const IDEMPOTENCY = /^(?:cw-mailproof|cw-founder-bootstrap)-[0-9a-f-]{36}$/i;
 const VERIFIED_FROM = /^DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>$/;
 type Http = (url: string, options: RequestInit) => Promise<Response>;
 
@@ -24,12 +24,20 @@ export function makeLocalResendMailboxTransport(input: {
       typeof input.request!=="function") return null;
   return async message => {
     try{
+      const founder = message?.kind === "founder_bootstrap";
+      const expectedKey = (founder ? "cw-founder-bootstrap-" : "cw-mailproof-") + message?.challengeId;
+      const validContent = founder
+        ? message?.subject === "Verify your DigiPants founder account" &&
+          typeof message?.text === "string" &&
+          message.text.startsWith("You requested one-time mailbox verification for the DigiPants Client Workspace founder staff account.") &&
+          /\n[A-Za-z0-9_-]{43}\n/.test(message.text)
+        : message?.subject === "Verify your DigiPants Workspace invitation" &&
+          typeof message?.text === "string" &&
+          message.text.startsWith("Use this one-time code to verify the mailbox");
       if(!message || !IDEMPOTENCY.test(message.idempotencyKey) ||
-         message.idempotencyKey!=="cw-mailproof-"+message.challengeId ||
+         message.idempotencyKey!==expectedKey ||
          normalizeInvitedEmail(message.to)!==message.to ||
-         message.subject!=="Verify your DigiPants Workspace invitation" ||
-         typeof message.text!=="string" || message.text.length>1500 ||
-         !message.text.startsWith("Use this one-time code to verify the mailbox"))
+         typeof message.text!=="string" || message.text.length>1500 || !validContent)
         return false;
       const result=await input.request(RESEND_ENDPOINT,{
         method:"POST",

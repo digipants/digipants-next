@@ -20,6 +20,8 @@ export type PublishedProjectForClient = Readonly<{
   title: string;
   state: string;
   revision: string;
+  milestones: ReadonlyArray<Readonly<{ id: string; title: string; detail: string; state: string }>>;
+  progressUpdates: ReadonlyArray<Readonly<{ id: string; body: string; nextAction: string; approvedAt: string }>>;
 }>;
 
 export class PublishedProjectAccessDenied extends Error {
@@ -109,12 +111,20 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
       // SECURITY DEFINER helper which locks active client membership/grant
       // rows against concurrent revocation for this transaction. The helper
       // alone cannot authenticate a caller and must never be public.
-      const actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
+      let actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
         SELECT public.cw_lock_client_project_grant(
           ${values.providerSubject}, ${values.tenantId}::uuid,
           ${values.projectId}::uuid, 'project.read_published'
         )::text AS "principalId"
       `;
+      if (!actors[0]?.principalId) {
+        actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
+          SELECT public.cw_lock_staff_project_grant(
+            ${values.providerSubject}, ${values.tenantId}::uuid,
+            ${values.projectId}::uuid, 'delivery.edit'
+          )::text AS "principalId"
+        `;
+      }
       if (!actors[0]?.principalId) throw new PublishedProjectAccessDenied();
 
       await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${values.tenantId}, true)`;
@@ -139,9 +149,49 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
           row.title.length > 200 || typeof row.revision !== "bigint" ||
           row.revision < 1n) throw new PublishedProjectAccessDenied();
 
+      const milestones = await tx.$queryRaw<Array<{
+        id: string; title: string; detail: string; state: string;
+      }>>`
+        SELECT id::text AS id, title, detail, state
+          FROM public.workspace_milestones
+         WHERE tenant_id = ${values.tenantId}::uuid
+           AND project_id = ${values.projectId}::uuid
+           AND client_visible = true
+           AND approved_by_staff_id IS NOT NULL
+           AND approved_at IS NOT NULL
+         ORDER BY sort_order ASC, id ASC
+         LIMIT 20
+      `;
+      const progressUpdates = await tx.$queryRaw<Array<{
+        id: string; body: string; nextAction: string; approvedAt: Date;
+      }>>`
+        SELECT id::text AS id, body, next_action AS "nextAction", approved_at AS "approvedAt"
+          FROM public.workspace_progress_updates
+         WHERE tenant_id = ${values.tenantId}::uuid
+           AND project_id = ${values.projectId}::uuid
+           AND status = 'approved' AND client_visible = true
+           AND approved_by_staff_id IS NOT NULL AND approved_at IS NOT NULL
+         ORDER BY approved_at DESC, id DESC
+         LIMIT 10
+      `;
+      const safeMilestones = milestones.flatMap(item =>
+        UUID.test(item.id) && typeof item.title === "string" && item.title.length <= 160 &&
+        typeof item.detail === "string" && item.detail.length <= 800 &&
+        ["planned", "in_progress", "complete"].includes(item.state)
+          ? [{ id: item.id, title: item.title, detail: item.detail, state: item.state }]
+          : []);
+      const safeProgressUpdates = progressUpdates.flatMap(item =>
+        UUID.test(item.id) && typeof item.body === "string" && item.body.length <= 1200 &&
+        typeof item.nextAction === "string" && item.nextAction.length <= 500 &&
+        item.approvedAt instanceof Date && Number.isFinite(item.approvedAt.getTime())
+          ? [{ id: item.id, body: item.body, nextAction: item.nextAction, approvedAt: item.approvedAt.toISOString() }]
+          : []);
+
       return Object.freeze({
         id: row.id, tenantId: row.tenantId, title: row.title,
         state: row.state, revision: row.revision.toString(),
+        milestones: Object.freeze(safeMilestones),
+        progressUpdates: Object.freeze(safeProgressUpdates),
       });
     }, { isolationLevel: "Serializable" });
 

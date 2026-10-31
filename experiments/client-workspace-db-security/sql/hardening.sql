@@ -6,12 +6,14 @@ REVOKE ALL ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
   workspace_projects, workspace_client_project_grants,
   workspace_staff_project_grants, workspace_invitation_records, workspace_enrollment_attempts,
-  workspace_audit_events FROM PUBLIC;
+  workspace_audit_events, workspace_founder_bootstrap_control,
+  workspace_milestones, workspace_progress_updates FROM PUBLIC;
 
 GRANT SELECT ON TABLE workspace_principals, workspace_tenants,
   workspace_client_memberships, workspace_staff_memberships,
   workspace_projects, workspace_client_project_grants,
   workspace_staff_project_grants, workspace_enrollment_attempts TO cw_runtime;
+GRANT SELECT ON TABLE workspace_milestones, workspace_progress_updates TO cw_runtime;
 GRANT INSERT ON TABLE workspace_enrollment_attempts TO cw_runtime;
 GRANT UPDATE (state, attempt_count, last_error_code, next_retry_at,
   poisoned_at, auth_created_at, principal_created_at, grant_approved_at,
@@ -61,6 +63,14 @@ GRANT EXECUTE ON FUNCTION public.cw_revoke_client_invitation(text, uuid, uuid, u
 GRANT EXECUTE ON FUNCTION public.cw_ensure_disabled_client_principal(uuid, text) TO cw_runtime;
 GRANT EXECUTE ON FUNCTION public.cw_disable_client_principal(uuid, text) TO cw_runtime;
 GRANT EXECUTE ON FUNCTION public.cw_approve_enrollment_grant(uuid, text) TO cw_runtime;
+ALTER FUNCTION public.cw_founder_bootstrap_active() OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_founder_bootstrap_is_open(bytea) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_begin_founder_bootstrap(bytea, text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_complete_founder_bootstrap(bytea, text) OWNER TO cw_schema_owner;
+GRANT EXECUTE ON FUNCTION public.cw_founder_bootstrap_active() TO cw_runtime;
+GRANT EXECUTE ON FUNCTION public.cw_founder_bootstrap_is_open(bytea) TO cw_runtime;
+GRANT EXECUTE ON FUNCTION public.cw_begin_founder_bootstrap(bytea, text) TO cw_runtime;
+GRANT EXECUTE ON FUNCTION public.cw_complete_founder_bootstrap(bytea, text) TO cw_runtime;
 
 ALTER TABLE workspace_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_audit_events FORCE ROW LEVEL SECURITY;
@@ -72,6 +82,27 @@ CREATE POLICY cw_audit_reader_read ON workspace_audit_events
   USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
 CREATE POLICY cw_audit_writer_append ON workspace_audit_events
   FOR INSERT TO cw_audit_writer WITH CHECK (true);
+
+ALTER TABLE workspace_founder_bootstrap_control ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_founder_bootstrap_control FORCE ROW LEVEL SECURITY;
+CREATE POLICY cw_schema_owner_founder_bootstrap_all ON workspace_founder_bootstrap_control
+  FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
+
+ALTER TABLE workspace_milestones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_milestones FORCE ROW LEVEL SECURITY;
+CREATE POLICY cw_runtime_milestone_read ON workspace_milestones
+  FOR SELECT TO cw_runtime
+  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+CREATE POLICY cw_schema_owner_milestone_all ON workspace_milestones
+  FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
+
+ALTER TABLE workspace_progress_updates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_progress_updates FORCE ROW LEVEL SECURITY;
+CREATE POLICY cw_runtime_progress_read ON workspace_progress_updates
+  FOR SELECT TO cw_runtime
+  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+CREATE POLICY cw_schema_owner_progress_all ON workspace_progress_updates
+  FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 
 -- PostgreSQL requires the new function owner to possess CREATE on the
 -- containing schema *at the instant of ownership transfer*. Revoke it

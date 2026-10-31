@@ -14,6 +14,7 @@ import {
   isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
   isWorkspaceEnabled, workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
+import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
 const ENDPOINT = "/api/workspace/invites/proof";
 const LOCAL_COOKIE_SID = "cw-local-invite-sid";
@@ -30,14 +31,9 @@ const HEADERS: Record<string, string> = {
   "Content-Security-Policy": "default-src 'none'",
 };
 
-type MailSender = (message: {
-  challengeId: string; to: string; subject: string;
-  text: string; idempotencyKey: string;
-}) => Promise<boolean>;
-
 declare global {
   // A fake sender is injected only by disposable CI; it is never request data.
-  var __workspaceMailboxTestSender: MailSender | undefined;
+  var __workspaceMailboxTestSender: ((message: MailPayload) => Promise<boolean>) | undefined;
 }
 
 function unavailable(): Response {

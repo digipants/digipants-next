@@ -74,6 +74,8 @@ export async function handleClientProjectHttpRequest(request: Request): Promise<
         title: project.title,
         state: project.state,
         revision: project.revision,
+        milestones: project.milestones,
+        progressUpdates: project.progressUpdates,
       } },
       { status: 200, headers: PRIVATE_HEADERS },
     );

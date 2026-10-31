@@ -5,6 +5,7 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { twoFactor } from "better-auth/plugins";
 import { getAuthPrisma } from "./database.js";
 import { INVITATION_HEADER } from "./invitations.js";
+import { beginFounderBootstrap, completeFounderBootstrap } from "./founder-bootstrap.js";
 import {
   consumeMailboxProofForEnrollment,
   markAuthIdentityCreated,
@@ -43,6 +44,8 @@ const disabledPaths = [
   "/two-factor/send-otp",
   "/two-factor/verify-otp",
 ];
+const FOUNDER_CHALLENGE_HEADER = "x-digipants-founder-bootstrap-challenge-id";
+const FOUNDER_PROOF_HEADER = "x-digipants-founder-mail-proof";
 
 export const auth = betterAuth({
   appName: "DigiPants Client Workspace",
@@ -86,6 +89,26 @@ export const auth = betterAuth({
           if (!context || context.path !== "/sign-up/email" || context.method !== "POST") {
             throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
           }
+          const hasFounderChallenge = context.headers?.has(FOUNDER_CHALLENGE_HEADER) ?? false;
+          const hasFounderProof = context.headers?.has(FOUNDER_PROOF_HEADER) ?? false;
+          const founderChallengeId = context.headers?.get(FOUNDER_CHALLENGE_HEADER);
+          const founderProof = context.headers?.get(FOUNDER_PROOF_HEADER);
+          if (hasFounderChallenge || hasFounderProof) {
+            if (!founderChallengeId || !founderProof) {
+              throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
+            }
+            const subject = await beginFounderBootstrap({
+              workspaceDb: (await import("./database.js")).getWorkspacePrisma(),
+              authDb: getAuthPrisma(),
+              email: user.email,
+              challengeId: founderChallengeId,
+              code: founderProof,
+            });
+            if (!subject) {
+              throw APIError.from("UNAUTHORIZED", { message: "Invitation required", code: "INVITATION_REQUIRED" });
+            }
+            return { data: { id: subject, emailVerified: true } };
+          }
           const token = context.headers?.get(INVITATION_HEADER) ?? "";
           const challengeId = context.headers?.get("x-digipants-mail-challenge-id") ?? "";
           const challengeCode = context.headers?.get("x-digipants-mail-proof") ?? "";
@@ -111,7 +134,21 @@ export const auth = betterAuth({
           // crash can be reconciled without creating a different identity.
           return { data: { id: attempt.providerSubject, emailVerified: true } };
         },
-        after: async (user) => {
+        after: async (user, context) => {
+          if (context?.headers?.has(FOUNDER_CHALLENGE_HEADER) ||
+              context?.headers?.has(FOUNDER_PROOF_HEADER)) {
+            const completed = await completeFounderBootstrap({
+              workspaceDb: (await import("./database.js")).getWorkspacePrisma(),
+              email: user.email,
+              providerSubject: user.id,
+            });
+            if (!completed) {
+              throw APIError.from("UNAUTHORIZED", {
+                message: "Founder enrollment requires repair", code: "FOUNDER_ENROLLMENT_REPAIR_REQUIRED",
+              });
+            }
+            return;
+          }
           const state = await markAuthIdentityCreated(user.id, user.email);
           if (state !== "grant_ready_for_review" && state !== "completed") {
             throw APIError.from("UNAUTHORIZED", { message: "Enrollment requires repair", code: "ENROLLMENT_REPAIR_REQUIRED" });

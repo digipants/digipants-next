@@ -16,6 +16,34 @@ INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id,
   ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
    '33333333-3333-4333-8333-333333333333', 'delivery_lead');
 
+UPDATE workspace_projects
+   SET publication='published'
+ WHERE id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+UPDATE workspace_founder_bootstrap_control
+   SET founder_email_hash=decode(repeat('a1',32),'hex')
+ WHERE singleton;
+
+INSERT INTO workspace_milestones
+  (id,tenant_id,project_id,title,detail,state,sort_order,client_visible,approved_by_staff_id,approved_at)
+VALUES
+  ('a1111111-1111-4111-8111-111111111111','11111111-1111-4111-8111-111111111111',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Confirm project scope',
+   'Synthetic test milestone awaiting review.','in_progress',10,true,
+   '33333333-3333-4333-8333-333333333333',statement_timestamp()),
+  ('a1111111-1111-4111-8111-222222222222','11111111-1111-4111-8111-111111111111',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Prepare client workspace',
+   'Keep this fixture synthetic until approved.','planned',20,true,
+   '33333333-3333-4333-8333-333333333333',statement_timestamp());
+
+INSERT INTO workspace_progress_updates
+  (id,tenant_id,project_id,body,next_action,status,client_visible,approved_by_staff_id,approved_at)
+VALUES
+  ('a2222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+   'Synthetic staging progress only; no customer delivery or payment is represented.',
+   'Review the scope before adding customer data.','approved',true,
+   '33333333-3333-4333-8333-333333333333',statement_timestamp());
+
 INSERT INTO workspace_principals (id, provider_subject, kind) VALUES
   ('44444444-4444-4444-8444-444444444444', 'synthetic-security-owner', 'staff');
 INSERT INTO workspace_staff_memberships (principal_id) VALUES

@@ -41,12 +41,14 @@ BEGIN
      'cw_lock_staff_project_grant', 'cw_lock_client_project_grant',
      'cw_invitation_context', 'cw_issue_client_invitation',
      'cw_revoke_client_invitation', 'cw_ensure_disabled_client_principal',
-     'cw_disable_client_principal', 'cw_approve_enrollment_grant')
+     'cw_disable_client_principal', 'cw_approve_enrollment_grant',
+     'cw_founder_bootstrap_active', 'cw_founder_bootstrap_is_open',
+     'cw_begin_founder_bootstrap', 'cw_complete_founder_bootstrap')
      AND fn.prosecdef AND owner_role.rolname='cw_schema_owner'
      AND NOT EXISTS (
        SELECT 1 FROM pg_catalog.aclexplode(COALESCE(fn.proacl, '{}'::aclitem[])) AS acl
        WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE');
-  IF helper_count <> 8 THEN
+  IF helper_count <> 12 THEN
     RAISE EXCEPTION 'restricted workflow SECURITY DEFINER functions are missing or incorrectly owned/exposed';
   END IF;
   IF has_function_privilege(
@@ -78,7 +80,13 @@ BEGIN
      has_table_privilege('cw_runtime', 'public.workspace_client_memberships', 'INSERT') OR
      has_table_privilege('cw_runtime', 'public.workspace_client_project_grants', 'INSERT') OR
      has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'INSERT') OR
-     has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'UPDATE') THEN
+     has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'SELECT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_milestones', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_milestones', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_progress_updates', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_progress_updates', 'UPDATE') THEN
     RAISE EXCEPTION 'runtime has direct write privileges on restricted workflow tables';
   END IF;
   IF (SELECT count(*) FROM workspace_projects) <> 0 THEN
@@ -86,6 +94,10 @@ BEGIN
   END IF;
   IF (SELECT count(*) FROM workspace_audit_events) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed audit events';
+  END IF;
+  IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
+    RAISE EXCEPTION 'missing RLS context exposed client-visible project progress';
   END IF;
   IF cw_lock_staff_project_grant(
        'synthetic-security-staff-a',
@@ -142,7 +154,9 @@ DECLARE denied boolean := false; changed integer; invite_id uuid; client_princip
         approved boolean; redeemed text;
 BEGIN
   IF (SELECT count(*) FROM workspace_projects) <> 1 OR
-     (SELECT count(*) FROM workspace_audit_events) <> 1 THEN
+     (SELECT count(*) FROM workspace_audit_events) <> 1 OR
+     (SELECT count(*) FROM workspace_milestones) <> 2 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 1 THEN
     RAISE EXCEPTION 'tenant A exact scope unexpectedly differs';
   END IF;
 
@@ -316,6 +330,42 @@ BEGIN
 END $$;
 ROLLBACK;
 
+-- The founder path is one-use, hash-bound, audited and scoped to the fixed
+-- synthetic pilot project. The runtime cannot mutate its control row directly.
+BEGIN;
+SET LOCAL ROLE cw_runtime;
+DO $$
+DECLARE email_hash bytea := decode(repeat('a1',32),'hex');
+        subject text := '55555555-5555-4555-8555-555555555555';
+BEGIN
+  IF public.cw_founder_bootstrap_active() IS NOT TRUE OR
+     public.cw_founder_bootstrap_is_open(email_hash) IS NOT TRUE OR
+     public.cw_founder_bootstrap_is_open(decode(repeat('a2',32),'hex')) IS TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap email hash gate is incorrect';
+  END IF;
+  IF public.cw_begin_founder_bootstrap(email_hash, subject) <> subject THEN
+    RAISE EXCEPTION 'founder bootstrap did not reserve the one-time verified subject';
+  END IF;
+  IF public.cw_complete_founder_bootstrap(email_hash, subject) IS NOT TRUE OR
+     public.cw_complete_founder_bootstrap(email_hash, subject) IS NOT TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap completion is not idempotent';
+  END IF;
+  IF public.cw_founder_bootstrap_active() IS TRUE OR
+     public.cw_begin_founder_bootstrap(email_hash, '66666666-6666-4666-8666-666666666666') IS NOT NULL OR
+     public.cw_complete_founder_bootstrap(email_hash, '66666666-6666-4666-8666-666666666666') IS TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap was reusable after completion';
+  END IF;
+  IF public.cw_lock_staff_project_grant(
+       subject,'11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','delivery.edit') IS NULL OR
+     public.cw_lock_staff_project_grant(
+       subject,'22222222-2222-4222-8222-222222222222',
+       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','delivery.edit') IS NOT NULL THEN
+    RAISE EXCEPTION 'founder bootstrap did not grant exactly the synthetic pilot project';
+  END IF;
+END $$;
+ROLLBACK;
+
 BEGIN;
 SET LOCAL ROLE cw_audit_reader;
 SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
@@ -351,6 +401,10 @@ BEGIN
   IF (SELECT count(*) FROM workspace_projects) <> 1 THEN
     RAISE EXCEPTION 'expected custom GUC spoof demonstration did not occur';
   END IF;
+  IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
+    RAISE EXCEPTION 'tenant B context exposed tenant A progress';
+  END IF;
 END $$;
 ROLLBACK;
-\echo 'PASS: role separation, denial, atomic audit, exact-scope query requirement and spoofable-GUC limitation verified'
+\echo 'PASS: role separation, one-time founder bootstrap, approved progress RLS, denial, audit and exact-scope query requirement verified'
