@@ -1,0 +1,57 @@
+name: Dependency security and reproducible production build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - experiments/client-workspace-auth/package.json
+      - experiments/client-workspace-auth/package-lock.json
+      - experiments/client-workspace-auth/prisma/schema.prisma
+      - netlify.toml
+      - .github/workflows/dependency-security.yml
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/dependency-security.yml
+
+permissions:
+  contents: read
+
+jobs:
+  locked-security-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Clean immutable dependency install
+        run: npm ci
+      - name: Block high or critical production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Block high or critical isolated auth runtime dependency advisories
+        run: npm audit --prefix experiments/client-workspace-auth --omit=dev --audit-level=high
+      - name: Verify exact installed framework and lockfile versions
+        run: |
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const p=require("./package.json");
+          const lock=JSON.parse(fs.readFileSync("package-lock.json","utf8"));
+          const installed=require("next/package.json").version;
+          if(p.dependencies.next!==installed ||
+             lock.packages["node_modules/next"].version!==installed ||
+             lock.packages[""].dependencies.next!==installed ||
+             lock.packages[""].devDependencies["eslint-config-next"]!==p.devDependencies["eslint-config-next"]) {
+            throw Error("Framework manifest, lockfile, and clean install mismatch");
+          }
+          process.stdout.write("Next.js locked version: "+installed+"\n");
+          NODE
+      - name: Production build
+        run: npm run build
+      - name: Check patch formatting
+        run: git diff --check
