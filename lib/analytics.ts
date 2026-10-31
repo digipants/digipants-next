@@ -38,7 +38,7 @@ function safePathname(pathname: string) {
  * tenant/project UUIDs, invitation fragments or recipient onboarding paths.
  */
 export function isPrivateWorkspacePath(pathname: string): boolean {
-  const path = safePathname(pathname).replace(/\\/+$/, "") || "/";
+  const path = safePathname(pathname).replace(/\/+$/, "") || "/";
   return path === "/workspace" || path.startsWith("/workspace/") ||
     path === "/workspace-preview" || path.startsWith("/workspace-preview/");
 }
