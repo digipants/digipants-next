@@ -1,0 +1,52 @@
+name: Next.js 15.5.28 security lockfile rehearsal
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "package.json"
+      - ".github/workflows/next-security-lock-rebuild.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  security-lock-rebuild:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'hotfix/next-15-5-28-security-20261031' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate reproducible security lockfile using the npm registry
+        run: |
+          set -euo pipefail
+          cp package-lock.json /tmp/digipants-original-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-exact next@15.5.28 eslint-config-next@15.5.28
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const before=JSON.parse(fs.readFileSync("/tmp/digipants-original-lock.json"));
+          const after=JSON.parse(fs.readFileSync("package-lock.json"));
+          if(after.packages[""].dependencies.next!=="15.5.28" ||
+             after.packages[""].devDependencies["eslint-config-next"]!=="15.5.28")throw Error("Manifest mismatch");
+          const keys=[...new Set([...Object.keys(before.packages),...Object.keys(after.packages)])];
+          const changed=keys.filter(k=>JSON.stringify(before.packages[k])!==JSON.stringify(after.packages[k]))
+             .map(key=>({key,value:after.packages[key]??null}));
+          const patch={lockfileVersion:after.lockfileVersion,changed};
+          process.stdout.write("DIGIPANTS_LOCKPATCH_BEGIN"+Buffer.from(JSON.stringify(patch)).toString("base64url")+"DIGIPANTS_LOCKPATCH_END\n");
+          process.stdout.write("Changed package entries: "+changed.length+"\n");
+          NODE
+      - name: Validate clean reproducible install and production build
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+      - name: Upload generated public registry lockfile (no credentials)
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-15-5-28-lockfile
+          path: package-lock.json
+          retention-days: 3
