@@ -5,8 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import {
-  isPermittedWorkspaceAuthorizationHeader, isProtectedWorkspaceStaging,
-  isTrustedWorkspaceRequest,
+  isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
 } from "../../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 
 const HEADERS = {
@@ -49,7 +48,7 @@ export async function POST(
   context: {params: Promise<{attemptId:string}>},
 ): Promise<Response> {
   if (!isProtectedWorkspaceStaging() || !isTrustedWorkspaceRequest(request) ||
-      !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) ||
+      request.headers.has("authorization") ||
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "")) return unavailable();
   try {
     const {attemptId} = await context.params;

@@ -1,6 +1,6 @@
 import "server-only";
 import {
-  isPermittedWorkspaceAuthorizationHeader, isTrustedWorkspaceRequest, isLocalWorkspaceTest,
+  isTrustedWorkspaceRequest, isLocalWorkspaceTest,
   isWorkspaceEnabled,
 } from "../../../../experiments/client-workspace-auth/src/workspace-runtime";
 
@@ -37,7 +37,7 @@ async function handle(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     if (!isTrustedWorkspaceRequest(request) || !url.pathname.startsWith("/api/auth/") ||
-        !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) ||
+        request.headers.has("authorization") ||
         request.headers.has("range")) {
       if (process.env.RUN_NEXT_AUTH_INTEGRATION === "1") console.error("synthetic auth URL/header guard denied", { trustedRequest: isTrustedWorkspaceRequest(request), validPrefix: url.pathname.startsWith("/api/auth/"), hasAuthorization: request.headers.has("authorization"), hasRange: request.headers.has("range") });
       return unavailable();

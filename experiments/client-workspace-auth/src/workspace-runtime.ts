@@ -51,42 +51,38 @@ export function isProtectedWorkspaceStaging(): boolean {
   return workspaceRuntimeMode() === "protected-staging";
 }
 
-/**
- * Netlify validates the shared site password at its edge. Some protected
- * deploy requests may forward that HTTP Basic Authorization header to the
- * application. Permit only the Basic scheme in the exact protected staging
- * runtime; all other Authorization headers remain rejected.
- */
-export function isPermittedWorkspaceAuthorizationHeader(
-  authorizationHeader: string | null,
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  if (authorizationHeader === null) return true;
-  return workspaceRuntimeMode(env) === "protected-staging" &&
-    authorizationHeader.length <= 4096 &&
-    /^Basic [A-Za-z0-9+/]+={0,2}$/i.test(authorizationHeader);
-}
-
 export function isLocalWorkspaceTest(): boolean {
   return workspaceRuntimeMode() === "local-test";
 }
 
-export function workspaceOrigin(): string | null {
-  const mode = workspaceRuntimeMode();
+export function workspaceOrigin(env: NodeJS.ProcessEnv = process.env): string | null {
+  const mode = workspaceRuntimeMode(env);
   if (mode === "local-test") return "http://localhost:3000";
   if (mode === "protected-staging") return STAGING_ORIGIN;
   return null;
 }
 
 /** Reject host confusion and cross-site state changes before application code. */
-export function isTrustedWorkspaceRequest(request: Request): boolean {
+export function isTrustedWorkspaceRequest(
+  request: Request,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   try {
-    const expectedOrigin = workspaceOrigin();
+    const expectedOrigin = workspaceOrigin(env);
     if (!expectedOrigin) return false;
     const expected = new URL(expectedOrigin);
     const url = new URL(request.url);
     const requestHost = request.headers.get("host");
-    if (url.origin !== expectedOrigin ||
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto")
+      ?.split(",", 1)[0]?.trim().toLowerCase();
+    const directOriginMatches = url.origin === expectedOrigin;
+    const trustedNetlifyOriginMatches = workspaceRuntimeMode(env) === "protected-staging" &&
+      url.protocol === "https:" &&
+      requestHost?.toLowerCase() === expected.host.toLowerCase() &&
+      forwardedHost?.toLowerCase() === expected.host.toLowerCase() &&
+      forwardedProto === "https";
+    if ((!directOriginMatches && !trustedNetlifyOriginMatches) ||
         (requestHost && requestHost.toLowerCase() !== expected.host.toLowerCase())) {
       return false;
     }

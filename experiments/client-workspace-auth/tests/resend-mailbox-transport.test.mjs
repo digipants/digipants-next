@@ -3,9 +3,10 @@ import {randomUUID} from "node:crypto";
 import test from "node:test";
 
 const enabled = process.env.RUN_RESEND_TRANSPORT_TEST === "1";
-const {makeLocalResendMailboxTransport} = enabled
+const resendModule = enabled
   ? await import("../src/resend-mailbox-transport.ts")
-  : {makeLocalResendMailboxTransport: null};
+  : {makeLocalResendMailboxTransport: null,createStagingResendMailboxTransport: null};
+const {makeLocalResendMailboxTransport} = resendModule;
 
 const id=randomUUID();
 const msg={
@@ -82,5 +83,59 @@ test("Resend transport retries failures and rejects unapproved keys, identities 
     else process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED=previous;
     if(oldNode===undefined)delete process.env.NODE_ENV;
     else process.env.NODE_ENV=oldNode;
+  }
+});
+
+test("founder-only staging mail scope cannot deliver client invitations",
+  {skip: !enabled && "Dedicated server-only test runtime required"},async()=>{
+  const keys=[
+    "NODE_ENV","CLIENT_WORKSPACE_ENABLED","CLIENT_WORKSPACE_ENVIRONMENT",
+    "SITE_ID","CLIENT_WORKSPACE_ORIGIN","URL",
+    "CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED","CLIENT_WORKSPACE_REAL_EMAILS_ENABLED",
+    "RESEND_API_KEY","WORKSPACE_EMAIL_FROM",
+  ];
+  const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  const originalFetch=global.fetch;
+  let sent=0;
+  try{
+    Object.assign(process.env,{
+      NODE_ENV:"production",
+      CLIENT_WORKSPACE_ENABLED:"1",
+      CLIENT_WORKSPACE_ENVIRONMENT:"staging",
+      SITE_ID:"ebafda7a-e6c5-48e4-a44d-daf0f5943d43",
+      CLIENT_WORKSPACE_ORIGIN:"https://digipants-client-workspace-staging.netlify.app",
+      URL:"https://digipants-client-workspace-staging.netlify.app",
+      CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED:"1",
+      CLIENT_WORKSPACE_REAL_EMAILS_ENABLED:"0",
+      RESEND_API_KEY:"re_"+"A".repeat(28),
+      WORKSPACE_EMAIL_FROM:"DigiPants Client Workspace <support@digipants.com>",
+    });
+    global.fetch=async()=>{
+      sent++;
+      return new Response(JSON.stringify({id:randomUUID()}),{status:200});
+    };
+    const founderSender=resendModule.createStagingResendMailboxTransport("founder-bootstrap");
+    assert.equal(typeof founderSender,"function");
+    assert.equal(resendModule.createStagingResendMailboxTransport(),null,
+      "the general invitation sender stays disabled");
+    const challengeId=randomUUID();
+    const founderMessage={
+      kind:"founder_bootstrap",challengeId,to:"founder@example.invalid",
+      subject:"Verify your DigiPants founder account",
+      text:"You requested one-time mailbox verification for the DigiPants Client Workspace founder staff account.\n\n"+
+        "A".repeat(43)+"\nThe code expires in 10 minutes.",
+      idempotencyKey:"cw-founder-bootstrap-"+challengeId,
+    };
+    assert.equal(await founderSender({kind:"workspace_invitation"}),false);
+    assert.equal(await founderSender(founderMessage),true);
+    assert.equal(sent,1,"only the founder verification reached the mocked provider");
+    process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED="0";
+    assert.equal(resendModule.createStagingResendMailboxTransport("founder-bootstrap"),null);
+  }finally{
+    global.fetch=originalFetch;
+    for(const key of keys){
+      if(previous[key]===undefined)delete process.env[key];
+      else process.env[key]=previous[key];
+    }
   }
 });

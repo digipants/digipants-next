@@ -10,8 +10,8 @@ const PROJECT_PATH = new RegExp(
   "i",
 );
 import {
-  isLocalWorkspaceTest, isPermittedWorkspaceAuthorizationHeader,
-  isTrustedWorkspaceRequest, isWorkspaceEnabled, workspaceOrigin,
+  isLocalWorkspaceTest, isTrustedWorkspaceRequest, isWorkspaceEnabled,
+  workspaceOrigin,
 } from "./workspace-runtime.js";
 
 const PRIVATE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
@@ -49,7 +49,7 @@ export async function handleClientProjectHttpRequest(request: Request): Promise<
     const url = new URL(request.url);
     if (!isTrustedWorkspaceRequest(request) || url.search || url.hash ||
         request.headers.has("range") ||
-        !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization"))) return unavailable();
+        request.headers.has("authorization")) return unavailable();
     if (!workspaceOrigin()) return unavailable();
 
     const match = PROJECT_PATH.exec(url.pathname);

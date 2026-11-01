@@ -69,10 +69,15 @@ export function makeLocalResendMailboxTransport(input: {
 }
 
 /** Construct the only live mail sender, and only for protected staging. */
-export function createStagingResendMailboxTransport():
+export function createStagingResendMailboxTransport(
+  scope: "all" | "founder-bootstrap" = "all",
+):
   ((message: MailPayload) => Promise<boolean>) | null {
+  const emailEnabled = scope === "founder-bootstrap"
+    ? process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1"
+    : process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
   if (!isProtectedWorkspaceStaging() ||
-      process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1") return null;
+      !emailEnabled) return null;
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.WORKSPACE_EMAIL_FROM;
   if (!apiKey || !from) return null;
@@ -83,6 +88,7 @@ export function createStagingResendMailboxTransport():
   });
   if (!proofTransport) return null;
   return async message => {
+    if (scope === "founder-bootstrap" && message.kind !== "founder_bootstrap") return false;
     if (message.kind !== "workspace_invitation") return proofTransport(message);
     return sendInvitationThroughResend({
       message: {

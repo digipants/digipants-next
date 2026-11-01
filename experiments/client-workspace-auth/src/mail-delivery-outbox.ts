@@ -143,6 +143,7 @@ export async function deliverNextLocalMailboxMessage(input:{
   authDb:Db;
   send:(message:MailPayload)=>Promise<boolean>;
   challengeId?:string;
+  allowedKind?:"mailbox_proof"|"founder_bootstrap"|"workspace_invitation";
 }):Promise<"sent"|"retry"|"expired"|"idle"> {
   if(!enabled()||!key()||typeof input.send!=="function")return "idle";
   const lease=randomUUID();
@@ -159,6 +160,7 @@ export async function deliverNextLocalMailboxMessage(input:{
           attempt_count AS attempts, expires_at AS "expiresAt"
         FROM auth_spike.mail_delivery_outbox
         WHERE id=${input.challengeId}::uuid
+          AND (${input.allowedKind ?? null}::text IS NULL OR kind=${input.allowedKind ?? ""})
           AND ((state='pending' AND next_attempt_at<=statement_timestamp())
             OR (state='sending' AND leased_until<=statement_timestamp()))
         FOR UPDATE SKIP LOCKED LIMIT 1
@@ -171,8 +173,9 @@ export async function deliverNextLocalMailboxMessage(input:{
           idempotency_key AS "idempotencyKey",
           attempt_count AS attempts, expires_at AS "expiresAt"
         FROM auth_spike.mail_delivery_outbox
-        WHERE (state='pending' AND next_attempt_at<=statement_timestamp())
-          OR (state='sending' AND leased_until<=statement_timestamp())
+        WHERE ((state='pending' AND next_attempt_at<=statement_timestamp())
+          OR (state='sending' AND leased_until<=statement_timestamp()))
+        AND (${input.allowedKind ?? null}::text IS NULL OR kind=${input.allowedKind ?? ""})
         ORDER BY next_attempt_at,id
         FOR UPDATE SKIP LOCKED LIMIT 1
       `;

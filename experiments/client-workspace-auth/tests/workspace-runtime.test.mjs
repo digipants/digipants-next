@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   workspaceRuntimeMode,
   assertStagingRuntimeDatabaseUrl,
-  isPermittedWorkspaceAuthorizationHeader,
+  isTrustedWorkspaceRequest,
 } from "../src/workspace-runtime.ts";
 
 const staging = {
@@ -33,19 +33,29 @@ test("local integration activation remains separate from every production contex
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "production", AUTH_EXPERIMENT_ENABLED: "1" }), "disabled");
 });
 
-test("only Netlify Basic authorization is accepted on the exact protected staging runtime", () => {
-  const netlifyBasic = "Basic dXNlcjpwYXNz";
-  assert.equal(isPermittedWorkspaceAuthorizationHeader(null, staging), true);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, staging), true);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader("Bearer forged", staging), false);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader("Basic not-base64!", staging), false);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader("Basic " + "A".repeat(4097), staging), false);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, {
-    ...staging, SITE_ID: "another-site",
+test("Netlify forwarded origin is trusted only with exact staging host and HTTPS", () => {
+  const host = "digipants-client-workspace-staging.netlify.app";
+  const forwardedRequest = (headers = {}, method = "GET") => new Request(
+    "https://netlify-internal.invalid/api/workspace/founder/verification/",
+    { method, headers: { host, "x-forwarded-host": host, "x-forwarded-proto": "https", ...headers } },
+  );
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest(), staging), true);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({ "x-forwarded-host": "evil.example" }), staging), false);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({ "x-forwarded-proto": "http" }), staging), false);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({ host: "evil.example" }), staging), false);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({}, "POST"), staging), false);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({
+    origin: "https://digipants-client-workspace-staging.netlify.app",
+  }, "POST"), staging), true);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({ origin: "https://evil.example" }), staging), false);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest({ origin: "https://digipants-client-workspace-staging.netlify.app" }), staging), true);
+  assert.equal(isTrustedWorkspaceRequest(forwardedRequest(), { ...staging, SITE_ID: "another-site" }), false);
+  assert.equal(isTrustedWorkspaceRequest(new Request("http://netlify-internal.invalid/api/workspace"), {
+    ...staging, NODE_ENV: "production",
   }), false);
-  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, {
+  assert.equal(isTrustedWorkspaceRequest(new Request("http://localhost:3000/api/auth/sign-in/email"), {
     NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1",
-  }), false);
+  }), true);
 });
 
 test("staging database URLs require distinct dedicated logins, correct databases, pooler and full TLS", () => {

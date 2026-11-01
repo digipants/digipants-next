@@ -8,8 +8,9 @@ import { isProtectedWorkspaceStaging } from "../../experiments/client-workspace-
  * make a public HTTP request that would need to bypass Netlify site password.
  */
 export default async function workspaceMailOutboxDrain(): Promise<Response> {
-  if (!isProtectedWorkspaceStaging() ||
-      process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1") {
+  const realEmailsEnabled = process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
+  const founderEmailEnabled = process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1";
+  if (!isProtectedWorkspaceStaging() || (!realEmailsEnabled && !founderEmailEnabled)) {
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   }
 
@@ -20,14 +21,21 @@ export default async function workspaceMailOutboxDrain(): Promise<Response> {
       import("../../experiments/client-workspace-auth/src/resend-mailbox-transport.js"),
     ]);
     const authDb = database.getAuthPrisma();
-    const send = resend.createStagingResendMailboxTransport();
+    const founderOnly = !realEmailsEnabled && founderEmailEnabled;
+    const send = resend.createStagingResendMailboxTransport(
+      founderOnly ? "founder-bootstrap" : "all",
+    );
     if (!send) return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 
     // Two eight-second provider calls plus DB work stay below Netlify's
     // scheduled-function execution limit. The outbox owns leases, expiry,
     // exact provider idempotency keys, retry timing and payload erasure.
     for (let count = 0; count < 2; count += 1) {
-      const outcome = await outbox.deliverNextLocalMailboxMessage({ authDb, send });
+      const outcome = await outbox.deliverNextLocalMailboxMessage({
+        authDb,
+        send,
+        ...(founderOnly ? { allowedKind: "founder_bootstrap" as const } : {}),
+      });
       if (outcome === "idle" || outcome === "retry") break;
     }
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

@@ -9,8 +9,7 @@ import {
 } from "../../../../../experiments/client-workspace-auth/src/founder-bootstrap";
 import {
   isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
-  isPermittedWorkspaceAuthorizationHeader, isWorkspaceEnabled, workspaceOrigin,
-  workspaceRuntimeMode,
+  workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
@@ -53,80 +52,14 @@ function baseRequest(request: Request, method: "GET" | "POST"): boolean {
   const origin = workspaceOrigin();
   try {
     const url = new URL(request.url);
-    return !!origin && isTrustedWorkspaceRequest(request) && url.origin === origin &&
+    return !!origin && isTrustedWorkspaceRequest(request) &&
       (url.pathname === ENDPOINT || url.pathname === ENDPOINT + "/") &&
       !url.search && !url.hash && request.method === method &&
-      isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) &&
+      !request.headers.has("authorization") &&
       !request.headers.has("range");
   } catch {
     return false;
   }
-}
-
-/** Temporary, opt-in staging diagnostics. Never log request bodies or secrets. */
-function logFounderGuardDiagnostic(stage: string, request: Request): void {
-  if (process.env.CLIENT_WORKSPACE_DIAGNOSTICS !== "1" || !isProtectedWorkspaceStaging()) return;
-  const authorization = request.headers.get("authorization");
-  const secret = process.env.BETTER_AUTH_SECRET;
-  let originMatches = false;
-  let requestUrlHostMatches = false;
-  let requestUrlUsesHttps = false;
-  let requestHostPresent = false;
-  let requestHostMatches = false;
-  let forwardedHostPresent = false;
-  let forwardedHostMatches = false;
-  let forwardedProtoHttps = false;
-  let fetchSiteAllowed = false;
-  let originHeaderAllowed = false;
-  let pathMatches = false;
-  let methodMatches = false;
-  try {
-    const url = new URL(request.url);
-    const expected = workspaceOrigin();
-    originMatches = !!expected && url.origin === expected;
-    requestUrlHostMatches = !!expected && url.hostname.toLowerCase() === new URL(expected).hostname.toLowerCase();
-    requestUrlUsesHttps = url.protocol === "https:";
-    const host = request.headers.get("host");
-    requestHostPresent = host !== null;
-    requestHostMatches = !!expected && (!host || host.toLowerCase() === new URL(expected).host.toLowerCase());
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    forwardedHostPresent = forwardedHost !== null;
-    forwardedHostMatches = !!expected && (!forwardedHost || forwardedHost.toLowerCase() === new URL(expected).host.toLowerCase());
-    forwardedProtoHttps = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase() === "https";
-    const fetchSite = request.headers.get("sec-fetch-site");
-    fetchSiteAllowed = !fetchSite || fetchSite === "same-origin" || fetchSite === "none";
-    const originHeader = request.headers.get("origin");
-    originHeaderAllowed = !originHeader || originHeader === expected;
-    pathMatches = url.pathname === ENDPOINT || url.pathname === ENDPOINT + "/";
-    methodMatches = request.method === "GET";
-  } catch {
-    // Keep diagnostics limited to booleans; malformed URLs are not recorded.
-  }
-  console.warn("workspace founder verification guard", {
-    stage,
-    runtimeMode: workspaceRuntimeMode(),
-    workspaceEnabled: isWorkspaceEnabled(),
-    founderBootstrapEnabled: founderBootstrapEnabled(),
-    founderBootstrapFlagEnabled: process.env.CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED === "1",
-    trustedRequest: isTrustedWorkspaceRequest(request),
-    originMatches,
-    requestUrlHostMatches,
-    requestUrlUsesHttps,
-    requestHostPresent,
-    requestHostMatches,
-    forwardedHostPresent,
-    forwardedHostMatches,
-    forwardedProtoHttps,
-    fetchSiteAllowed,
-    originHeaderAllowed,
-    pathMatches,
-    methodMatches,
-    authorizationPresent: authorization !== null,
-    authorizationIsBasic: authorization !== null && /^Basic [A-Za-z0-9+/]+={0,2}$/i.test(authorization),
-    authorizationAllowed: isPermittedWorkspaceAuthorizationHeader(authorization),
-    rangePresent: request.headers.has("range"),
-    authSecretReady: !!secret && Buffer.byteLength(secret) >= 32,
-  });
 }
 
 function cookieValue(headers: Headers, name: string): string | null {
@@ -173,19 +106,9 @@ async function readSmallJson(request: Request): Promise<Record<string, unknown> 
 }
 
 export async function GET(request: Request): Promise<Response> {
-  if (!enabled()) {
-    logFounderGuardDiagnostic("activation", request);
-    return unavailable();
-  }
-  if (!baseRequest(request, "GET")) {
-    logFounderGuardDiagnostic("request", request);
-    return unavailable();
-  }
+  if (!enabled() || !baseRequest(request, "GET")) return unavailable();
   const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret || Buffer.byteLength(secret) < 32) {
-    logFounderGuardDiagnostic("auth-secret", request);
-    return unavailable();
-  }
+  if (!secret || Buffer.byteLength(secret) < 32) return unavailable();
   try {
     const sid = randomBytes(32).toString("base64url");
     const csrf = issueSyntheticCsrfToken({ secret, trustedSessionId: sid });
@@ -204,7 +127,7 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   if (!enabled() || !baseRequest(request, "POST")) return unavailable();
-  if (isProtectedWorkspaceStaging() && process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1") {
+  if (isProtectedWorkspaceStaging() && process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED !== "1") {
     return unavailable();
   }
   const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
@@ -243,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
     }))) return fakeChallenge();
 
     const sender = isProtectedWorkspaceStaging()
-      ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport()
+      ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport("founder-bootstrap")
       : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
         ? globalThis.__workspaceMailboxTestSender : undefined;
     if (!sender) return unavailable();
