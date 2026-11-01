@@ -62,6 +62,39 @@ function baseRequest(request: Request, method: "GET" | "POST"): boolean {
   }
 }
 
+/** Opt-in staging diagnostics expose only guard outcomes, never request data. */
+function logFounderPostGuard(
+  stage: string,
+  request: Request,
+  details: Record<string, boolean> = {},
+): void {
+  if (process.env.CLIENT_WORKSPACE_DIAGNOSTICS !== "1" || !isProtectedWorkspaceStaging()) return;
+  const expectedOrigin = workspaceOrigin();
+  const host = request.headers.get("host");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase();
+  const origin = request.headers.get("origin");
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.WORKSPACE_EMAIL_FROM;
+  console.warn("workspace founder verification POST guard", {
+    stage,
+    workspaceEnabled: enabled(),
+    trustedRequest: isTrustedWorkspaceRequest(request),
+    baseRequestAllowed: baseRequest(request, "POST"),
+    hostMatches: !!expectedOrigin && host?.toLowerCase() === new URL(expectedOrigin).host.toLowerCase(),
+    forwardedHostMatches: !!expectedOrigin && forwardedHost?.toLowerCase() === new URL(expectedOrigin).host.toLowerCase(),
+    forwardedProtoHttps: forwardedProto === "https",
+    originMatches: !!expectedOrigin && origin === expectedOrigin,
+    founderEmailGateEnabled: process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1",
+    authSecretReady: !!process.env.BETTER_AUTH_SECRET && Buffer.byteLength(process.env.BETTER_AUTH_SECRET) >= 32,
+    resendKeyPresent: !!apiKey,
+    resendKeyShapeValid: !!apiKey && /^re_[A-Za-z0-9_-]{12,}$/.test(apiKey),
+    senderPresent: !!from,
+    senderShapeValid: !!from && /^DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>$/.test(from),
+    ...details,
+  });
+}
+
 function cookieValue(headers: Headers, name: string): string | null {
   const header = headers.get("cookie");
   if (!header || header.length > 2000) return null;
@@ -126,8 +159,13 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!enabled() || !baseRequest(request, "POST")) return unavailable();
+  const diagnosticOnly = process.env.CLIENT_WORKSPACE_DIAGNOSTICS === "1" && isProtectedWorkspaceStaging();
+  if (!enabled() || !baseRequest(request, "POST")) {
+    logFounderPostGuard("request-guard", request);
+    return unavailable();
+  }
   if (isProtectedWorkspaceStaging() && process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED !== "1") {
+    logFounderPostGuard("founder-email-gate", request);
     return unavailable();
   }
   const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
@@ -136,8 +174,8 @@ export async function POST(request: Request): Promise<Response> {
   const csrfCookie = cookieValue(request.headers, csrfName);
   const secret = process.env.BETTER_AUTH_SECRET;
   const expectedOrigin = workspaceOrigin();
-  if (!sid || !/^[A-Za-z0-9_-]{43}$/.test(sid) || !secret || !expectedOrigin ||
-      !allowSyntheticMutation({
+  const sessionIdValid = !!sid && /^[A-Za-z0-9_-]{43}$/.test(sid);
+  const csrfAllowed = !!sessionIdValid && !!secret && !!expectedOrigin && allowSyntheticMutation({
         method: request.method,
         origin: request.headers.get("origin"),
         host: request.headers.get("host"),
@@ -148,10 +186,31 @@ export async function POST(request: Request): Promise<Response> {
         expectedOrigin,
         secret,
         trustedSessionId: sid,
-      })) return unavailable();
+      });
+  if (!sessionIdValid || !csrfAllowed) {
+    logFounderPostGuard("csrf-guard", request, {
+      sessionCookiePresent: !!sid,
+      sessionIdShapeValid: sessionIdValid,
+      csrfCookiePresent: !!csrfCookie,
+      csrfHeaderPresent: !!request.headers.get("x-workspace-csrf"),
+      csrfAllowed,
+    });
+    return unavailable();
+  }
 
   const body = await readSmallJson(request);
   if (!body || Object.keys(body).join(",") !== "email" || typeof body.email !== "string" || body.email.length > 254) {
+    logFounderPostGuard("body-guard", request, { bodyShapeValid: false });
+    return unavailable();
+  }
+  // Diagnostic mode is a strict no-side-effect preflight. It exits before
+  // quota accounting, database access, outbox writes, or transport creation.
+  if (diagnosticOnly) {
+    logFounderPostGuard("preflight-ready", request, {
+      bodyShapeValid: true,
+      databaseWriteSkipped: true,
+      mailSendSkipped: true,
+    });
     return unavailable();
   }
   const fakeChallenge = () => Response.json({ challengeId: randomUUID() }, { status: 202, headers: HEADERS });
@@ -169,7 +228,10 @@ export async function POST(request: Request): Promise<Response> {
       ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport("founder-bootstrap")
       : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
         ? globalThis.__workspaceMailboxTestSender : undefined;
-    if (!sender) return unavailable();
+    if (!sender) {
+      logFounderPostGuard("sender-unavailable", request);
+      return unavailable();
+    }
     const result = await dispatchFounderBootstrapProof({
       workspaceDb: getWorkspacePrisma(),
       authDb,
