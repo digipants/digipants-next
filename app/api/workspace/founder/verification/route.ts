@@ -69,7 +69,13 @@ function logFounderGuardDiagnostic(stage: string, request: Request): void {
   const authorization = request.headers.get("authorization");
   const secret = process.env.BETTER_AUTH_SECRET;
   let originMatches = false;
+  let requestUrlHostMatches = false;
+  let requestUrlUsesHttps = false;
+  let requestHostPresent = false;
   let requestHostMatches = false;
+  let forwardedHostPresent = false;
+  let forwardedHostMatches = false;
+  let forwardedProtoHttps = false;
   let fetchSiteAllowed = false;
   let originHeaderAllowed = false;
   let pathMatches = false;
@@ -78,8 +84,15 @@ function logFounderGuardDiagnostic(stage: string, request: Request): void {
     const url = new URL(request.url);
     const expected = workspaceOrigin();
     originMatches = !!expected && url.origin === expected;
+    requestUrlHostMatches = !!expected && url.hostname.toLowerCase() === new URL(expected).hostname.toLowerCase();
+    requestUrlUsesHttps = url.protocol === "https:";
     const host = request.headers.get("host");
+    requestHostPresent = host !== null;
     requestHostMatches = !!expected && (!host || host.toLowerCase() === new URL(expected).host.toLowerCase());
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    forwardedHostPresent = forwardedHost !== null;
+    forwardedHostMatches = !!expected && (!forwardedHost || forwardedHost.toLowerCase() === new URL(expected).host.toLowerCase());
+    forwardedProtoHttps = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase() === "https";
     const fetchSite = request.headers.get("sec-fetch-site");
     fetchSiteAllowed = !fetchSite || fetchSite === "same-origin" || fetchSite === "none";
     const originHeader = request.headers.get("origin");
@@ -97,7 +110,13 @@ function logFounderGuardDiagnostic(stage: string, request: Request): void {
     founderBootstrapFlagEnabled: process.env.CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED === "1",
     trustedRequest: isTrustedWorkspaceRequest(request),
     originMatches,
+    requestUrlHostMatches,
+    requestUrlUsesHttps,
+    requestHostPresent,
     requestHostMatches,
+    forwardedHostPresent,
+    forwardedHostMatches,
+    forwardedProtoHttps,
     fetchSiteAllowed,
     originHeaderAllowed,
     pathMatches,
