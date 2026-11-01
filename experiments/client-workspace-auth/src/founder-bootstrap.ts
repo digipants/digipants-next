@@ -122,7 +122,7 @@ export async function dispatchFounderBootstrapProof(input: {
   let transactionStage = "advisory-lock";
   try {
     const queued = await input.authDb.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${identifier}, 0))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${identifier}, 0))::text = '' AS lock_acquired`;
       transactionStage = "active-proof-check";
       const active = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM auth_spike.verification
