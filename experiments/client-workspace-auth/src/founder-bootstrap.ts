@@ -20,6 +20,20 @@ const CODE = /^[A-Za-z0-9_-]{43}$/;
 const PURPOSE = "cw-founder-bootstrap-proof-v1";
 const IDENTIFIER_PREFIX = "cw-founder-bootstrap-v1:";
 
+function reportFounderBootstrapDiagnostic(stage: string, error?: unknown): void {
+  if (process.env.CLIENT_WORKSPACE_DIAGNOSTICS !== "2" ||
+      workspaceRuntimeMode() !== "protected-staging") return;
+  let errorCode: string | undefined;
+  if (error && typeof error === "object" && "code" in error) {
+    const candidate = (error as { code?: unknown }).code;
+    if (typeof candidate === "string" && /^[A-Z0-9]{5}$/.test(candidate)) errorCode = candidate;
+  }
+  console.warn("workspace founder bootstrap flow", {
+    stage,
+    ...(errorCode ? { errorCode } : {}),
+  });
+}
+
 export function founderBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const mode = workspaceRuntimeMode(env);
   const contextEnabled = mode === "protected-staging" || (mode === "local-test" &&
@@ -95,28 +109,33 @@ export async function dispatchFounderBootstrapProof(input: {
   email: string;
   send: (message: MailPayload) => Promise<boolean>;
 }): Promise<{ challengeId: string } | null> {
-  if (!founderBootstrapEnabled() || typeof input.send !== "function") return null;
+  if (!founderBootstrapEnabled() || typeof input.send !== "function") { reportFounderBootstrapDiagnostic("runtime-gate-closed"); return null; }
   const email = normalizedEmail(input.email);
   const hash = email && emailHash(email);
-  if (!email || !hash || !(await founderBootstrapIsOpen({ workspaceDb: input.workspaceDb, email }))) return null;
-  if (!mailboxOutboxTestEnabled()) return null;
+  if (!email || !hash) { reportFounderBootstrapDiagnostic("email-invalid"); return null; }
+  if (!(await founderBootstrapIsOpen({ workspaceDb: input.workspaceDb, email }))) { reportFounderBootstrapDiagnostic("founder-email-gate-closed"); return null; }
+  if (!mailboxOutboxTestEnabled()) { reportFounderBootstrapDiagnostic("outbox-key-unavailable"); return null; }
 
   const identifier = proofIdentifier(email);
   const id = randomUUID();
   const code = randomBytes(32).toString("base64url");
+  let transactionStage = "advisory-lock";
   try {
     const queued = await input.authDb.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${identifier}, 0))`;
+      transactionStage = "active-proof-check";
       const active = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM auth_spike.verification
          WHERE identifier = ${identifier} AND expires_at > statement_timestamp()
          LIMIT 1 FOR UPDATE
       `;
-      if (active.length) return false;
+      if (active.length) { transactionStage = "active-proof-exists"; return false; }
+      transactionStage = "delete-expired-proof";
       await tx.$executeRaw`
         DELETE FROM auth_spike.verification
          WHERE identifier = ${identifier} AND expires_at <= statement_timestamp()
       `;
+      transactionStage = "insert-proof";
       const inserted = await tx.$executeRaw`
         INSERT INTO auth_spike.verification
           (id, identifier, value, expires_at, updated_at)
@@ -124,19 +143,24 @@ export async function dispatchFounderBootstrapProof(input: {
                 statement_timestamp() + interval '10 minutes', statement_timestamp())
       `;
       const message = composeFounderBootstrapMessage({ challengeId: id, recipient: email, code });
-      if (inserted !== 1 || !message || !(await enqueueLocalMailboxMessage({ tx, challengeId: id, message }))) {
+      if (inserted !== 1 || !message) throw new Error("Could not persist the founder verification proof.");
+      transactionStage = "enqueue-outbox";
+      if (!(await enqueueLocalMailboxMessage({ tx, challengeId: id, message }))) {
         throw new Error("Could not persist the founder verification message.");
       }
       return true;
     });
-    if (!queued) return null;
-    await deliverNextLocalMailboxMessage({
+    if (!queued) { reportFounderBootstrapDiagnostic("active-proof-exists"); return null; }
+    reportFounderBootstrapDiagnostic("proof-queued");
+    const deliveryResult = await deliverNextLocalMailboxMessage({
       authDb: input.authDb,
       challengeId: id,
       send: input.send,
     });
+    reportFounderBootstrapDiagnostic("delivery-" + deliveryResult);
     return { challengeId: id };
-  } catch {
+  } catch (error) {
+    reportFounderBootstrapDiagnostic(transactionStage, error);
     return null;
   }
 }
