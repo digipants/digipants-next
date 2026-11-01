@@ -11,7 +11,7 @@ import {
   isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
   workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
-import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
+import { mailboxOutboxTestEnabled, type MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +37,30 @@ type FounderMailSender = (message: MailPayload) => Promise<boolean>;
 
 declare global {
   var __workspaceMailboxTestSender: FounderMailSender | undefined;
+}
+
+async function readFounderDiagnosticReadiness(email: string) {
+  const readiness = {
+    authDatabaseReachable: false,
+    workspaceDatabaseReachable: false,
+    founderEmailGateOpen: false,
+  };
+  try {
+    const { getAuthPrisma } = await import("../../../../../experiments/client-workspace-auth/src/database");
+    const rows = await getAuthPrisma().$queryRaw<Array<{ ready: boolean }>>`SELECT true AS ready`;
+    readiness.authDatabaseReachable = rows[0]?.ready === true;
+  } catch { /* Report only a false readiness flag. */ }
+  try {
+    const [{ getWorkspacePrisma }, { founderBootstrapIsOpen }] = await Promise.all([
+      import("../../../../../experiments/client-workspace-auth/src/database"),
+      import("../../../../../experiments/client-workspace-auth/src/founder-bootstrap"),
+    ]);
+    const workspaceDb = getWorkspacePrisma();
+    const rows = await workspaceDb.$queryRaw<Array<{ ready: boolean }>>`SELECT true AS ready`;
+    readiness.workspaceDatabaseReachable = rows[0]?.ready === true;
+    readiness.founderEmailGateOpen = await founderBootstrapIsOpen({ workspaceDb, email });
+  } catch { /* Report only false readiness flags. */ }
+  return readiness;
 }
 
 function unavailable(): Response {
@@ -206,8 +230,11 @@ export async function POST(request: Request): Promise<Response> {
   // Diagnostic mode is a strict no-side-effect preflight. It exits before
   // quota accounting, database access, outbox writes, or transport creation.
   if (diagnosticOnly) {
+    const readiness = await readFounderDiagnosticReadiness(body.email);
     logFounderPostGuard("preflight-ready", request, {
       bodyShapeValid: true,
+      ...readiness,
+      outboxRuntimeReady: mailboxOutboxTestEnabled(),
       databaseWriteSkipped: true,
       mailSendSkipped: true,
     });
