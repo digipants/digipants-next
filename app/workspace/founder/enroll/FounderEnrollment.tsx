@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const CODE = /^[A-Za-z0-9_-]{43}$/;
 
 async function authPost(path: string, body: Record<string, string>) {
-  return fetch("/api/auth/" + path, {
+  return fetch("/api/auth/" + path + "/", {
     method: "POST",
     credentials: "same-origin",
     cache: "no-store",
@@ -76,7 +76,7 @@ export default function FounderEnrollment() {
     try {
       // The dedicated route carries the proof as headers so it cannot end up in
       // the page URL, referrer, or browser history.
-      const verifiedSignup = await fetch("/api/auth/sign-up/email", {
+      const verifiedSignup = await fetch("/api/auth/sign-up/email/", {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
