@@ -4,7 +4,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { isProtectedWorkspaceStaging, isTrustedWorkspaceRequest } from "../../../../experiments/client-workspace-auth/src/workspace-runtime";
+import {
+  isPermittedWorkspaceAuthorizationHeader, isProtectedWorkspaceStaging,
+  isTrustedWorkspaceRequest,
+} from "../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { ClientInvitationRole } from "../../../../experiments/client-workspace-auth/src/invite-issuance";
 
 const HEADERS = {
@@ -52,7 +55,8 @@ export async function POST(request: Request): Promise<Response> {
   if (!isProtectedWorkspaceStaging() ||
       process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1" ||
       !isTrustedWorkspaceRequest(request) ||
-      request.headers.has("authorization") || request.headers.has("range") ||
+      !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) ||
+      request.headers.has("range") ||
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "")) return unavailable();
   const body = await readBody(request);
   if (!body || Object.keys(body).sort().join(",") !== "email,projectId,role,tenantId" ||

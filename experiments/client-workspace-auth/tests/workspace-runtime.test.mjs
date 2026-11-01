@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { workspaceRuntimeMode, assertStagingRuntimeDatabaseUrl } from "../src/workspace-runtime.ts";
+import {
+  workspaceRuntimeMode,
+  assertStagingRuntimeDatabaseUrl,
+  isPermittedWorkspaceAuthorizationHeader,
+} from "../src/workspace-runtime.ts";
 
 const staging = {
   NODE_ENV: "production",
@@ -27,6 +31,21 @@ test("workspace enables only on the separately protected staging project", () =>
 test("local integration activation remains separate from every production context", () => {
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1" }), "local-test");
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "production", AUTH_EXPERIMENT_ENABLED: "1" }), "disabled");
+});
+
+test("only Netlify Basic authorization is accepted on the exact protected staging runtime", () => {
+  const netlifyBasic = "Basic dXNlcjpwYXNz";
+  assert.equal(isPermittedWorkspaceAuthorizationHeader(null, staging), true);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, staging), true);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader("Bearer forged", staging), false);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader("Basic not-base64!", staging), false);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader("Basic " + "A".repeat(4097), staging), false);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, {
+    ...staging, SITE_ID: "another-site",
+  }), false);
+  assert.equal(isPermittedWorkspaceAuthorizationHeader(netlifyBasic, {
+    NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1",
+  }), false);
 });
 
 test("staging database URLs require distinct dedicated logins, correct databases, pooler and full TLS", () => {

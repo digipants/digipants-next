@@ -12,7 +12,7 @@ import {
 } from "../../../../../experiments/client-workspace-auth/src/enrollment-request-guard";
 import {
   isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
-  isWorkspaceEnabled, workspaceOrigin,
+  isPermittedWorkspaceAuthorizationHeader, isWorkspaceEnabled, workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
@@ -52,7 +52,8 @@ function baseRequest(request: Request, method: "GET" | "POST"): boolean {
     if (url.origin !== expectedOrigin ||
         (url.pathname !== ENDPOINT && url.pathname !== ENDPOINT + "/") ||
         url.search || url.hash || request.method !== method ||
-        request.headers.has("authorization") || request.headers.has("range")) return false;
+        !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) ||
+        request.headers.has("range")) return false;
     return true;
   } catch {
     return false;

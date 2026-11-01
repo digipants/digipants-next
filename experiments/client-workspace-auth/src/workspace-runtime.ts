@@ -51,6 +51,22 @@ export function isProtectedWorkspaceStaging(): boolean {
   return workspaceRuntimeMode() === "protected-staging";
 }
 
+/**
+ * Netlify validates the shared site password at its edge. Some protected
+ * deploy requests may forward that HTTP Basic Authorization header to the
+ * application. Permit only the Basic scheme in the exact protected staging
+ * runtime; all other Authorization headers remain rejected.
+ */
+export function isPermittedWorkspaceAuthorizationHeader(
+  authorizationHeader: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (authorizationHeader === null) return true;
+  return workspaceRuntimeMode(env) === "protected-staging" &&
+    authorizationHeader.length <= 4096 &&
+    /^Basic [A-Za-z0-9+/]+={0,2}$/i.test(authorizationHeader);
+}
+
 export function isLocalWorkspaceTest(): boolean {
   return workspaceRuntimeMode() === "local-test";
 }

@@ -4,7 +4,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { isProtectedWorkspaceStaging, isTrustedWorkspaceRequest } from "../../../../../../experiments/client-workspace-auth/src/workspace-runtime";
+import {
+  isPermittedWorkspaceAuthorizationHeader, isProtectedWorkspaceStaging,
+  isTrustedWorkspaceRequest,
+} from "../../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 
 const HEADERS = {
   "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
@@ -46,7 +49,7 @@ export async function POST(
   context: {params: Promise<{attemptId:string}>},
 ): Promise<Response> {
   if (!isProtectedWorkspaceStaging() || !isTrustedWorkspaceRequest(request) ||
-      request.headers.has("authorization") ||
+      !isPermittedWorkspaceAuthorizationHeader(request.headers.get("authorization")) ||
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "")) return unavailable();
   try {
     const {attemptId} = await context.params;
