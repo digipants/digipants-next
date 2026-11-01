@@ -43,6 +43,9 @@ test("Resend adapter sends idempotent recipient-only payload in local fixture",
     };
     const send=makeLocalResendMailboxTransport({...options,request:fetch});
     assert.equal(typeof send,"function");
+    assert.equal(typeof makeLocalResendMailboxTransport({
+      ...options,from:"support@digipants.com",request:fetch,
+    }),"function","a raw sender address on the verified DigiPants domain is valid");
     assert.equal(await send(msg),true);
     assert.equal(await send({...msg,to:"wrong@example.invalid",
       idempotencyKey:"cw-mailproof-"+randomUUID()}),false,

@@ -90,7 +90,7 @@ function logFounderPostGuard(
     resendKeyPresent: !!apiKey,
     resendKeyShapeValid: !!apiKey && /^re_[A-Za-z0-9_-]{12,}$/.test(apiKey),
     senderPresent: !!from,
-    senderShapeValid: !!from && /^DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>$/.test(from),
+    senderShapeValid: !!from && /^(?:DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>|[A-Za-z0-9._%+-]+@digipants\.com)$/i.test(from),
     ...details,
   });
 }

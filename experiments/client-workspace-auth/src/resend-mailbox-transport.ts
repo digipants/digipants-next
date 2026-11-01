@@ -6,7 +6,7 @@ import { sendInvitationThroughResend } from "./invitation-delivery.js";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const KEY = /^re_[A-Za-z0-9_-]{12,}$/;
 const IDEMPOTENCY = /^(?:cw-mailproof|cw-founder-bootstrap)-[0-9a-f-]{36}$/i;
-const VERIFIED_FROM = /^DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>$/;
+const VERIFIED_FROM = /^(?:DigiPants Client Workspace <[A-Za-z0-9._%+-]+@digipants\.com>|[A-Za-z0-9._%+-]+@digipants\.com)$/i;
 type Http = (url: string, options: RequestInit) => Promise<Response>;
 
 /**
