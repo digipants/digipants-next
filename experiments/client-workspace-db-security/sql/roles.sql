@@ -2,11 +2,27 @@
 -- PostgreSQL 17 disposable role rehearsal only. This file contains role
 -- definitions, never passwords or hosted account bindings. The real login
 -- principal is provisioned separately and must not be a superuser.
-CREATE ROLE cw_schema_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
-CREATE ROLE cw_migrator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
-CREATE ROLE cw_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
-CREATE ROLE cw_audit_writer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
-CREATE ROLE cw_audit_reader NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_schema_owner') THEN
+    CREATE ROLE cw_schema_owner NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_migrator') THEN
+    CREATE ROLE cw_migrator NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_runtime') THEN
+    CREATE ROLE cw_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_auth_runtime') THEN
+    CREATE ROLE cw_auth_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_audit_writer') THEN
+    CREATE ROLE cw_audit_writer NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cw_audit_reader') THEN
+    CREATE ROLE cw_audit_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+END $$;
 
 -- PostgreSQL 17 / Neon: ALTER OWNER requires the installer to have SET ROLE
 -- permission for the target owner. The install MUST be wrapped in a single
@@ -33,6 +49,9 @@ ALTER TABLE public.workspace_staff_project_grants OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_invitation_records OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_enrollment_attempts OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_audit_events OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_founder_bootstrap_control OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_milestones OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_progress_updates OWNER TO cw_schema_owner;
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO cw_schema_owner;

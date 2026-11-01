@@ -2,9 +2,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import { hashInvitationToken } from "./invitations.js";
 
-// Synthetic demonstration only; no mail transport, public endpoint, signup
-// hook or real onboarding. This can prove ownership of an email inbox only
-// when a trusted separate delivery service sends the code to that inbox.
+// The application sends only through the encrypted outbox and trusted
+// provider adapter. Invitation lookup is delegated to a narrow database
+// function so the runtime role never reads bearer hashes directly.
 type Query = {
   $queryRaw<T = unknown>(strings: TemplateStringsArray, ...params: unknown[]): Promise<T>;
   $executeRaw(strings: TemplateStringsArray, ...params: unknown[]): Promise<number>;
@@ -29,14 +29,13 @@ function identifier(invitationId: string, email: string): string {
 async function pendingInvite(input: Scope, email: string): Promise<boolean> {
   const rows = await input.workspaceDb.$queryRaw<Array<{ present: boolean }>>`
     SELECT EXISTS (
-      SELECT 1 FROM workspace_invitation_records AS i
-        JOIN workspace_tenants AS t ON t.id = i.tenant_id
-        JOIN workspace_projects AS p ON p.tenant_id = i.tenant_id AND p.id = i.project_id
-       WHERE i.id = ${input.invitationId}::uuid
-         AND lower(i.intended_email) = ${email}
-         AND i.status = 'pending'
-         AND i.expires_at > statement_timestamp()
-         AND t.status = 'active'
+      SELECT 1 FROM public.cw_invitation_context(
+        ${input.invitationId}::uuid, ${email}, NULL, false
+      ) AS invitation
+       WHERE invitation.status = 'pending'
+         AND invitation.not_expired
+         AND invitation.tenant_status = 'active'
+         AND invitation.project_tenant_id = invitation.tenant_id
     ) AS present
   `;
   return rows.length === 1 && rows[0]?.present === true;
@@ -47,9 +46,8 @@ function valid(input: Scope): string | null {
 }
 
 /**
- * Resolve the invitation ID from a hashed bearer and expected recipient on
- * the server. Never accept an invitation ID from a signup request as an
- * alternative to this lookup. The proof is checked separately afterwards.
+ * Resolve the invitation ID from a hashed bearer and exact recipient. The
+ * bearer hash remains private inside the SECURITY DEFINER function.
  */
 export async function findPendingInvitationIdForBearer(input: {
   workspaceDb: Query; token: string; intendedEmail: string;
@@ -59,15 +57,14 @@ export async function findPendingInvitationIdForBearer(input: {
       input.token.length < 32 || input.token.length > 512) return null;
   try {
     const rows = await input.workspaceDb.$queryRaw<Array<{ id: string }>>`
-      SELECT i.id::text AS id
-        FROM workspace_invitation_records AS i
-        JOIN workspace_tenants AS t ON t.id = i.tenant_id
-        JOIN workspace_projects AS p ON p.id = i.project_id AND p.tenant_id = i.tenant_id
-       WHERE i.invitation_token_hash = ${hashInvitationToken(input.token)}
-         AND lower(i.intended_email) = ${email}
-         AND i.status = 'pending'
-         AND i.expires_at > statement_timestamp()
-         AND t.status = 'active'
+      SELECT invitation.id::text AS id
+        FROM public.cw_invitation_context(
+          NULL, ${email}, ${hashInvitationToken(input.token)}, false
+        ) AS invitation
+       WHERE invitation.status = 'pending'
+         AND invitation.not_expired
+         AND invitation.tenant_status = 'active'
+         AND invitation.project_tenant_id = invitation.tenant_id
        LIMIT 1
     `;
     return rows.length === 1 && UUID.test(rows[0]!.id) ? rows[0]!.id : null;
@@ -77,12 +74,15 @@ export async function findPendingInvitationIdForBearer(input: {
 }
 
 /**
- * Generates a private mailbox challenge for an exact still-pending invite.
- * A live implementation must rate-limit this action and deliver the raw code
- * solely to the intended mailbox; this experiment RETURNS it to a CI harness.
+ * Generate a mailbox challenge for an exact still-pending invite. Staging
+ * callers enqueue its delivery in the same auth-database transaction.
  */
-export async function createSyntheticMailboxChallenge(input: Scope):
-  Promise<{ challengeId: string; code: string; email: string } | null> {
+export async function createSyntheticMailboxChallenge(input: Scope & {
+  /** Optional durable queue hook, in the same auth transaction as proof hash. */
+  queueInTransaction?: (tx: Query, values: {
+    challengeId: string; code: string; email: string;
+  }) => Promise<boolean>;
+}): Promise<{ challengeId: string; code: string; email: string } | null> {
   const email = valid(input);
   if (!email) return null;
   try {
@@ -111,6 +111,11 @@ export async function createSyntheticMailboxChallenge(input: Scope):
                 statement_timestamp() + interval '10 minutes', statement_timestamp())
       `;
       if (inserted !== 1) throw new Error("Unable to create mailbox challenge");
+      if (input.queueInTransaction &&
+          !(await input.queueInTransaction(tx, {challengeId:id, code, email}))) {
+        // Roll back both the one-time code and its outbound journal.
+        throw new Error("Unable to persist mailbox delivery envelope");
+      }
       return { challengeId: id, code, email };
     });
   } catch {
