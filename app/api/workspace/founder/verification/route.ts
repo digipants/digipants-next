@@ -9,7 +9,8 @@ import {
 } from "../../../../../experiments/client-workspace-auth/src/founder-bootstrap";
 import {
   isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
-  isPermittedWorkspaceAuthorizationHeader, workspaceOrigin,
+  isPermittedWorkspaceAuthorizationHeader, isWorkspaceEnabled, workspaceOrigin,
+  workspaceRuntimeMode,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
@@ -62,6 +63,41 @@ function baseRequest(request: Request, method: "GET" | "POST"): boolean {
   }
 }
 
+/** Temporary, opt-in staging diagnostics. Never log request bodies or secrets. */
+function logFounderGuardDiagnostic(stage: string, request: Request): void {
+  if (process.env.CLIENT_WORKSPACE_DIAGNOSTICS !== "1" || !isProtectedWorkspaceStaging()) return;
+  const authorization = request.headers.get("authorization");
+  const secret = process.env.BETTER_AUTH_SECRET;
+  let originMatches = false;
+  let pathMatches = false;
+  let methodMatches = false;
+  try {
+    const url = new URL(request.url);
+    const expected = workspaceOrigin();
+    originMatches = !!expected && url.origin === expected;
+    pathMatches = url.pathname === ENDPOINT || url.pathname === ENDPOINT + "/";
+    methodMatches = request.method === "GET";
+  } catch {
+    // Keep diagnostics limited to booleans; malformed URLs are not recorded.
+  }
+  console.warn("workspace founder verification guard", {
+    stage,
+    runtimeMode: workspaceRuntimeMode(),
+    workspaceEnabled: isWorkspaceEnabled(),
+    founderBootstrapEnabled: founderBootstrapEnabled(),
+    founderBootstrapFlagEnabled: process.env.CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED === "1",
+    trustedRequest: isTrustedWorkspaceRequest(request),
+    originMatches,
+    pathMatches,
+    methodMatches,
+    authorizationPresent: authorization !== null,
+    authorizationIsBasic: authorization !== null && /^Basic [A-Za-z0-9+/]+={0,2}$/i.test(authorization),
+    authorizationAllowed: isPermittedWorkspaceAuthorizationHeader(authorization),
+    rangePresent: request.headers.has("range"),
+    authSecretReady: !!secret && Buffer.byteLength(secret) >= 32,
+  });
+}
+
 function cookieValue(headers: Headers, name: string): string | null {
   const header = headers.get("cookie");
   if (!header || header.length > 2000) return null;
@@ -106,9 +142,19 @@ async function readSmallJson(request: Request): Promise<Record<string, unknown> 
 }
 
 export async function GET(request: Request): Promise<Response> {
-  if (!enabled() || !baseRequest(request, "GET")) return unavailable();
+  if (!enabled()) {
+    logFounderGuardDiagnostic("activation", request);
+    return unavailable();
+  }
+  if (!baseRequest(request, "GET")) {
+    logFounderGuardDiagnostic("request", request);
+    return unavailable();
+  }
   const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret || Buffer.byteLength(secret) < 32) return unavailable();
+  if (!secret || Buffer.byteLength(secret) < 32) {
+    logFounderGuardDiagnostic("auth-secret", request);
+    return unavailable();
+  }
   try {
     const sid = randomBytes(32).toString("base64url");
     const csrf = issueSyntheticCsrfToken({ secret, trustedSessionId: sid });
