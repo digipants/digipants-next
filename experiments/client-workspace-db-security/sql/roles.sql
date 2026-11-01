@@ -33,6 +33,9 @@ ALTER TABLE public.workspace_staff_project_grants OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_invitation_records OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_enrollment_attempts OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_audit_events OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_shared_revisions OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_shared_publications OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_shared_retractions OWNER TO cw_schema_owner;
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO cw_schema_owner;

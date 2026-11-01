@@ -1,0 +1,88 @@
+name: Client Workspace immutable sharing foundation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/client-workspace-sharing-foundation.yml"
+      - "prisma/**"
+      - "experiments/client-workspace-db-security/**"
+      - "experiments/client-workspace-sharing/**"
+      - "lib/client-workspace/sharing-projection.ts"
+      - "tests/client-workspace-sharing.test.mjs"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-pg17-sharing:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/client-workspace-sharing-foundation-108' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: digipants_ws_dev
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: digipants_workspace_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U digipants_ws_dev -d digipants_workspace_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+      DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+      SHADOW_DIRECT_URL: postgresql://digipants_ws_dev:disposable_ci_only@127.0.0.1:5432/digipants_workspace_shadow
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Capture disposable Postgres container
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: echo "POSTGRES_CONTAINER_ID=$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
+      - name: Install locked dependencies and generate client
+        run: |
+          npm ci
+          npm run db:generate
+      - name: Native Prisma migrations, idempotence, ledger and drift
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE digipants_workspace_shadow"
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          expected="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+          actual="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -Atqc 'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')"
+          test "$expected" = "$actual"
+          npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
+      - name: Seed synthetic tenants and apply least-privilege roles
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/seed.sql
+          {
+            printf 'BEGIN;\n'
+            cat experiments/client-workspace-db-security/sql/roles.sql
+            cat experiments/client-workspace-db-security/sql/hardening.sql
+            printf '\nCOMMIT;\n'
+          } | docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1
+      - name: Audit immutability, reviewer separation and tenant denial
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < experiments/client-workspace-sharing/verify.sql
+      - name: Run all root tests, TypeScript and ordinary production build
+        run: |
+          node --test tests/*.test.mjs
+          npx tsc --noEmit
+          npm run build
+      - name: Validate patch
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
