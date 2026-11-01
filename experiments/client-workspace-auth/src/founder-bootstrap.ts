@@ -129,7 +129,12 @@ export async function dispatchFounderBootstrapProof(input: {
          WHERE identifier = ${identifier} AND expires_at > statement_timestamp()
          LIMIT 1 FOR UPDATE
       `;
-      if (active.length) { transactionStage = "active-proof-exists"; return false; }
+      if (active.length) {
+        transactionStage = "active-proof-exists";
+        const existingId = active[0]?.id;
+        if (!existingId || !UUID.test(existingId)) throw new Error("Invalid active founder proof.");
+        return { challengeId: existingId, deliveryRequired: false };
+      }
       transactionStage = "delete-expired-proof";
       await tx.$executeRaw`
         DELETE FROM auth_spike.verification
@@ -148,17 +153,21 @@ export async function dispatchFounderBootstrapProof(input: {
       if (!(await enqueueLocalMailboxMessage({ tx, challengeId: id, message }))) {
         throw new Error("Could not persist the founder verification message.");
       }
-      return true;
+      return { challengeId: id, deliveryRequired: true };
     });
-    if (!queued) { reportFounderBootstrapDiagnostic("active-proof-exists"); return null; }
+    if (!queued) { reportFounderBootstrapDiagnostic("active-proof-missing"); return null; }
+    if (!queued.deliveryRequired) {
+      reportFounderBootstrapDiagnostic("active-proof-resumed");
+      return { challengeId: queued.challengeId };
+    }
     reportFounderBootstrapDiagnostic("proof-queued");
     const deliveryResult = await deliverNextLocalMailboxMessage({
       authDb: input.authDb,
-      challengeId: id,
+      challengeId: queued.challengeId,
       send: input.send,
     });
     reportFounderBootstrapDiagnostic("delivery-" + deliveryResult);
-    return { challengeId: id };
+    return { challengeId: queued.challengeId };
   } catch (error) {
     reportFounderBootstrapDiagnostic(transactionStage, error);
     return null;
