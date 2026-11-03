@@ -81,8 +81,12 @@ export async function findPendingInvitationIdForBearer(input: {
  * A live implementation must rate-limit this action and deliver the raw code
  * solely to the intended mailbox; this experiment RETURNS it to a CI harness.
  */
-export async function createSyntheticMailboxChallenge(input: Scope):
-  Promise<{ challengeId: string; code: string; email: string } | null> {
+export async function createSyntheticMailboxChallenge(input: Scope & {
+  /** Optional durable queue hook, in the same auth transaction as proof hash. */
+  queueInTransaction?: (tx: Query, values: {
+    challengeId: string; code: string; email: string;
+  }) => Promise<boolean>;
+}): Promise<{ challengeId: string; code: string; email: string } | null> {
   const email = valid(input);
   if (!email) return null;
   try {
@@ -111,6 +115,11 @@ export async function createSyntheticMailboxChallenge(input: Scope):
                 statement_timestamp() + interval '10 minutes', statement_timestamp())
       `;
       if (inserted !== 1) throw new Error("Unable to create mailbox challenge");
+      if (input.queueInTransaction &&
+          !(await input.queueInTransaction(tx, {challengeId:id, code, email}))) {
+        // Roll back both the one-time code and its outbound journal.
+        throw new Error("Unable to persist mailbox delivery envelope");
+      }
       return { challengeId: id, code, email };
     });
   } catch {
