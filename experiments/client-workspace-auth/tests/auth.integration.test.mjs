@@ -353,6 +353,178 @@ if (!enabled) {
       providerSubject: current.user.id,
     });
     assert.equal(authorizedAfterTotp, true, `a session created after valid TOTP verification plus explicit grant may proceed: ${JSON.stringify({ assuredState, effectiveGrants })}`);
+
+    if (process.env.RUN_CLIENT_HTTP_INTEGRATION === "1") {
+      // Exercise an ACTUAL Better Auth session cookie issued by valid TOTP,
+      // not a mocked user or browser-supplied role/subject. The HTTP adapter
+      // can reach only an isolated non-superuser workspace DB login.
+      const readUrl = assertDisposableLoopbackDatabaseUrl(
+        process.env.WORKSPACE_READ_RUNTIME_DATABASE_URL, "digipants_workspace_dev");
+      assert.equal(readUrl.username, "cw_client_read_ci");
+      process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED = "1";
+      const readDb = new PrismaClient({
+        adapter: new PrismaPg({ connectionString: readUrl.toString(),
+          max: 1, connectionTimeoutMillis: 5_000 }),
+      });
+      const previousWorkspace = globalThis.authExperimentWorkspaceDb;
+      const userBefore = await authDb.user.findUnique({
+        where: { id: ids.authUser }, select: { emailVerified: true },
+      });
+      assert.ok(userBefore);
+      const readPath = `/api/workspace/tenants/${ids.tenant}/projects/${ids.project}`;
+      const { handleClientProjectHttpRequest } = await import("../src/client-project-http.ts");
+      const readHttp = (overrides = {}) => {
+        const {
+          url = `http://localhost:3000${readPath}`,
+          cookie = jar.header(), method = "GET", otherHeaders = {},
+        } = overrides;
+        return handleClientProjectHttpRequest(new Request(url, {
+          method, headers: {
+            cookie, "sec-fetch-site": "same-origin", ...otherHeaders,
+          },
+        }));
+      };
+      globalThis.authExperimentWorkspaceDb = readDb;
+      try {
+        await authDb.user.update({
+          where: { id: ids.authUser }, data: { emailVerified: true },
+        });
+        const allowed = await readHttp();
+        assert.equal(allowed.status, 200, "real signed MFA cookie can read authorized project");
+        const allowedBody = await allowed.json();
+        assert.deepEqual(allowedBody, { project: {
+          id: ids.project, title: "Synthetic security fixture",
+          state: "planned", revision: "1",
+        } });
+        assert.match(allowed.headers.get("cache-control") ?? "", /no-store/);
+        assert.equal(allowed.headers.get("vary"), "Cookie");
+        assert.equal(allowed.headers.get("access-control-allow-origin"), null);
+        assert.equal(JSON.stringify(allowedBody).includes(ids.clientEmail), false);
+
+        // Execute the ACTUAL Next.js App Router module with the genuine
+        // Better Auth MFA cookie. This is the same server export Next invokes
+        // for its dynamic project endpoint, not a simulated endpoint object.
+        process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED = "1";
+        const {
+          GET: nextProjectGET,
+          POST: nextProjectPOST,
+          OPTIONS: nextProjectOPTIONS,
+        } = await import(
+          "../../../app/api/workspace/tenants/[tenantId]/projects/[projectId]/route.ts"
+        );
+        const routeReq = (url = `http://localhost:3000${readPath}/`, cookie = jar.header()) =>
+          new Request(url, { headers: {
+            cookie,
+            "sec-fetch-site": "same-origin",
+          } });
+        const nextAllowed = await nextProjectGET(routeReq());
+        assert.equal(nextAllowed.status, 200,
+          "real Next.js handler reads the exact published project with a verified session");
+        assert.deepEqual(await nextAllowed.json(), allowedBody,
+          "Next.js response never adds other tenant data or private fields");
+        assert.match(nextAllowed.headers.get("cache-control") ?? "", /no-store/);
+        const nextGuest = await nextProjectGET(routeReq(undefined, ""));
+        assert.equal(nextGuest.status, 404, "guest Next route always denies");
+        assert.equal(await nextGuest.text(), "", "guest Next route is an empty 404");
+        assert.equal((await nextProjectPOST()).status, 404);
+        assert.equal((await nextProjectOPTIONS()).status, 404);
+        assert.equal((await nextProjectGET(routeReq(
+          `http://localhost:3000/api/workspace/tenants/${randomUUID()}/projects/${ids.project}/`,
+        ))).status, 404, "Next route prevents cross-tenant disclosure");
+        const previousNodeEnv = process.env.NODE_ENV;
+        try {
+          process.env.NODE_ENV = "production";
+          assert.equal((await nextProjectGET(routeReq())).status, 404,
+            "production stays disabled even if every experimental flag is enabled");
+        } finally {
+          if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+          else process.env.NODE_ENV = previousNodeEnv;
+        }
+
+        const denied = async (reason, options = {}) => {
+          const result = await readHttp(options);
+          assert.equal(result.status, 404, reason);
+          assert.equal(await result.text(), "", "unauthorized response discloses no payload");
+          assert.match(result.headers.get("cache-control") ?? "", /no-store/);
+        };
+        await denied("missing cookie", { cookie: "" });
+        await denied("fake cookie", { cookie: "better-auth.session_token=not-a-session" });
+        await denied("header identity forgery", {
+          cookie: "", otherHeaders: { "x-user-id": ids.authUser,
+            "x-workspace-role": "workspace_owner", "x-mfa-verified": "true" },
+        });
+        await denied("ungranted project", {
+          url: `http://localhost:3000/api/workspace/tenants/${ids.tenant}/projects/${randomUUID()}`,
+        });
+        await denied("ungranted tenant", {
+          url: `http://localhost:3000/api/workspace/tenants/${randomUUID()}/projects/${ids.project}`,
+        });
+        await denied("malformed route", {
+          url: "http://localhost:3000/api/workspace/tenants/not-uuid/projects/not-uuid",
+        });
+        await denied("query string", {
+          url: `http://localhost:3000${readPath}?token=evil`,
+        });
+        await denied("unexpected method", { method: "POST" });
+        await denied("cross-site fetch", {
+          otherHeaders: { "sec-fetch-site": "cross-site" },
+        });
+        await denied("host spoof", {
+          url: `http://evil.example${readPath}`,
+        });
+        await denied("origin spoof", {
+          otherHeaders: { origin: "https://evil.example" },
+        });
+        await denied("authorization header injected", {
+          otherHeaders: { authorization: "Bearer forged" },
+        });
+
+        await authDb.user.update({
+          where: { id: ids.authUser }, data: { emailVerified: false },
+        });
+        await denied("email-unverified identity");
+        await authDb.user.update({
+          where: { id: ids.authUser }, data: { emailVerified: true },
+        });
+        await authDb.$executeRaw`
+          UPDATE auth_spike.session
+             SET mfa_verified_at = statement_timestamp() - interval '13 hours'
+           WHERE id = ${current.session.id}
+        `;
+        await denied("MFA verification older than 12-hour read allowance");
+        await authDb.$executeRaw`
+          UPDATE auth_spike.session
+             SET mfa_verified_at = statement_timestamp()
+           WHERE id = ${current.session.id}
+        `;
+        await workspaceDb.$executeRaw`
+          UPDATE workspace_client_project_grants SET status='revoked',
+              revoked_at=statement_timestamp()
+           WHERE tenant_id=${ids.tenant}::uuid
+             AND project_id=${ids.project}::uuid
+             AND principal_id=${ids.principal}::uuid
+        `;
+        await denied("client grant revoked during active session");
+        await workspaceDb.$executeRaw`
+          UPDATE workspace_client_project_grants SET status='active', revoked_at=NULL
+           WHERE tenant_id=${ids.tenant}::uuid
+             AND project_id=${ids.project}::uuid
+             AND principal_id=${ids.principal}::uuid
+        `;
+        assert.equal((await readHttp()).status, 200,
+          "reapproval and verified session restore only exact project access");
+      } finally {
+        globalThis.authExperimentWorkspaceDb = previousWorkspace;
+        process.env.WORKSPACE_CLIENT_HTTP_TEST_ENABLED = "0";
+        process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED = "0";
+        await authDb.user.update({
+          where: { id: ids.authUser },
+          data: { emailVerified: userBefore.emailVerified },
+        });
+        await readDb.$disconnect();
+      }
+    }
+
     const requestHeaders = new Headers({ cookie: jar.header() });
     const trustedRequest = (overrides = {}) => authorizeWorkspaceAction({
       headers: requestHeaders,
