@@ -80,6 +80,48 @@ ALTER FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) OWNER 
 REVOKE ALL ON FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cw_lock_staff_project_grant(text, uuid, uuid, text) TO cw_runtime;
 
+-- A verified Better Auth client session and independently verified mailbox/MFA
+-- MUST precede this call. A provider subject is NOT authenticated merely by
+-- being passed here; an arbitrary SQL caller could spoof that subject.
+-- Holds active principal/membership/grant/tenant FOR SHARE until COMMIT, so
+-- concurrent revocation must wait for this transaction or take effect first.
+CREATE FUNCTION public.cw_lock_client_project_grant(
+  p_provider_subject text, p_tenant_id uuid, p_project_id uuid, p_action text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE authorized_principal_id uuid;
+BEGIN
+  IF p_action <> 'project.read_published'
+     OR p_provider_subject IS NULL OR length(p_provider_subject) NOT BETWEEN 1 AND 255 THEN
+    RETURN NULL;
+  END IF;
+  SELECT p.id INTO authorized_principal_id
+    FROM public.workspace_principals AS p
+    JOIN public.workspace_client_memberships AS m ON m.principal_id = p.id
+    JOIN public.workspace_client_project_grants AS g ON g.tenant_id = m.tenant_id AND g.principal_id = p.id
+    JOIN public.workspace_tenants AS t ON t.id = g.tenant_id
+   WHERE p.provider = 'better_auth'
+     AND p.provider_subject = p_provider_subject
+     AND p.kind = 'client' AND p.status = 'active'
+     AND m.principal_kind = 'client'
+     AND m.status = 'active' AND m.revoked_at IS NULL
+     AND m.tenant_id = p_tenant_id
+     AND g.project_id = p_project_id
+     AND g.tenant_id = p_tenant_id
+     AND g.status = 'active' AND g.revoked_at IS NULL
+     AND g.role IN ('client_viewer','client_contributor','client_approver','client_signatory')
+     AND t.status = 'active'
+   LIMIT 1 FOR SHARE OF p,m,g,t;
+  RETURN authorized_principal_id;
+END;
+$$;
+ALTER FUNCTION public.cw_lock_client_project_grant(text, uuid, uuid, text)
+  OWNER TO cw_schema_owner;
+REVOKE ALL ON FUNCTION public.cw_lock_client_project_grant(text, uuid, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cw_lock_client_project_grant(text, uuid, uuid, text) TO cw_runtime;
+
 ALTER TABLE workspace_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_audit_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_audit_read ON workspace_audit_events
