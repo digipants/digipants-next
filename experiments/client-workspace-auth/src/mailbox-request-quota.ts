@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
-import { isLocalWorkspaceTest, isProtectedWorkspaceStaging } from "./workspace-runtime.js";
+import { isActiveWorkspaceRuntime, isLocalWorkspaceTest, isProductionWorkspace } from "./workspace-runtime.js";
 
 type Sql = {
   $queryRaw<T=unknown>(strings: TemplateStringsArray, ...params: unknown[]): Promise<T>;
@@ -18,11 +18,13 @@ const SESSION=TOKEN;
  * per-IP limiting is enforced separately by Netlify's trusted edge.
  */
 export function localRateLimitEnabled(): boolean {
-  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+  return isActiveWorkspaceRuntime() || (isLocalWorkspaceTest() &&
     process.env.WORKSPACE_MAIL_RATE_LIMIT_TEST_ENABLED==="1");
 }
 function rateKey():Buffer|null{
-  const value=process.env.WORKSPACE_MAIL_RATE_HMAC_KEY;
+  const value=isProductionWorkspace()
+    ? process.env.PRODUCTION_WORKSPACE_MAIL_RATE_HMAC_KEY
+    : process.env.WORKSPACE_MAIL_RATE_HMAC_KEY;
   if(!localRateLimitEnabled()||typeof value!=="string"||
     !TOKEN.test(value))return null;
   const bytes=Buffer.from(value,"base64url");

@@ -5,7 +5,6 @@ import { useEffect, useState, type FormEvent } from "react";
 type Stage = "credentials" | "mfa" | "complete";
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const PROJECT_PATH = new RegExp("^/workspace/tenants/" + UUID + "/projects/" + UUID + "/?$", "i");
-const DEFAULT_PILOT_PROJECT_PATH = "/workspace/tenants/11111111-1111-4111-8111-111111111111/projects/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/";
 
 async function postAuth(path: string, body: Record<string, unknown>) {
   return fetch(`/api/auth/${path}`, {
@@ -18,12 +17,12 @@ async function postAuth(path: string, body: Record<string, unknown>) {
   });
 }
 
-export default function WorkspaceLogin() {
+export default function WorkspaceLogin({ defaultProjectPath }: { defaultProjectPath?: string }) {
   const [stage, setStage] = useState<Stage>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [next, setNext] = useState<string>(DEFAULT_PILOT_PROJECT_PATH);
+  const [next, setNext] = useState<string>(defaultProjectPath ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -78,7 +77,8 @@ export default function WorkspaceLogin() {
         setStage("credentials");
         return;
       }
-      window.location.assign(next);
+      if (next) window.location.assign(next);
+      else setStage("complete");
     } catch {
       setError("Verification is temporarily unavailable.");
     } finally {

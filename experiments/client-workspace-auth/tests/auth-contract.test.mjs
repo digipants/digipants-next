@@ -60,10 +60,13 @@ test("auth-owned schema is isolated and session assurance is not client writable
   assert.match(database, /workspaceRuntimeMode\(\)/);
   assert.match(database, /assertDisposableLoopbackDatabaseUrl/);
   assert.match(database, /assertStagingRuntimeDatabaseUrl/);
+  assert.match(database, /assertProductionRuntimeDatabaseUrl/);
   assert.match(runtime, /env\.CLIENT_WORKSPACE_ENABLED !== "1"/);
-  assert.match(runtime, /env\.CLIENT_WORKSPACE_ENVIRONMENT !== "staging"/);
-  assert.match(runtime, /env\.SITE_ID !== STAGING_SITE_ID/);
-  assert.match(runtime, /!isStagingNetlifyUrl\(env\.URL\)/);
+  assert.match(runtime, /env\.CLIENT_WORKSPACE_ENVIRONMENT === "staging"/);
+  assert.match(runtime, /env\.SITE_ID === STAGING_SITE_ID/);
+  assert.match(runtime, /isStagingNetlifyUrl\(env\.URL\)/);
+  assert.match(runtime, /env\.CLIENT_WORKSPACE_PRODUCTION_ENABLED === "1"/);
+  assert.match(runtime, /env\.SITE_ID === PRODUCTION_SITE_ID/);
   assert.match(workspace, /model WorkspaceClientProjectGrant/);
   assert.match(workspace, /model WorkspaceInvitationRecord/);
 });
@@ -83,4 +86,20 @@ test("public signup and alternative passwordless routes have explicit server gat
   for (const path of ["/sign-in/social", "/sign-in/magic-link", "/sign-in/email-otp", "/sign-in/phone-number", "/sign-in/username", "/sign-up/anonymous", "/two-factor/verify-otp"]) {
     assert.ok(auth.includes(path), `Expected disabled endpoint ${path}`);
   }
+});
+
+test("production login roles are restricted and the workspace root remains gated", async () => {
+  const roles = await readFile(new URL("../../../scripts/workspace/production-runtime-roles.sql", import.meta.url), "utf8");
+  const entry = await readFile(new URL("../../../app/workspace/page.tsx", import.meta.url), "utf8");
+  const loginPage = await readFile(new URL("../../../app/workspace/login/page.tsx", import.meta.url), "utf8");
+  const loginClient = await readFile(new URL("../../../app/workspace/login/WorkspaceLogin.tsx", import.meta.url), "utf8");
+  assert.match(roles, /CREATE ROLE cw_workspace_prod_app LOGIN INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION/);
+  assert.match(roles, /CREATE ROLE cw_auth_prod_app LOGIN INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION/);
+  assert.match(roles, /GRANT cw_runtime TO cw_workspace_prod_app/);
+  assert.match(roles, /GRANT cw_auth_runtime TO cw_auth_prod_app/);
+  assert.doesNotMatch(roles, /PASSWORD\s+['"]/i);
+  assert.match(entry, /isWorkspaceEnabled/);
+  assert.match(entry, /redirect\("\/workspace\/login\/"\)/);
+  assert.match(loginPage, /isProtectedWorkspaceStaging\(\)/);
+  assert.doesNotMatch(loginClient, /11111111-1111-4111-8111-111111111111|aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/);
 });

@@ -32,7 +32,7 @@ export class PublishedProjectAccessDenied extends Error {
 }
 
 /**
- * Trusted, isolated test-only core. sessionId and providerSubject must come
+ * Trusted, server-only project reader. sessionId and providerSubject must come
  * exclusively from Better Auth's verified server session; they are NOT request
  * parameters. Recheck email verification, MFA and active grants against DB.
  *

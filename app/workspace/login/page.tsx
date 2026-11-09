@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import WorkspaceLogin from "./WorkspaceLogin";
-import { isLocalWorkspaceTest, isWorkspaceEnabled } from "../../../experiments/client-workspace-auth/src/workspace-runtime";
+import {
+  isLocalWorkspaceTest, isProtectedWorkspaceStaging, isWorkspaceEnabled,
+} from "../../../experiments/client-workspace-auth/src/workspace-runtime";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,5 +20,8 @@ export default function WorkspaceLoginPage() {
        process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED !== "1"))) {
     notFound();
   }
-  return <WorkspaceLogin />;
+  const defaultProjectPath = isProtectedWorkspaceStaging()
+    ? "/workspace/tenants/11111111-1111-4111-8111-111111111111/projects/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/"
+    : undefined;
+  return <WorkspaceLogin defaultProjectPath={defaultProjectPath} />;
 }

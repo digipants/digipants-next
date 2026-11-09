@@ -5,7 +5,7 @@ import test from "node:test";
 const enabled = process.env.RUN_RESEND_TRANSPORT_TEST === "1";
 const resendModule = enabled
   ? await import("../src/resend-mailbox-transport.ts")
-  : {makeLocalResendMailboxTransport: null,createStagingResendMailboxTransport: null};
+  : {makeLocalResendMailboxTransport: null,createStagingResendMailboxTransport: null,createWorkspaceResendMailboxTransport: null};
 const {makeLocalResendMailboxTransport} = resendModule;
 
 const id=randomUUID();
@@ -56,7 +56,7 @@ test("Resend adapter sends idempotent recipient-only payload in local fixture",
     else process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED=previous;
   }
 });
-test("Resend transport retries failures and rejects unapproved keys, identities and production",
+test("Resend transport retries failures and rejects unapproved keys, identities and unconfigured production",
   {skip: !enabled && "Dedicated server-only test runtime required"},async()=>{
   const previous=process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED;
   const oldNode=process.env.NODE_ENV;
@@ -80,12 +80,69 @@ test("Resend transport retries failures and rejects unapproved keys, identities 
     process.env.NODE_ENV="production";
     assert.equal(makeLocalResendMailboxTransport({
       ...options,request:async()=>new Response("{}",{status:200}),
-    }),null,"transport remains intentionally disconnected in production");
+    }),null,"production remains disabled outside the exact production site gate");
   }finally{
     if(previous===undefined)delete process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED;
     else process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED=previous;
     if(oldNode===undefined)delete process.env.NODE_ENV;
     else process.env.NODE_ENV=oldNode;
+  }
+});
+
+test("production Resend uses a separate key and explicit production email gate", {
+  skip: !enabled && "Dedicated server-only test runtime required",
+}, async () => {
+  const keys = [
+    "NODE_ENV", "CLIENT_WORKSPACE_ENABLED", "CLIENT_WORKSPACE_ENVIRONMENT",
+    "CLIENT_WORKSPACE_PRODUCTION_ENABLED", "SITE_ID", "CLIENT_WORKSPACE_ORIGIN", "URL",
+    "CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED", "PRODUCTION_RESEND_API_KEY", "RESEND_API_KEY",
+    "WORKSPACE_EMAIL_FROM", "PRODUCTION_WORKSPACE_EMAIL_FROM",
+  ];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const originalFetch = global.fetch;
+  let sent = 0;
+  try {
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      CLIENT_WORKSPACE_ENABLED: "1",
+      CLIENT_WORKSPACE_ENVIRONMENT: "production",
+      CLIENT_WORKSPACE_PRODUCTION_ENABLED: "1",
+      SITE_ID: "837d4464-7eb6-4a1f-b4ef-3a44a2829d79",
+      CLIENT_WORKSPACE_ORIGIN: "https://digipants.com",
+      URL: "https://digipants.com",
+      CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED: "1",
+      PRODUCTION_RESEND_API_KEY: "re_" + "P".repeat(28),
+      RESEND_API_KEY: "re_" + "S".repeat(28),
+      WORKSPACE_EMAIL_FROM: "DigiPants Client Workspace <staging@digipants.com>",
+      PRODUCTION_WORKSPACE_EMAIL_FROM: "DigiPants Client Workspace <support@digipants.com>",
+    });
+    global.fetch = async (_url, init) => {
+      sent++;
+      assert.equal(init.headers.Authorization, "Bearer " + process.env.PRODUCTION_RESEND_API_KEY);
+      assert.equal(JSON.parse(init.body).from, process.env.PRODUCTION_WORKSPACE_EMAIL_FROM);
+      return new Response(JSON.stringify({ id: randomUUID() }), { status: 200 });
+    };
+    const sender = resendModule.createWorkspaceResendMailboxTransport();
+    assert.equal(typeof sender, "function");
+    assert.equal(resendModule.createStagingResendMailboxTransport(), null);
+    assert.equal(resendModule.createWorkspaceResendMailboxTransport("founder-bootstrap"), null,
+      "founder bootstrap remains staging-only");
+    const inviteId = randomUUID();
+    assert.equal(await sender({
+      kind: "workspace_invitation", challengeId: inviteId,
+      to: "client@example.invalid", subject: "Your DigiPants Client Workspace invitation",
+      text: "You have been invited to a private DigiPants client workspace.",
+      idempotencyKey: "cw-invite-" + inviteId,
+    }), true);
+    assert.equal(sent, 1);
+    process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED = "0";
+    assert.equal(resendModule.createWorkspaceResendMailboxTransport(), null);
+  } finally {
+    global.fetch = originalFetch;
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
   }
 });
 

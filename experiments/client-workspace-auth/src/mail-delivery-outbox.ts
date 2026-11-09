@@ -3,7 +3,8 @@ import {
 } from "node:crypto";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import {
-  isLocalWorkspaceTest, isProtectedWorkspaceStaging, workspaceOrigin,
+  isActiveWorkspaceRuntime, isLocalWorkspaceTest, isProductionWorkspace,
+  isProtectedWorkspaceStaging, workspaceOrigin,
 } from "./workspace-runtime.js";
 
 type Query = {
@@ -26,11 +27,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const NEXT_RETRY_SECONDS = 15;
 const MAX_ATTEMPTS = 5;
 function enabled(): boolean {
-  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+  return isActiveWorkspaceRuntime() || (isLocalWorkspaceTest() &&
     process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1");
 }
 function key():Buffer|null {
-  const value=process.env.WORKSPACE_MAIL_OUTBOX_KEY;
+  const value=isProductionWorkspace()
+    ? process.env.PRODUCTION_WORKSPACE_MAIL_OUTBOX_KEY
+    : process.env.WORKSPACE_MAIL_OUTBOX_KEY;
   if(!enabled()||typeof value!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(value)) return null;
   const binary=Buffer.from(value,"base64url");
   return binary.length===32?binary:null;

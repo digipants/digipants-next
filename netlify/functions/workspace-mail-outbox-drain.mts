@@ -1,4 +1,6 @@
-import { isProtectedWorkspaceStaging } from "../../experiments/client-workspace-auth/src/workspace-runtime.js";
+import {
+  isActiveWorkspaceRuntime, isProductionWorkspace,
+} from "../../experiments/client-workspace-auth/src/workspace-runtime.js";
 
 /**
  * Drain a small bounded batch of encrypted transactional mail messages.
@@ -10,7 +12,10 @@ import { isProtectedWorkspaceStaging } from "../../experiments/client-workspace-
 export default async function workspaceMailOutboxDrain(): Promise<Response> {
   const realEmailsEnabled = process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
   const founderEmailEnabled = process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1";
-  if (!isProtectedWorkspaceStaging() || (!realEmailsEnabled && !founderEmailEnabled)) {
+  const production = isProductionWorkspace();
+  const productionEmailEnabled = process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1";
+  if (!isActiveWorkspaceRuntime() ||
+      (production ? !productionEmailEnabled : (!realEmailsEnabled && !founderEmailEnabled))) {
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   }
 
@@ -21,8 +26,8 @@ export default async function workspaceMailOutboxDrain(): Promise<Response> {
       import("../../experiments/client-workspace-auth/src/resend-mailbox-transport.js"),
     ]);
     const authDb = database.getAuthPrisma();
-    const founderOnly = !realEmailsEnabled && founderEmailEnabled;
-    const send = resend.createStagingResendMailboxTransport(
+    const founderOnly = !production && !realEmailsEnabled && founderEmailEnabled;
+    const send = resend.createWorkspaceResendMailboxTransport(
       founderOnly ? "founder-bootstrap" : "all",
     );
     if (!send) return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

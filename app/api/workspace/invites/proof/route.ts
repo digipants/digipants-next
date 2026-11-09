@@ -11,8 +11,8 @@ import {
   allowSyntheticMutation, issueSyntheticCsrfToken,
 } from "../../../../../experiments/client-workspace-auth/src/enrollment-request-guard";
 import {
-  isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
-  isWorkspaceEnabled, workspaceOrigin,
+  isActiveWorkspaceRuntime, isLocalWorkspaceTest, isTrustedWorkspaceRequest,
+  isWorkspaceEnabled, usesSecureWorkspaceCookies, workspaceAuthSecret, workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
 
@@ -40,7 +40,7 @@ function unavailable(): Response {
   return new Response(null, { status: 404, headers: HEADERS });
 }
 function enabled(): boolean {
-  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+  return isActiveWorkspaceRuntime() || (isLocalWorkspaceTest() &&
     process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED === "1" &&
     process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1");
 }
@@ -99,16 +99,16 @@ async function readSmallJson(request: Request): Promise<Record<string, unknown> 
 
 export async function GET(request: Request): Promise<Response> {
   if (!enabled() || !baseRequest(request,"GET")) return unavailable();
-  const secret = process.env.BETTER_AUTH_SECRET;
+  const secret = workspaceAuthSecret();
   if (!secret || Buffer.byteLength(secret) < 32) return unavailable();
   try {
     const sid = randomBytes(32).toString("base64url");
     const csrf = issueSyntheticCsrfToken({secret,trustedSessionId:sid});
     const headers = new Headers(HEADERS);
-    const secure = isProtectedWorkspaceStaging() ? "; Secure" : "";
+    const secure = usesSecureWorkspaceCookies() ? "; Secure" : "";
     const attrs = "; HttpOnly; SameSite=Strict; Path=/api/workspace/invites/proof; Max-Age=900" + secure;
-    const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
-    const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+    const sidName = usesSecureWorkspaceCookies() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+    const csrfName = usesSecureWorkspaceCookies() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
     headers.append("Set-Cookie", sidName + "=" + sid + attrs);
     headers.append("Set-Cookie", csrfName + "=" + csrf + attrs);
     return Response.json({csrf}, {status:200,headers});
@@ -119,11 +119,11 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   if (!enabled() || !baseRequest(request,"POST")) return unavailable();
-  const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
-  const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+  const sidName = usesSecureWorkspaceCookies() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+  const csrfName = usesSecureWorkspaceCookies() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
   const sid = cookieValue(request.headers, sidName);
   const csrfCookie = cookieValue(request.headers, csrfName);
-  const secret = process.env.BETTER_AUTH_SECRET;
+  const secret = workspaceAuthSecret();
   const expectedOrigin = workspaceOrigin();
   if (!sid || !/^[A-Za-z0-9_-]{43}$/.test(sid) || !secret ||
       !expectedOrigin ||
@@ -139,8 +139,8 @@ export async function POST(request: Request): Promise<Response> {
 
   // Local CI uses only an injected mock. Protected staging uses the scoped
   // Resend sender; absence of its branch-scoped key fails closed.
-  const sender = isProtectedWorkspaceStaging()
-    ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport()
+  const sender = isActiveWorkspaceRuntime()
+    ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createWorkspaceResendMailboxTransport()
     : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
       ? globalThis.__workspaceMailboxTestSender : undefined;
   if (!sender) return unavailable();

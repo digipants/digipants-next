@@ -1,5 +1,5 @@
 import { normalizeInvitedEmail } from "./invite-issuance.js";
-import { isProtectedWorkspaceStaging, workspaceOrigin } from "./workspace-runtime.js";
+import { isActiveWorkspaceRuntime, workspaceOrigin } from "./workspace-runtime.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BEARER = /^[A-Za-z0-9_-]{43}$/;
@@ -32,7 +32,7 @@ export function composePrivateInvitationEmail(input: {
       bearerToken: input.bearerToken,
       workspaceOrigin: input.workspaceOrigin,
     };
-    const expectedOrigin = isProtectedWorkspaceStaging()
+    const expectedOrigin = isActiveWorkspaceRuntime()
       ? workspaceOrigin()
       : (process.env.WORKSPACE_INVITE_TEST_DELIVERY_ENABLED === "1"
           ? workspaceOrigin()

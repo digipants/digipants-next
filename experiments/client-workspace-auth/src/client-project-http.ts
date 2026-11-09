@@ -2,8 +2,8 @@ import "server-only";
 
 // Server-only data seam for the feature-gated Next.js project route. It
 // exercises the complete Request -> Better Auth -> restricted PostgreSQL ->
-// JSON boundary in the disposable local/CI harness or exact protected staging.
-// Generic production and preview contexts remain fail-closed.
+// JSON boundary in local tests, protected staging, or explicitly enabled
+// production. Generic production builds and deploy previews remain fail-closed.
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const PROJECT_PATH = new RegExp(
   "^/api/workspace/tenants/(" + UUID + ")/projects/(" + UUID + ")/?$",
@@ -58,8 +58,8 @@ export async function handleClientProjectHttpRequest(request: Request): Promise<
     const projectId = match[2]?.toLowerCase();
     if (!tenantId || !projectId) return unavailable();
 
-    // Import only after the local-only guard. Any production request denies
-    // BEFORE it can instantiate a credentialed auth/DB client.
+    // Import only after the exact runtime gate; arbitrary production builds
+    // and previews deny before instantiating credentialed clients.
     const { loadPublishedProjectForVerifiedRequest } = await import(
       "./trusted-published-project.js"
     );

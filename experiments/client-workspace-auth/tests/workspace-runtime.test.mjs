@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   workspaceRuntimeMode,
   assertStagingRuntimeDatabaseUrl,
+  assertProductionRuntimeDatabaseUrl,
   isTrustedWorkspaceRequest,
 } from "../src/workspace-runtime.ts";
 
@@ -14,18 +15,34 @@ const staging = {
   CLIENT_WORKSPACE_ORIGIN: "https://digipants-client-workspace-staging.netlify.app",
   URL: "https://digipants-client-workspace-staging.netlify.app",
 };
+const production = {
+  NODE_ENV: "production",
+  CLIENT_WORKSPACE_ENABLED: "1",
+  CLIENT_WORKSPACE_ENVIRONMENT: "production",
+  CLIENT_WORKSPACE_PRODUCTION_ENABLED: "1",
+  SITE_ID: "837d4464-7eb6-4a1f-b4ef-3a44a2829d79",
+  CLIENT_WORKSPACE_ORIGIN: "https://digipants.com",
+  URL: "https://digipants.com",
+};
 
-test("workspace enables only on the separately protected staging project", () => {
+test("workspace enables only on exact protected staging or explicitly enabled production site", () => {
   assert.equal(workspaceRuntimeMode(staging), "protected-staging");
   assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_ENVIRONMENT: "production" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, SITE_ID: "another-site" }), "disabled");
-  assert.equal(workspaceRuntimeMode({ ...staging, URL: "http://digipants-client-workspace-staging.netlify.app" }), "protected-staging");
+  assert.equal(workspaceRuntimeMode({ ...staging, URL: "http://digipants-client-workspace-staging.netlify.app" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants.com" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants-client-workspace-staging.netlify.app/path" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: "https://digipants-client-workspace-staging.netlify.app/?next=x" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, URL: undefined }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, NODE_ENV: "development" }), "disabled");
   assert.equal(workspaceRuntimeMode({ ...staging, CLIENT_WORKSPACE_ENABLED: "0" }), "disabled");
+  assert.equal(workspaceRuntimeMode(production), "production");
+  assert.equal(workspaceRuntimeMode({ ...production, CLIENT_WORKSPACE_PRODUCTION_ENABLED: "0" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...production, CLIENT_WORKSPACE_PRODUCTION_ENABLED: undefined }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...production, CLIENT_WORKSPACE_ENVIRONMENT: "staging" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...production, SITE_ID: "another-site" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...production, URL: "https://deploy-preview-117--digipants.netlify.app" }), "disabled");
+  assert.equal(workspaceRuntimeMode({ ...production, URL: "http://digipants.com" }), "disabled");
 });
 
 test("local integration activation remains separate from every production context", () => {
@@ -56,6 +73,27 @@ test("Netlify forwarded origin is trusted only with exact staging host and HTTPS
   assert.equal(isTrustedWorkspaceRequest(new Request("http://localhost:3000/api/auth/sign-in/email"), {
     NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1",
   }), true);
+
+  const productionHost = "digipants.com";
+  const forwardedProduction = new Request("https://netlify-internal.invalid/api/auth/sign-in/email", {
+    method: "POST",
+    headers: {
+      host: productionHost,
+      "x-forwarded-host": productionHost,
+      "x-forwarded-proto": "https",
+      origin: "https://digipants.com",
+    },
+  });
+  assert.equal(isTrustedWorkspaceRequest(forwardedProduction, production), true);
+  assert.equal(isTrustedWorkspaceRequest(new Request("https://netlify-internal.invalid/api/auth/sign-in/email", {
+    method: "POST",
+    headers: {
+      host: productionHost,
+      "x-forwarded-host": "evil.example",
+      "x-forwarded-proto": "https",
+      origin: "https://digipants.com",
+    },
+  }), production), false);
 });
 
 test("staging database URLs require distinct dedicated logins, correct databases, pooler and full TLS", () => {
@@ -68,4 +106,17 @@ test("staging database URLs require distinct dedicated logins, correct databases
   assert.equal(assertStagingRuntimeDatabaseUrl(authUrl, "auth_spike_test", "AUTH_DATABASE_URL", staging), authUrl);
   assert.throws(() => assertStagingRuntimeDatabaseUrl(authUrl.replace("cw_auth_app", "cw_workspace_app"), "auth_spike_test", "AUTH_DATABASE_URL", staging));
   assert.throws(() => assertStagingRuntimeDatabaseUrl(authUrl, "digipants_workspace_dev", "AUTH_DATABASE_URL", staging));
+});
+
+test("production database URLs require isolated production identities, databases, pooler and full TLS", () => {
+  const workspaceUrl = "postgresql://cw_workspace_prod_app:test-value@ep-prod-pooler.us-east-1.aws.neon.tech/digipants_workspace_prod?sslmode=verify-full";
+  assert.equal(assertProductionRuntimeDatabaseUrl(workspaceUrl, "digipants_workspace_prod", "PRODUCTION_WORKSPACE_DATABASE_URL", production), workspaceUrl);
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(workspaceUrl.replace("cw_workspace_prod_app", "cw_workspace_app"), "digipants_workspace_prod", "PRODUCTION_WORKSPACE_DATABASE_URL", production));
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(workspaceUrl.replace("digipants_workspace_prod", "digipants_workspace_dev"), "digipants_workspace_prod", "PRODUCTION_WORKSPACE_DATABASE_URL", production));
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(workspaceUrl.replace("-pooler", ""), "digipants_workspace_prod", "PRODUCTION_WORKSPACE_DATABASE_URL", production));
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(workspaceUrl.replace("verify-full", "require"), "digipants_workspace_prod", "PRODUCTION_WORKSPACE_DATABASE_URL", production));
+  const authUrl = "postgresql://cw_auth_prod_app:test-value@ep-prod-pooler.us-east-1.aws.neon.tech/digipants_auth_prod?sslmode=verify-full";
+  assert.equal(assertProductionRuntimeDatabaseUrl(authUrl, "digipants_auth_prod", "PRODUCTION_AUTH_DATABASE_URL", production), authUrl);
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(authUrl, "auth_spike_test", "PRODUCTION_AUTH_DATABASE_URL", production));
+  assert.throws(() => assertProductionRuntimeDatabaseUrl(authUrl, "digipants_auth_prod", "AUTH_DATABASE_URL", production));
 });

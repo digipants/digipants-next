@@ -15,9 +15,11 @@ import {
 import { stampMfaAssurance } from "./mfa-assurance.js";
 import { workspaceOrigin, workspaceRuntimeMode } from "./workspace-runtime.js";
 
-const secret = process.env.BETTER_AUTH_SECRET;
 const runtimeMode = workspaceRuntimeMode();
 const origin = workspaceOrigin();
+const secret = runtimeMode === "production"
+  ? process.env.PRODUCTION_BETTER_AUTH_SECRET
+  : process.env.BETTER_AUTH_SECRET;
 if (!secret || Buffer.byteLength(secret) < 32) {
   throw new Error("Client Workspace authentication requires a 256-bit-or-stronger server secret.");
 }
@@ -25,11 +27,13 @@ if (!origin || runtimeMode === "disabled") {
   throw new Error("Client Workspace authentication is disabled in this deployment context.");
 }
 
-const baseURL = runtimeMode === "protected-staging"
-  ? process.env.AUTH_BASE_URL
-  : (process.env.AUTH_BASE_URL ?? `${origin}/api/auth`);
+const baseURL = runtimeMode === "production"
+  ? process.env.PRODUCTION_AUTH_BASE_URL
+  : runtimeMode === "protected-staging"
+    ? process.env.AUTH_BASE_URL
+    : (process.env.AUTH_BASE_URL ?? `${origin}/api/auth`);
 if (baseURL !== `${origin}/api/auth`) {
-  throw new Error("AUTH_BASE_URL must exactly match the enabled workspace origin.");
+  throw new Error("The environment-specific Better Auth base URL must exactly match the enabled workspace origin.");
 }
 
 const disabledPaths = [
@@ -77,7 +81,7 @@ export const auth = betterAuth({
     },
   },
   advanced: {
-    useSecureCookies: runtimeMode === "protected-staging",
+    useSecureCookies: runtimeMode !== "local-test",
     database: {
       generateId: () => randomUUID(),
     },

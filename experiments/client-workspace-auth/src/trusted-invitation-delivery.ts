@@ -6,7 +6,7 @@ import { issueClientInvitation, revokeClientInvitation } from "./invite-issuance
 import type { ClientInvitationRole } from "./invite-issuance.js";
 import { composePrivateInvitationEmail } from "./invitation-delivery.js";
 import type { InvitationMessage } from "./invitation-delivery.js";
-import { isLocalWorkspaceTest, isProtectedWorkspaceStaging, workspaceOrigin } from "./workspace-runtime.js";
+import { isActiveWorkspaceRuntime, isLocalWorkspaceTest, workspaceOrigin } from "./workspace-runtime.js";
 
 type Sql = {
   $queryRaw<T = unknown>(sql: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -20,7 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
  * to a recent MFA-verified project-owner session.
  */
 function experimentEnabled(): boolean {
-  return isProtectedWorkspaceStaging() || (isLocalWorkspaceTest() &&
+  return isActiveWorkspaceRuntime() || (isLocalWorkspaceTest() &&
     process.env.WORKSPACE_INVITE_TEST_DELIVERY_ENABLED === "1");
 }
 

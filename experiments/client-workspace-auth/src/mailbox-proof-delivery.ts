@@ -7,7 +7,7 @@ import {
   mailboxOutboxTestEnabled,
 } from "./mail-delivery-outbox.js";
 import type { MailPayload } from "./mail-delivery-outbox.js";
-import { isLocalWorkspaceTest, isProtectedWorkspaceStaging } from "./workspace-runtime.js";
+import { isActiveWorkspaceRuntime, isLocalWorkspaceTest } from "./workspace-runtime.js";
 import {
   createSyntheticMailboxChallenge, findPendingInvitationIdForBearer,
 } from "./mailbox-proof.js";
@@ -66,10 +66,10 @@ export async function dispatchMailboxProofForBearer(input: {
   send: MailboxSender;
 }): Promise<{ challengeId: string } | null> {
   try {
-    const staging = isProtectedWorkspaceStaging();
+    const runtimeEnabled = isActiveWorkspaceRuntime();
     const localTest = isLocalWorkspaceTest() &&
       process.env.WORKSPACE_MAIL_PROOF_TEST_ENABLED === "1";
-    if ((!staging && !localTest) ||
+    if ((!runtimeEnabled && !localTest) ||
         typeof input.send !== "function") return null;
 
     const email = normalizeInvitedEmail(input.intendedEmail);
@@ -79,7 +79,7 @@ export async function dispatchMailboxProofForBearer(input: {
       workspaceDb: input.workspaceDb, token: input.bearer, intendedEmail: email,
     });
     if (!invitationId) return null;
-    const queued = staging || process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
+    const queued = runtimeEnabled || process.env.WORKSPACE_MAIL_OUTBOX_TEST_ENABLED === "1";
     const queueReady = mailboxOutboxTestEnabled();
     // Opt-in queue mode MUST NOT silently fall back to inline mail delivery
     // when its encryption key or durable journal is misconfigured.

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import {
-  isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
+  isActiveWorkspaceRuntime, isProductionWorkspace, isTrustedWorkspaceRequest,
 } from "../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import type { ClientInvitationRole } from "../../../../experiments/client-workspace-auth/src/invite-issuance";
 
@@ -51,8 +51,10 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 
 /** Staff-only invitation issuance; the raw bearer never enters this response. */
 export async function POST(request: Request): Promise<Response> {
-  if (!isProtectedWorkspaceStaging() ||
-      process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED !== "1" ||
+  const deliveryEnabled = isProductionWorkspace()
+    ? process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1"
+    : process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
+  if (!isActiveWorkspaceRuntime() || !deliveryEnabled ||
       !isTrustedWorkspaceRequest(request) ||
       request.headers.has("authorization") ||
       request.headers.has("range") ||
@@ -71,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
       import("../../../../experiments/client-workspace-auth/src/mail-delivery-outbox"),
       import("../../../../experiments/client-workspace-auth/src/resend-mailbox-transport"),
     ]);
-    const sender = resend.createStagingResendMailboxTransport();
+    const sender = resend.createWorkspaceResendMailboxTransport();
     if (!sender) return unavailable();
     const authDb = database.getAuthPrisma();
     const queued = await delivery.dispatchInvitationForVerifiedStaffRequest({

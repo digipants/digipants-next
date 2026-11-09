@@ -1,6 +1,8 @@
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import type { MailPayload } from "./mail-delivery-outbox.js";
-import { isProtectedWorkspaceStaging } from "./workspace-runtime.js";
+import {
+  isActiveWorkspaceRuntime, isProductionWorkspace, isProtectedWorkspaceStaging,
+} from "./workspace-runtime.js";
 import { sendInvitationThroughResend } from "./invitation-delivery.js";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -11,14 +13,14 @@ type Http = (url: string, options: RequestInit) => Promise<Response>;
 
 /**
  * Provider adapter. Unit tests use an injected fake fetcher; deployed use is
- * allowed only by the protected, exact-branch staging runtime gate.
+ * allowed only by an exact, explicitly enabled staging or production runtime.
  */
 export function makeLocalResendMailboxTransport(input: {
   apiKey: string; from: string; request: Http;
 }): ((message: MailPayload) => Promise<boolean>) | null {
   const testTransport = process.env.NODE_ENV !== "production" &&
     process.env.WORKSPACE_RESEND_TRANSPORT_TEST_ENABLED === "1";
-  if ((!isProtectedWorkspaceStaging() && !testTransport) ||
+  if ((!isActiveWorkspaceRuntime() && !testTransport) ||
       typeof input.apiKey!=="string" || !KEY.test(input.apiKey) ||
       !VERIFIED_FROM.test(input.from) ||
       typeof input.request!=="function") return null;
@@ -68,18 +70,20 @@ export function makeLocalResendMailboxTransport(input: {
   };
 }
 
-/** Construct the only live mail sender, and only for protected staging. */
-export function createStagingResendMailboxTransport(
+/** Construct the only live mail sender for the exact active runtime. */
+export function createWorkspaceResendMailboxTransport(
   scope: "all" | "founder-bootstrap" = "all",
 ):
   ((message: MailPayload) => Promise<boolean>) | null {
-  const emailEnabled = scope === "founder-bootstrap"
-    ? process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1"
-    : process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
-  if (!isProtectedWorkspaceStaging() ||
-      !emailEnabled) return null;
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.WORKSPACE_EMAIL_FROM;
+  const production = isProductionWorkspace();
+  const emailEnabled = production
+    ? scope === "all" && process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1"
+    : scope === "founder-bootstrap"
+      ? process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1"
+      : process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
+  if (!isActiveWorkspaceRuntime() || (production && scope === "founder-bootstrap") || !emailEnabled) return null;
+  const apiKey = production ? process.env.PRODUCTION_RESEND_API_KEY : process.env.RESEND_API_KEY;
+  const from = production ? process.env.PRODUCTION_WORKSPACE_EMAIL_FROM : process.env.WORKSPACE_EMAIL_FROM;
   if (!apiKey || !from) return null;
   const proofTransport = makeLocalResendMailboxTransport({
     apiKey,
@@ -99,4 +103,12 @@ export function createStagingResendMailboxTransport(
       fetcher: async (url, options) => fetch(url, options),
     });
   };
+}
+
+/** Founder email setup is deliberately restricted to protected staging. */
+export function createStagingResendMailboxTransport(
+  scope: "all" | "founder-bootstrap" = "all",
+): ((message: MailPayload) => Promise<boolean>) | null {
+  if (!isProtectedWorkspaceStaging()) return null;
+  return createWorkspaceResendMailboxTransport(scope);
 }
