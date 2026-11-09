@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   ANALYTICS_CONSENT_KEY,
   clearAnalyticsConsent,
   hasAnalyticsConsent,
+  initializeFirstTouchAttribution,
   setAnalyticsConsent,
   trackContactIntent,
   trackPageView,
@@ -17,8 +18,16 @@ export default function AnalyticsConsent() {
   const [choice, setChoice] = useState<ConsentChoice | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const initialPathname = useRef<string | null>(null);
+  const navigatedBeforeConsent = useRef(false);
 
   useEffect(() => {
+    if (initialPathname.current === null) initialPathname.current = pathname || "/";
+    else if (initialPathname.current !== (pathname || "/")) navigatedBeforeConsent.current = true;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (initialPathname.current === null) initialPathname.current = window.location.pathname || "/";
     let storedChoice: ConsentChoice | null = null;
     try {
       const stored = window.localStorage.getItem(ANALYTICS_CONSENT_KEY);
@@ -30,13 +39,16 @@ export default function AnalyticsConsent() {
     setChoice(storedChoice);
     setReady(true);
 
-    if (storedChoice === "accepted") trackPageView(window.location.pathname);
+    if (storedChoice === "accepted") {
+      initializeFirstTouchAttribution();
+      trackPageView(window.location.pathname);
+    }
 
     const onStorage = (event: StorageEvent) => {
       if (event.key !== ANALYTICS_CONSENT_KEY && event.key !== null) return;
       if (event.newValue === "accepted" || event.newValue === "rejected") {
         setChoice(event.newValue);
-        setAnalyticsConsent(event.newValue);
+        setAnalyticsConsent(event.newValue, !navigatedBeforeConsent.current);
         if (event.newValue === "accepted") trackPageView(window.location.pathname);
       } else {
         setChoice(null);
@@ -54,13 +66,23 @@ export default function AnalyticsConsent() {
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
-      if (!hasAnalyticsConsent() || !(event.target instanceof Element)) return;
+      if (!(event.target instanceof Element)) return;
       const link = event.target.closest("a[href]");
       if (!(link instanceof HTMLAnchorElement)) return;
 
       let path: string;
       try {
-        path = new URL(link.href, window.location.href).pathname.replace(/\/+$/, "") || "/";
+        const destination = new URL(link.href, window.location.href);
+        if (!hasAnalyticsConsent()) {
+          if (
+            destination.origin === window.location.origin &&
+            (destination.pathname !== window.location.pathname ||
+              destination.search !== window.location.search ||
+              destination.hash !== window.location.hash)
+          ) navigatedBeforeConsent.current = true;
+          return;
+        }
+        path = destination.pathname.replace(/\/+$/, "") || "/";
       } catch {
         return;
       }
@@ -81,7 +103,7 @@ export default function AnalyticsConsent() {
   }, []);
 
   const choose = useCallback((nextChoice: ConsentChoice) => {
-    setAnalyticsConsent(nextChoice);
+    setAnalyticsConsent(nextChoice, !navigatedBeforeConsent.current);
     setChoice(nextChoice);
     setSettingsOpen(false);
     if (nextChoice === "accepted") trackPageView(window.location.pathname);
