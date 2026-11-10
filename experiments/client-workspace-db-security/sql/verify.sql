@@ -24,8 +24,33 @@ COMMIT;
 BEGIN;
 SET LOCAL ROLE cw_runtime;
 DO $$
-DECLARE denied boolean := false;
+DECLARE denied boolean := false; runtime_attrs record; helper_count integer;
 BEGIN
+  SELECT r.rolcanlogin, r.rolsuper, r.rolbypassrls,
+         r.rolcreatedb, r.rolcreaterole INTO runtime_attrs
+    FROM pg_catalog.pg_roles AS r WHERE r.rolname='cw_runtime';
+  IF runtime_attrs.rolcanlogin OR runtime_attrs.rolsuper OR runtime_attrs.rolbypassrls OR
+     runtime_attrs.rolcreatedb OR runtime_attrs.rolcreaterole THEN
+    RAISE EXCEPTION 'workspace runtime group role is not restricted';
+  END IF;
+  SELECT count(*) INTO helper_count
+    FROM pg_catalog.pg_proc AS fn
+    JOIN pg_catalog.pg_namespace AS ns ON ns.oid=fn.pronamespace
+    JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid=fn.proowner
+   WHERE ns.nspname='public' AND fn.proname IN (
+     'cw_lock_staff_project_grant', 'cw_lock_client_project_grant',
+     'cw_invitation_context', 'cw_issue_client_invitation',
+     'cw_revoke_client_invitation', 'cw_ensure_disabled_client_principal',
+     'cw_disable_client_principal', 'cw_approve_enrollment_grant',
+     'cw_founder_bootstrap_active', 'cw_founder_bootstrap_is_open',
+     'cw_begin_founder_bootstrap', 'cw_complete_founder_bootstrap')
+     AND fn.prosecdef AND owner_role.rolname='cw_schema_owner'
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_catalog.aclexplode(COALESCE(fn.proacl, '{}'::aclitem[])) AS acl
+       WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE');
+  IF helper_count <> 12 THEN
+    RAISE EXCEPTION 'restricted workflow SECURITY DEFINER functions are missing or incorrectly owned/exposed';
+  END IF;
   IF has_function_privilege(
        'cw_runtime',
        'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
@@ -40,11 +65,39 @@ BEGIN
        'EXECUTE') THEN
     RAISE EXCEPTION 'grant-lock helper privileges are not runtime-only';
   END IF;
+  IF has_function_privilege('cw_runtime', 'public.cw_invitation_context(uuid,text,text,boolean)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_issue_client_invitation(uuid,text,uuid,uuid,text,text,text)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_revoke_client_invitation(text,uuid,uuid,uuid)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_ensure_disabled_client_principal(uuid,text)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_disable_client_principal(uuid,text)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_approve_enrollment_grant(uuid,text)', 'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_audit_reader', 'public.cw_issue_client_invitation(uuid,text,uuid,uuid,text,text,text)', 'EXECUTE') OR
+     has_function_privilege('cw_audit_writer', 'public.cw_approve_enrollment_grant(uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'restricted workflow helper grants are too broad or incomplete';
+  END IF;
+  IF has_table_privilege('cw_runtime', 'public.workspace_principals', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_principals', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_client_memberships', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_client_project_grants', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'SELECT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_milestones', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_milestones', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_progress_updates', 'INSERT') OR
+     has_table_privilege('cw_runtime', 'public.workspace_progress_updates', 'UPDATE') THEN
+    RAISE EXCEPTION 'runtime has direct write privileges on restricted workflow tables';
+  END IF;
   IF (SELECT count(*) FROM workspace_projects) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed projects';
   END IF;
   IF (SELECT count(*) FROM workspace_audit_events) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed audit events';
+  END IF;
+  IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
+    RAISE EXCEPTION 'missing RLS context exposed client-visible project progress';
   END IF;
   IF cw_lock_staff_project_grant(
        'synthetic-security-staff-a',
@@ -97,12 +150,76 @@ END $$;
 
 SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
 DO $$
-DECLARE denied boolean := false; changed integer;
+DECLARE denied boolean := false; changed integer; invite_id uuid; client_principal_id uuid;
+        approved boolean; redeemed text;
 BEGIN
   IF (SELECT count(*) FROM workspace_projects) <> 1 OR
-     (SELECT count(*) FROM workspace_audit_events) <> 1 THEN
+     (SELECT count(*) FROM workspace_audit_events) <> 1 OR
+     (SELECT count(*) FROM workspace_milestones) <> 2 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 1 THEN
     RAISE EXCEPTION 'tenant A exact scope unexpectedly differs';
   END IF;
+
+  invite_id := public.cw_issue_client_invitation(
+    '55555555-5555-4555-8555-555555555555', 'synthetic-security-owner',
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'pilot@example.invalid', 'client_viewer', repeat('a', 64));
+  IF invite_id <> '55555555-5555-4555-8555-555555555555'::uuid THEN
+    RAISE EXCEPTION 'exact active owner could not issue an invitation through the narrow helper';
+  END IF;
+  IF public.cw_issue_client_invitation(
+    '77777777-7777-4777-8777-777777777777', 'synthetic-security-staff-a',
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'unauthorized@example.invalid', 'client_viewer', repeat('b', 64)) IS NOT NULL THEN
+    RAISE EXCEPTION 'non-owner staff grant issued a client invitation';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cw_invitation_context(invite_id, 'pilot@example.invalid', NULL, false) AS invitation
+     WHERE invitation.status='pending' AND invitation.not_expired
+       AND invitation.tenant_status='active'
+       AND invitation.project_tenant_id=invitation.tenant_id
+  ) THEN
+    RAISE EXCEPTION 'restricted invitation lookup did not return the exact pending recipient';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.cw_invitation_context(
+      invite_id, 'other@example.invalid', NULL, false)) THEN
+    RAISE EXCEPTION 'restricted invitation lookup disclosed another recipient';
+  END IF;
+
+  SELECT id INTO client_principal_id FROM public.cw_ensure_disabled_client_principal(
+    '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
+  IF client_principal_id IS NULL OR
+     (SELECT p.status FROM workspace_principals AS p WHERE p.id=client_principal_id) <> 'disabled' THEN
+    RAISE EXCEPTION 'restricted principal helper did not create only a disabled client principal';
+  END IF;
+  INSERT INTO workspace_enrollment_attempts
+    (id, idempotency_hash, invitation_id, invitation_hash, mailbox_proof_ref_hash,
+     provider_subject, tenant_id, project_id, intended_email, intended_role,
+     state, attempt_count, auth_created_at, principal_created_at)
+  VALUES
+    ('88888888-8888-4888-8888-888888888888', repeat('c', 64), invite_id, repeat('a', 64),
+     repeat('d', 64), '66666666-6666-4666-8666-666666666666',
+     '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+     'pilot@example.invalid', 'client_viewer', 'grant_ready_for_review', 1,
+     statement_timestamp(), statement_timestamp());
+  approved := public.cw_approve_enrollment_grant(
+    '88888888-8888-4888-8888-888888888888', 'synthetic-security-owner');
+  IF approved IS NOT TRUE OR
+     NOT EXISTS (SELECT 1 FROM workspace_client_memberships AS m
+       WHERE m.tenant_id='11111111-1111-4111-8111-111111111111'
+         AND m.principal_id=client_principal_id AND m.status='active') OR
+     NOT EXISTS (SELECT 1 FROM workspace_client_project_grants AS g
+       WHERE g.tenant_id='11111111-1111-4111-8111-111111111111'
+         AND g.project_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+         AND g.principal_id=client_principal_id
+         AND g.role='client_viewer' AND g.status='active') OR
+     (SELECT state FROM workspace_enrollment_attempts
+       WHERE id='88888888-8888-4888-8888-888888888888') <> 'completed' THEN
+    RAISE EXCEPTION 'restricted owner approval did not atomically activate the exact client grant';
+  END IF;
+  SELECT status INTO redeemed FROM public.cw_invitation_context(
+    invite_id, 'pilot@example.invalid', NULL, false);
+  IF redeemed <> 'redeemed' THEN RAISE EXCEPTION 'approval did not redeem the exact invitation'; END IF;
   denied := false;
   BEGIN
     UPDATE workspace_projects SET title = 'Illegal edit'
@@ -213,14 +330,53 @@ BEGIN
 END $$;
 ROLLBACK;
 
+-- The founder path is one-use, hash-bound, audited and scoped to the fixed
+-- synthetic pilot project. The runtime cannot mutate its control row directly.
+BEGIN;
+SET LOCAL ROLE cw_runtime;
+DO $$
+DECLARE email_hash bytea := decode(repeat('a1',32),'hex');
+        subject text := '55555555-5555-4555-8555-555555555555';
+BEGIN
+  IF public.cw_founder_bootstrap_active() IS NOT TRUE OR
+     public.cw_founder_bootstrap_is_open(email_hash) IS NOT TRUE OR
+     public.cw_founder_bootstrap_is_open(decode(repeat('a2',32),'hex')) IS TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap email hash gate is incorrect';
+  END IF;
+  IF public.cw_begin_founder_bootstrap(email_hash, subject) <> subject THEN
+    RAISE EXCEPTION 'founder bootstrap did not reserve the one-time verified subject';
+  END IF;
+  IF public.cw_complete_founder_bootstrap(email_hash, subject) IS NOT TRUE OR
+     public.cw_complete_founder_bootstrap(email_hash, subject) IS NOT TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap completion is not idempotent';
+  END IF;
+  IF public.cw_founder_bootstrap_active() IS TRUE OR
+     public.cw_begin_founder_bootstrap(email_hash, '66666666-6666-4666-8666-666666666666') IS NOT NULL OR
+     public.cw_complete_founder_bootstrap(email_hash, '66666666-6666-4666-8666-666666666666') IS TRUE THEN
+    RAISE EXCEPTION 'founder bootstrap was reusable after completion';
+  END IF;
+  IF public.cw_lock_staff_project_grant(
+       subject,'11111111-1111-4111-8111-111111111111',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','delivery.edit') IS NULL OR
+     public.cw_lock_staff_project_grant(
+       subject,'22222222-2222-4222-8222-222222222222',
+       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','delivery.edit') IS NOT NULL THEN
+    RAISE EXCEPTION 'founder bootstrap did not grant exactly the synthetic pilot project';
+  END IF;
+END $$;
+ROLLBACK;
+
 BEGIN;
 SET LOCAL ROLE cw_audit_reader;
 SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
 DO $$
 DECLARE denied boolean := false;
 BEGIN
-  IF (SELECT count(*) FROM workspace_audit_events) <> 2 THEN
-    RAISE EXCEPTION 'audit reader did not see the selected tenant history';
+  IF NOT EXISTS (SELECT 1 FROM workspace_audit_events
+      WHERE tenant_id='11111111-1111-4111-8111-111111111111') OR
+     EXISTS (SELECT 1 FROM workspace_audit_events
+      WHERE tenant_id <> '11111111-1111-4111-8111-111111111111') THEN
+    RAISE EXCEPTION 'audit reader did not see only the selected tenant history';
   END IF;
   BEGIN
     INSERT INTO workspace_audit_events
@@ -245,6 +401,10 @@ BEGIN
   IF (SELECT count(*) FROM workspace_projects) <> 1 THEN
     RAISE EXCEPTION 'expected custom GUC spoof demonstration did not occur';
   END IF;
+  IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
+     (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
+    RAISE EXCEPTION 'tenant B context exposed tenant A progress';
+  END IF;
 END $$;
 ROLLBACK;
-\echo 'PASS: role separation, denial, atomic audit, exact-scope query requirement and spoofable-GUC limitation verified'
+\echo 'PASS: role separation, one-time founder bootstrap, approved progress RLS, denial, audit and exact-scope query requirement verified'

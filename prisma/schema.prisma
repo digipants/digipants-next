@@ -61,6 +61,8 @@ model WorkspaceStaffMembership {
   principal   WorkspacePrincipal           @relation(fields: [principalId, principalKind], references: [id, kind], onDelete: Restrict, map: "workspace_staff_memberships_principal_id_principal_kind_fkey")
   grants      WorkspaceStaffProjectGrant[]
   invitations WorkspaceInvitationRecord[]  @relation("InvitationIssuer")
+  approvedMilestones WorkspaceMilestone[] @relation("MilestoneApprover")
+  approvedProgressUpdates WorkspaceProgressUpdate[] @relation("ProgressUpdateApprover")
 
   @@unique([principalId, principalKind], map: "workspace_staff_membership_principal_kind_uq")
   @@map("workspace_staff_memberships")
@@ -80,6 +82,8 @@ model WorkspaceProject {
   staffGrants  WorkspaceStaffProjectGrant[]
   invitations  WorkspaceInvitationRecord[]
   auditEvents  WorkspaceAuditEvent[]
+  milestones   WorkspaceMilestone[]
+  progressUpdates WorkspaceProgressUpdate[]
 
   @@unique([tenantId, id], map: "workspace_project_tenant_id_uq")
   @@index([tenantId, state], map: "workspace_project_tenant_state_idx")
@@ -197,4 +201,55 @@ model WorkspaceAuditEvent {
   @@unique([tenantId, idempotencyKey], map: "workspace_audit_command_once")
   @@index([tenantId, projectId, occurredAt(sort: Desc)], map: "workspace_audit_project_time_idx")
   @@map("workspace_audit_events")
+}
+
+model WorkspaceMilestone {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  projectId         String    @map("project_id") @db.Uuid
+  title             String    @db.Text
+  detail            String    @db.Text
+  state             String    @db.Text
+  sortOrder         Int       @map("sort_order")
+  clientVisible     Boolean   @default(false) @map("client_visible")
+  approvedByStaffId String?   @map("approved_by_staff_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project    WorkspaceProject          @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_milestones_tenant_project_fkey")
+  approvedBy WorkspaceStaffMembership? @relation("MilestoneApprover", fields: [approvedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_milestones_approver_fkey")
+
+  @@unique([tenantId, projectId, id], map: "workspace_milestones_scope_uq")
+  @@index([tenantId, projectId, sortOrder], map: "workspace_milestones_project_order_idx")
+  @@map("workspace_milestones")
+}
+
+model WorkspaceProgressUpdate {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  projectId         String    @map("project_id") @db.Uuid
+  body              String    @db.Text
+  nextAction        String    @map("next_action") @db.Text
+  status            String    @default("draft") @db.Text
+  clientVisible     Boolean   @default(false) @map("client_visible")
+  approvedByStaffId String?   @map("approved_by_staff_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project    WorkspaceProject          @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict, map: "workspace_progress_updates_tenant_project_fkey")
+  approvedBy WorkspaceStaffMembership? @relation("ProgressUpdateApprover", fields: [approvedByStaffId], references: [principalId], onDelete: Restrict, map: "workspace_progress_updates_approver_fkey")
+
+  @@unique([tenantId, projectId, id], map: "workspace_progress_updates_scope_uq")
+  @@index([tenantId, projectId, approvedAt(sort: Desc)], map: "workspace_progress_updates_project_approved_idx")
+  @@map("workspace_progress_updates")
+}
+
+model WorkspaceFounderBootstrapControl {
+  singleton               Boolean   @id @default(true)
+  founderEmailHash        Bytes?    @map("founder_email_hash") @db.ByteA
+  pendingProviderSubject  String?   @map("pending_provider_subject") @db.Text
+  completedProviderSubject String? @map("completed_provider_subject") @db.Text
+  completedAt             DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@map("workspace_founder_bootstrap_control")
 }
