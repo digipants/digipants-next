@@ -82,6 +82,9 @@ export const auth = betterAuth({
   },
   advanced: {
     useSecureCookies: runtimeMode !== "local-test",
+    // Next/Netlify routes use trailingSlash=true for API paths. Match both
+    // forms so Better Auth recognizes `/sign-up/email/` as `/sign-up/email`.
+    skipTrailingSlashes: true,
     database: {
       generateId: () => randomUUID(),
     },

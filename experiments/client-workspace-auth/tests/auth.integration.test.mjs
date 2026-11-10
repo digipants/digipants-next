@@ -154,6 +154,26 @@ if (!enabled) {
       ));
       assert.equal(guest.status, 200,
         "local Next.js GET session handler is routed to the real auth backend");
+
+      const trailingSlashSignup = await nextAuthRoute.POST(new Request(
+        "http://localhost:3000/api/auth/sign-up/email/",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify({
+            name: "Synthetic trailing-slash check",
+            email: `route-${randomUUID()}@example.invalid`,
+            password: "synthetic-only-password-51!",
+          }),
+        },
+      ));
+      assert.notEqual(trailingSlashSignup.status, 404,
+        "a trailing-slash signup path must reach Better Auth route dispatch");
+      assert.equal(trailingSlashSignup.status, 401,
+        "signup still requires an invitation when the route is normalized");
     });
   }
 
