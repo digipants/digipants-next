@@ -81,7 +81,19 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
           SELECT token, payload_bytes, convert_from(payload_bytes, 'UTF8') AS value FROM decoded
         )
         SELECT context.token IS NOT NULL AS token_set,
+          COALESCE(context.token ~ '^[0-9a-f]{1,1024}\.[0-9a-f]{64}$', false) AS token_format_matches,
+          COALESCE(split_part(payload.value, '|', 1) = 'v1', false) AS version_matches,
           COALESCE(split_part(payload.value, '|', 2) = pg_current_xact_id()::text, false) AS transaction_matches,
+          COALESCE(split_part(payload.value, '|', 3) = ${id.tenantA}, false) AS tenant_matches,
+          COALESCE(split_part(payload.value, '|', 4) = ${id.projectA}, false) AS project_matches,
+          COALESCE(split_part(payload.value, '|', 5) = ${ownerSubject}, false) AS actor_matches,
+          COALESCE(split_part(payload.value, '|', 6) = 'project.activate', false) AS purpose_matches,
+          COALESCE(EXISTS (SELECT 1 FROM public.workspace_context_signing_keys
+            WHERE singleton AND signing_key = decode(repeat('11',32),'hex')), false) AS synthetic_key_present,
+          COALESCE(has_table_privilege('cw_schema_owner',
+            'public.workspace_context_signing_keys', 'SELECT'), false) AS owner_can_read_key,
+          COALESCE(has_function_privilege('cw_schema_owner',
+            'public.hmac(bytea,bytea,text)', 'EXECUTE'), false) AS owner_can_hmac,
           COALESCE(public.hmac(payload.payload_bytes, signing.signing_key, 'sha256') =
             decode(split_part(payload.token, '.', 2), 'hex'), false) AS signature_matches,
           public.cw_workspace_context_tenant_id()::text AS tenant_id
@@ -89,7 +101,16 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
           LEFT JOIN public.workspace_context_signing_keys AS signing ON signing.singleton`;
     });
     assert.equal(context[0]?.token_set, true, "transaction-local signed scope was set");
+    assert.equal(context[0]?.token_format_matches, true, "signed scope matches the database token format");
+    assert.equal(context[0]?.version_matches, true, "signed scope uses a supported version");
     assert.equal(context[0]?.transaction_matches, true, "signed scope is transaction-bound");
+    assert.equal(context[0]?.tenant_matches, true, "signed scope contains the requested tenant");
+    assert.equal(context[0]?.project_matches, true, "signed scope contains the requested project");
+    assert.equal(context[0]?.actor_matches, true, "signed scope contains the authenticated actor");
+    assert.equal(context[0]?.purpose_matches, true, "signed scope contains the requested action");
+    assert.equal(context[0]?.synthetic_key_present, true, "isolated test database has the synthetic key");
+    assert.equal(context[0]?.owner_can_read_key, true, "validator owner can read the protected key");
+    assert.equal(context[0]?.owner_can_hmac, true, "validator owner can execute HMAC");
     assert.equal(context[0]?.signature_matches, true, "signed scope matches the synthetic DB key");
     assert.equal(context[0]?.tenant_id, id.tenantA,
       "PostgreSQL accepts the signed tenant scope inside its originating transaction");

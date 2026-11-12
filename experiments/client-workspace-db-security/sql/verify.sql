@@ -20,6 +20,20 @@ BEGIN
 END;
 $$;
 
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.workspace_context_signing_keys
+       WHERE singleton AND signing_key = decode(repeat('11',32),'hex')) <> 1 THEN
+    RAISE EXCEPTION 'synthetic signed-context key fixture was not installed';
+  END IF;
+  IF NOT has_table_privilege('cw_schema_owner',
+       'public.workspace_context_signing_keys', 'SELECT') OR
+     NOT has_function_privilege('cw_schema_owner',
+       'public.hmac(bytea,bytea,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'signed-context validator owner lacks its narrow key/HMAC read contract';
+  END IF;
+END $$;
+
 -- Migrator owns schema objects but has neither superuser nor role/database admin.
 BEGIN;
 SET LOCAL ROLE cw_migrator;
@@ -201,7 +215,7 @@ BEGIN
     '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'synthetic-security-owner', 'project.activate');
   context_token := current_setting('app.workspace_context_token', true);
-  IF context_token IS NULL OR context_token !~ '^[0-9a-f]+\.[0-9a-f]{64}$' THEN
+  IF context_token IS NULL OR context_token !~ '^[0-9a-f]{1,1024}\.[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'signed tenant A test token was not set';
   END IF;
   payload_bytes := decode(split_part(context_token, '.', 1), 'hex');
