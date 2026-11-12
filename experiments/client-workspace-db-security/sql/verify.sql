@@ -99,6 +99,27 @@ BEGIN
      (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
     RAISE EXCEPTION 'missing RLS context exposed client-visible project progress';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class AS c
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r'
+      AND c.relname IN ('workspace_principals','workspace_tenants',
+        'workspace_client_memberships','workspace_staff_memberships',
+        'workspace_client_project_grants','workspace_staff_project_grants',
+        'workspace_enrollment_attempts')
+      AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity)
+  ) THEN
+    RAISE EXCEPTION 'sensitive tenant and identity tables lack FORCE RLS';
+  END IF;
+  IF (SELECT count(*) FROM workspace_tenants) <> 0 OR
+     (SELECT count(*) FROM workspace_principals) <> 0 OR
+     (SELECT count(*) FROM workspace_client_memberships) <> 0 OR
+     (SELECT count(*) FROM workspace_staff_memberships) <> 0 OR
+     (SELECT count(*) FROM workspace_client_project_grants) <> 0 OR
+     (SELECT count(*) FROM workspace_staff_project_grants) <> 0 OR
+     (SELECT count(*) FROM workspace_enrollment_attempts) <> 0 THEN
+    RAISE EXCEPTION 'unscoped runtime exposed tenant identity, membership or journal records';
+  END IF;
   IF cw_lock_staff_project_grant(
        'synthetic-security-staff-a',
        '11111111-1111-4111-8111-111111111111',
