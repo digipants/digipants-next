@@ -55,8 +55,10 @@ SELECT
      WHERE can_select AND NOT (relrowsecurity AND relforcerowsecurity)
   ) AS no_unscoped_sensitive_select,
   (SELECT protected_count = 4 FROM protected_content) AS customer_content_force_rls,
-  NOT has_table_privilege('cw_workspace_prod_app','public.workspace_invitation_records','SELECT') AS invitation_bearers_private,
-  NOT has_table_privilege('cw_workspace_prod_app','public.workspace_audit_events','INSERT') AS audit_append_restricted,
+  to_regclass('public.workspace_invitation_records') IS NOT NULL
+    AND NOT COALESCE(has_table_privilege('cw_workspace_prod_app',to_regclass('public.workspace_invitation_records'),'SELECT'),false) AS invitation_bearers_private,
+  to_regclass('public.workspace_audit_events') IS NOT NULL
+    AND NOT COALESCE(has_table_privilege('cw_workspace_prod_app',to_regclass('public.workspace_audit_events'),'INSERT'),false) AS audit_append_restricted,
   to_regclass('public._prisma_migrations') IS NOT NULL AS migration_ledger_present,
   CASE WHEN to_regclass('public.workspace_projects') IS NULL THEN false
     ELSE NOT EXISTS (
