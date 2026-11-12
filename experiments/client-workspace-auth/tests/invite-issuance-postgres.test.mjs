@@ -72,10 +72,27 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
         tenantId: id.tenantA, projectId: id.projectA,
         actorSubject: ownerSubject, purpose: "project.activate",
       });
-      return tx.$queryRaw`SELECT public.cw_workspace_context_tenant_id()::text AS tenant_id`;
+      return tx.$queryRaw`WITH context AS (
+          SELECT current_setting('app.workspace_context_token', true) AS token
+        ), decoded AS (
+          SELECT token, decode(split_part(token, '.', 1), 'hex') AS payload_bytes
+            FROM context WHERE token IS NOT NULL
+        ), payload AS (
+          SELECT token, payload_bytes, convert_from(payload_bytes, 'UTF8') AS value FROM decoded
+        )
+        SELECT context.token IS NOT NULL AS token_set,
+          COALESCE(split_part(payload.value, '|', 2) = pg_current_xact_id()::text, false) AS transaction_matches,
+          COALESCE(public.hmac(payload.payload_bytes, signing.signing_key, 'sha256') =
+            decode(split_part(payload.token, '.', 2), 'hex'), false) AS signature_matches,
+          public.cw_workspace_context_tenant_id()::text AS tenant_id
+          FROM context LEFT JOIN payload ON true
+          LEFT JOIN public.workspace_context_signing_keys AS signing ON signing.singleton`;
     });
+    assert.equal(context[0]?.token_set, true, "transaction-local signed scope was set");
+    assert.equal(context[0]?.transaction_matches, true, "signed scope is transaction-bound");
+    assert.equal(context[0]?.signature_matches, true, "signed scope matches the synthetic DB key");
     assert.equal(context[0]?.tenant_id, id.tenantA,
-      "PostgreSQL validates the signed tenant scope inside its originating transaction");
+      "PostgreSQL accepts the signed tenant scope inside its originating transaction");
 
     const inviteA = await issue();
     assert.ok(inviteA, "only an active owner of this project can issue");

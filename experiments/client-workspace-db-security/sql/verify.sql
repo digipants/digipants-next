@@ -6,17 +6,17 @@ CREATE TEMP TABLE cw_test_context_marker(id integer) ON COMMIT PRESERVE ROWS;
 CREATE OR REPLACE FUNCTION pg_temp.cw_set_test_context(
   p_tenant uuid, p_project uuid, p_actor text, p_purpose text
 ) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, public, pg_temp
+LANGUAGE plpgsql
 AS $$
 DECLARE payload text; payload_bytes bytea; test_key bytea := decode(repeat('11',32),'hex');
 BEGIN
-  payload := concat_ws('|','v1',pg_current_xact_id()::text,p_tenant::text,
+  payload := pg_catalog.concat_ws('|','v1',pg_catalog.pg_current_xact_id()::text,p_tenant::text,
     COALESCE(p_project::text,''),COALESCE(p_actor,''),p_purpose);
-  payload_bytes := convert_to(payload,'UTF8');
-  PERFORM set_config('app.workspace_tenant_id',p_tenant::text,true);
-  PERFORM set_config('app.workspace_context_token',
-    encode(payload_bytes,'hex')||'.'||encode(public.hmac(payload_bytes,test_key,'sha256'),'hex'),true);
+  payload_bytes := pg_catalog.convert_to(payload,'UTF8');
+  PERFORM pg_catalog.set_config('app.workspace_tenant_id',p_tenant::text,true);
+  PERFORM pg_catalog.set_config('app.workspace_context_token',
+    pg_catalog.encode(payload_bytes,'hex')||'.'||
+      pg_catalog.encode(public.hmac(payload_bytes,test_key,'sha256'),'hex'),true);
 END;
 $$;
 
@@ -208,6 +208,11 @@ BEGIN
   token_parts := string_to_array(convert_from(payload_bytes, 'UTF8'), '|');
   IF cardinality(token_parts) <> 6 OR token_parts[2] <> pg_current_xact_id()::text THEN
     RAISE EXCEPTION 'signed tenant A test token was not bound to the current transaction';
+  END IF;
+  IF token_parts[1] <> 'v1' OR token_parts[3] !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' OR
+     token_parts[4] !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' OR
+     token_parts[5] !~ '^[A-Za-z0-9_-]{1,255}$' OR token_parts[6] !~ '^[a-z][a-z0-9_.-]{0,47}$' THEN
+    RAISE EXCEPTION 'signed tenant A test token fields did not meet the validator format';
   END IF;
   IF public.hmac(payload_bytes, test_key, 'sha256') <> decode(split_part(context_token, '.', 2), 'hex') THEN
     RAISE EXCEPTION 'signed tenant A test token signature did not match the synthetic key';
