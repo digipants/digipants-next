@@ -215,7 +215,7 @@ BEGIN
     '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'synthetic-security-owner', 'project.activate');
   context_token := current_setting('app.workspace_context_token', true);
-  IF context_token IS NULL OR length(context_token) > 1089 OR context_token !~ '^[0-9a-f]+\.[0-9a-f]{64} THEN
+  IF context_token IS NULL OR length(context_token) > 1089 OR context_token !~ '^[0-9a-f]+\.[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'signed tenant A test token was not set';
   END IF;
   payload_bytes := decode(split_part(context_token, '.', 1), 'hex');

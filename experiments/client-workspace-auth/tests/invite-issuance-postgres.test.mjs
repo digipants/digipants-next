@@ -81,7 +81,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
           SELECT token, payload_bytes, convert_from(payload_bytes, 'UTF8') AS value FROM decoded
         )
         SELECT context.token IS NOT NULL AS token_set,
-          COALESCE(context.token ~ '^[0-9a-f]+\.[0-9a-f]{64} AS token_format_matches,
+          COALESCE(context.token ~ '^[0-9a-f]+\.[0-9a-f]{64}$' AND length(context.token) <= 1089, false) AS token_format_matches,
           COALESCE(split_part(payload.value, '|', 1) = 'v1', false) AS version_matches,
           COALESCE(split_part(payload.value, '|', 2) = pg_current_xact_id()::text, false) AS transaction_matches,
           COALESCE(split_part(payload.value, '|', 3) = ${id.tenantA}, false) AS tenant_matches,

@@ -25,7 +25,7 @@ DECLARE
   secret bytea;
 BEGIN
   token := NULLIF(current_setting('app.workspace_context_token', true), '');
-  IF token IS NULL OR length(token) > 1089 OR token !~ '^[0-9a-f]+\.[0-9a-f]{64} THEN RETURN; END IF;
+  IF token IS NULL OR length(token) > 1089 OR token !~ '^[0-9a-f]+\.[0-9a-f]{64}$' THEN RETURN; END IF;
   payload_hex := split_part(token, '.', 1);
   supplied_signature := split_part(token, '.', 2);
   payload_bytes := decode(payload_hex, 'hex');
