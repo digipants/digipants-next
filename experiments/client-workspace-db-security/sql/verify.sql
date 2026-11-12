@@ -151,7 +151,7 @@ END $$;
 SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
 DO $$
 DECLARE denied boolean := false; changed integer; invite_id uuid; client_principal_id uuid;
-        approved boolean; redeemed text;
+        approved boolean; redeemed text; created_principal_status text;
 BEGIN
   IF (SELECT count(*) FROM workspace_projects) <> 1 OR
      (SELECT count(*) FROM workspace_audit_events) <> 1 OR
@@ -186,10 +186,10 @@ BEGIN
     RAISE EXCEPTION 'restricted invitation lookup disclosed another recipient';
   END IF;
 
-  SELECT id INTO client_principal_id FROM public.cw_ensure_disabled_client_principal(
-    '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
-  IF client_principal_id IS NULL OR
-     (SELECT p.status FROM workspace_principals AS p WHERE p.id=client_principal_id) <> 'disabled' THEN
+  SELECT id, status INTO client_principal_id, created_principal_status
+    FROM public.cw_ensure_disabled_client_principal(
+      '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
+  IF client_principal_id IS NULL OR created_principal_status <> 'disabled' THEN
     RAISE EXCEPTION 'restricted principal helper did not create only a disabled client principal';
   END IF;
   INSERT INTO workspace_enrollment_attempts
