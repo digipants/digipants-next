@@ -29,8 +29,9 @@ SELECT
     AND NOT has_database_privilege('cw_auth_prod_app', 'digipants_workspace_prod', 'CONNECT')
       AS cross_database_access_denied,
   (SELECT COUNT(*) = 9 FROM inventory WHERE oid IS NOT NULL) AS auth_tables_present,
-  has_schema_privilege('cw_auth_prod_app', 'auth_spike', 'USAGE')
-    AND NOT has_schema_privilege('cw_auth_prod_app', 'auth_spike', 'CREATE')
+  to_regnamespace('auth_spike') IS NOT NULL
+    AND COALESCE(has_schema_privilege('cw_auth_prod_app', to_regnamespace('auth_spike'), 'USAGE'), false)
+    AND NOT COALESCE(has_schema_privilege('cw_auth_prod_app', to_regnamespace('auth_spike'), 'CREATE'), false)
       AS restricted_auth_schema_access,
   to_regclass('auth_spike.session') IS NOT NULL
     AND COALESCE(has_table_privilege('cw_auth_prod_app',to_regclass('auth_spike.session'),'SELECT'),false)
