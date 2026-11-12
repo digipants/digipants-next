@@ -36,8 +36,9 @@ function reportFounderBootstrapDiagnostic(stage: string, error?: unknown): void 
 
 export function founderBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const mode = workspaceRuntimeMode(env);
-  const contextEnabled = mode === "protected-staging" || (mode === "local-test" &&
-    env.WORKSPACE_FOUNDER_BOOTSTRAP_TEST_ENABLED === "1");
+  const contextEnabled = mode === "protected-staging" ||
+    (mode === "production" && env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_ENABLED === "1") ||
+    (mode === "local-test" && env.WORKSPACE_FOUNDER_BOOTSTRAP_TEST_ENABLED === "1");
   return contextEnabled && env.CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED === "1";
 }
 
