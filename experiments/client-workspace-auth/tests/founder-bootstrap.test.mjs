@@ -17,8 +17,21 @@ const staging = {
   URL: "https://digipants-client-workspace-staging.netlify.app",
 };
 
-test("founder bootstrap is enabled only on the exact protected staging runtime", () => {
+test("founder bootstrap requires the exact staging or separately gated production site", () => {
   assert.equal(founderBootstrapEnabled(staging), true);
+  const production = {
+    ...staging,
+    CLIENT_WORKSPACE_ENVIRONMENT: "production",
+    CLIENT_WORKSPACE_PRODUCTION_ENABLED: "1",
+    CLIENT_WORKSPACE_PRODUCTION_FOUNDER_ENABLED: "1",
+    SITE_ID: "837d4464-7eb6-4a1f-b4ef-3a44a2829d79",
+    CLIENT_WORKSPACE_ORIGIN: "https://digipants.com",
+    URL: "https://digipants.com",
+  };
+  assert.equal(founderBootstrapEnabled(production), true);
+  assert.equal(founderBootstrapEnabled({ ...production, CLIENT_WORKSPACE_PRODUCTION_FOUNDER_ENABLED: "0" }), false);
+  assert.equal(founderBootstrapEnabled({ ...production, CLIENT_WORKSPACE_PRODUCTION_ENABLED: "0" }), false);
+  assert.equal(founderBootstrapEnabled({ ...production, SITE_ID: staging.SITE_ID }), false);
   assert.equal(founderBootstrapEnabled({ ...staging, SITE_ID: "another-site" }), false);
   assert.equal(founderBootstrapEnabled({ ...staging, CLIENT_WORKSPACE_ENVIRONMENT: "production" }), false);
   assert.equal(founderBootstrapEnabled({ ...staging, CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED: "0" }), false);
