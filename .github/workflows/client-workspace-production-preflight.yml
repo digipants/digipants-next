@@ -8,6 +8,8 @@ on:
     paths:
       - "scripts/workspace/production-*-preflight.sql"
       - "tests/workspace-production-preflight.test.mjs"
+      - "scripts/workspace/production-rls-hardening.sql"
+      - "docs/workspace-production-activation.md"
       - ".github/workflows/client-workspace-production-preflight.yml"
   workflow_dispatch:
 
