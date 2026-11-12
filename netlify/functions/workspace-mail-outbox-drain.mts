@@ -14,8 +14,10 @@ export default async function workspaceMailOutboxDrain(): Promise<Response> {
   const founderEmailEnabled = process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1";
   const production = isProductionWorkspace();
   const productionEmailEnabled = process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1";
+  const productionFounderEmailEnabled = process.env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED === "1";
   if (!isActiveWorkspaceRuntime() ||
-      (production ? !productionEmailEnabled : (!realEmailsEnabled && !founderEmailEnabled))) {
+      (production ? (!productionEmailEnabled && !productionFounderEmailEnabled)
+        : (!realEmailsEnabled && !founderEmailEnabled))) {
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   }
 
@@ -26,7 +28,9 @@ export default async function workspaceMailOutboxDrain(): Promise<Response> {
       import("../../experiments/client-workspace-auth/src/resend-mailbox-transport.js"),
     ]);
     const authDb = database.getAuthPrisma();
-    const founderOnly = !production && !realEmailsEnabled && founderEmailEnabled;
+    const founderOnly = production
+      ? !productionEmailEnabled && productionFounderEmailEnabled
+      : !realEmailsEnabled && founderEmailEnabled;
     const send = resend.createWorkspaceResendMailboxTransport(
       founderOnly ? "founder-bootstrap" : "all",
     );
