@@ -8,7 +8,8 @@ import {
   dispatchFounderBootstrapProof, founderBootstrapEnabled,
 } from "../../../../../experiments/client-workspace-auth/src/founder-bootstrap";
 import {
-  isLocalWorkspaceTest, isProtectedWorkspaceStaging, isTrustedWorkspaceRequest,
+  isActiveWorkspaceRuntime, isLocalWorkspaceTest, isProductionWorkspace,
+  isProtectedWorkspaceStaging, isTrustedWorkspaceRequest, workspaceAuthSecret,
   workspaceOrigin,
 } from "../../../../../experiments/client-workspace-auth/src/workspace-runtime";
 import { mailboxOutboxTestEnabled, type MailPayload } from "../../../../../experiments/client-workspace-auth/src/mail-delivery-outbox";
@@ -68,7 +69,7 @@ function unavailable(): Response {
 }
 
 function enabled(): boolean {
-  return founderBootstrapEnabled() && (isProtectedWorkspaceStaging() ||
+  return founderBootstrapEnabled() && (isActiveWorkspaceRuntime() ||
     (isLocalWorkspaceTest() && process.env.WORKSPACE_NEXT_ROUTE_TEST_ENABLED === "1"));
 }
 
@@ -164,15 +165,15 @@ async function readSmallJson(request: Request): Promise<Record<string, unknown> 
 
 export async function GET(request: Request): Promise<Response> {
   if (!enabled() || !baseRequest(request, "GET")) return unavailable();
-  const secret = process.env.BETTER_AUTH_SECRET;
+  const secret = workspaceAuthSecret();
   if (!secret || Buffer.byteLength(secret) < 32) return unavailable();
   try {
     const sid = randomBytes(32).toString("base64url");
     const csrf = issueSyntheticCsrfToken({ secret, trustedSessionId: sid });
-    const secure = isProtectedWorkspaceStaging() ? "; Secure" : "";
+    const secure = isActiveWorkspaceRuntime() ? "; Secure" : "";
     const attrs = "; HttpOnly; SameSite=Strict; Path=/api/workspace/founder/verification; Max-Age=900" + secure;
-    const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
-    const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+    const sidName = isActiveWorkspaceRuntime() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+    const csrfName = isActiveWorkspaceRuntime() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
     const headers = new Headers(HEADERS);
     headers.append("Set-Cookie", sidName + "=" + sid + attrs);
     headers.append("Set-Cookie", csrfName + "=" + csrf + attrs);
@@ -188,15 +189,16 @@ export async function POST(request: Request): Promise<Response> {
     logFounderPostGuard("request-guard", request);
     return unavailable();
   }
-  if (isProtectedWorkspaceStaging() && process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED !== "1") {
+  if ((isProtectedWorkspaceStaging() && process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED !== "1") ||
+      (isProductionWorkspace() && process.env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED !== "1")) {
     logFounderPostGuard("founder-email-gate", request);
     return unavailable();
   }
-  const sidName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
-  const csrfName = isProtectedWorkspaceStaging() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
+  const sidName = isActiveWorkspaceRuntime() ? STAGING_COOKIE_SID : LOCAL_COOKIE_SID;
+  const csrfName = isActiveWorkspaceRuntime() ? STAGING_COOKIE_CSRF : LOCAL_COOKIE_CSRF;
   const sid = cookieValue(request.headers, sidName);
   const csrfCookie = cookieValue(request.headers, csrfName);
-  const secret = process.env.BETTER_AUTH_SECRET;
+  const secret = workspaceAuthSecret();
   const expectedOrigin = workspaceOrigin();
   const sessionIdValid = !!sid && /^[A-Za-z0-9_-]{43}$/.test(sid);
   const csrfAllowed = !!sessionIdValid && !!secret && !!expectedOrigin && allowSyntheticMutation({
@@ -251,10 +253,12 @@ export async function POST(request: Request): Promise<Response> {
       authDb, sid, intendedEmail: body.email, invite: RATE_SCOPE,
     }))) return fakeChallenge();
 
-    const sender = isProtectedWorkspaceStaging()
-      ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport("founder-bootstrap")
-      : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
-        ? globalThis.__workspaceMailboxTestSender : undefined;
+    const sender = isProductionWorkspace()
+      ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createWorkspaceResendMailboxTransport("founder-bootstrap")
+      : isProtectedWorkspaceStaging()
+        ? (await import("../../../../../experiments/client-workspace-auth/src/resend-mailbox-transport")).createStagingResendMailboxTransport("founder-bootstrap")
+        : process.env.RUN_WORKSPACE_MAIL_INTEGRATION === "1"
+          ? globalThis.__workspaceMailboxTestSender : undefined;
     if (!sender) {
       logFounderPostGuard("sender-unavailable", request);
       return unavailable();
