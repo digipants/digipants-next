@@ -146,8 +146,11 @@ REVOKE cw_schema_owner FROM CURRENT_USER;
 
 DO $$
 BEGIN
-  IF pg_has_role(current_user, 'cw_schema_owner', 'SET') OR
-     pg_has_role(current_user, 'cw_schema_owner', 'USAGE') THEN
+  -- A PostgreSQL superuser can assume any role by definition. Only
+  -- assert membership hygiene for non-superuser migration installers.
+  IF NOT (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = current_user)
+     AND (pg_has_role(current_user, 'cw_schema_owner', 'SET')
+          OR pg_has_role(current_user, 'cw_schema_owner', 'USAGE')) THEN
     RAISE EXCEPTION 'installer retained owner rights after v2 scope hardening';
   END IF;
   IF EXISTS (
