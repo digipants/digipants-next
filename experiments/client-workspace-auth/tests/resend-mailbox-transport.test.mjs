@@ -95,7 +95,8 @@ test("production Resend uses a separate key and explicit production email gate",
   const keys = [
     "NODE_ENV", "CLIENT_WORKSPACE_ENABLED", "CLIENT_WORKSPACE_ENVIRONMENT",
     "CLIENT_WORKSPACE_PRODUCTION_ENABLED", "SITE_ID", "CLIENT_WORKSPACE_ORIGIN", "URL",
-    "CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED", "PRODUCTION_RESEND_API_KEY", "RESEND_API_KEY",
+    "CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED", "CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED",
+    "PRODUCTION_RESEND_API_KEY", "RESEND_API_KEY",
     "WORKSPACE_EMAIL_FROM", "PRODUCTION_WORKSPACE_EMAIL_FROM",
   ];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -111,6 +112,7 @@ test("production Resend uses a separate key and explicit production email gate",
       CLIENT_WORKSPACE_ORIGIN: "https://digipants.com",
       URL: "https://digipants.com",
       CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED: "1",
+      CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED: "0",
       PRODUCTION_RESEND_API_KEY: "re_" + "P".repeat(28),
       RESEND_API_KEY: "re_" + "S".repeat(28),
       WORKSPACE_EMAIL_FROM: "DigiPants Client Workspace <staging@digipants.com>",
@@ -126,7 +128,7 @@ test("production Resend uses a separate key and explicit production email gate",
     assert.equal(typeof sender, "function");
     assert.equal(resendModule.createStagingResendMailboxTransport(), null);
     assert.equal(resendModule.createWorkspaceResendMailboxTransport("founder-bootstrap"), null,
-      "founder bootstrap remains staging-only");
+      "production founder proof requires a separate explicit switch");
     const inviteId = randomUUID();
     assert.equal(await sender({
       kind: "workspace_invitation", challengeId: inviteId,
@@ -135,6 +137,20 @@ test("production Resend uses a separate key and explicit production email gate",
       idempotencyKey: "cw-invite-" + inviteId,
     }), true);
     assert.equal(sent, 1);
+    process.env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED = "1";
+    const founderSender = resendModule.createWorkspaceResendMailboxTransport("founder-bootstrap");
+    assert.equal(typeof founderSender, "function");
+    const founderId = randomUUID();
+    assert.equal(await founderSender({
+      kind: "founder_bootstrap", challengeId: founderId,
+      to: "founder@example.invalid", subject: "Verify your DigiPants founder account",
+      text: "You requested one-time mailbox verification for the DigiPants Client Workspace founder staff account.\n"
+        + "A".repeat(43) + "\n",
+      idempotencyKey: "cw-founder-bootstrap-" + founderId,
+    }), true);
+    assert.equal(sent, 2);
+    process.env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED = "0";
+    assert.equal(resendModule.createWorkspaceResendMailboxTransport("founder-bootstrap"), null);
     process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED = "0";
     assert.equal(resendModule.createWorkspaceResendMailboxTransport(), null);
   } finally {
