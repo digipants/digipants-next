@@ -26,6 +26,9 @@ test("Workspace production preflight covers every sensitive journal and grant ta
   assert.match(workspace, /cross_database_access_denied/);
   assert.match(workspace, /invitation_bearers_private/);
   assert.match(workspace, /customer_content_force_rls/);
+  assert.match(workspace, /signed_context_key_private/);
+  assert.match(workspace, /signed_context_key_configured/);
+  assert.match(workspace, /signed_context_helpers_owned/);
 });
 
 test("Better Auth production preflight denies administrator privileges and mail deletion", () => {

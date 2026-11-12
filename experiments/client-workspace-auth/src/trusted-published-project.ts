@@ -3,6 +3,7 @@ import "server-only";
 import { auth } from "./auth.js";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { maxMfaAgeSecondsForAction } from "./mfa-freshness.js";
+import { setWorkspaceAuthorizationContext } from "./workspace-tenant-context.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATES = new Set(["planned", "active", "paused", "change_review", "handover", "closed"]);
@@ -107,6 +108,11 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
         throw new PublishedProjectAccessDenied();
       }
 
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: values.tenantId, projectId: values.projectId,
+        actorSubject: values.providerSubject, purpose: "project.read_published",
+      });
+
       // Server-verified subject is resolved through a narrowly scoped
       // SECURITY DEFINER helper which locks active client membership/grant
       // rows against concurrent revocation for this transaction. The helper
@@ -118,6 +124,10 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
         )::text AS "principalId"
       `;
       if (!actors[0]?.principalId) {
+        await setWorkspaceAuthorizationContext(tx, {
+          tenantId: values.tenantId, projectId: values.projectId,
+          actorSubject: values.providerSubject, purpose: "delivery.edit",
+        });
         actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
           SELECT public.cw_lock_staff_project_grant(
             ${values.providerSubject}, ${values.tenantId}::uuid,
@@ -127,7 +137,6 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
       }
       if (!actors[0]?.principalId) throw new PublishedProjectAccessDenied();
 
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${values.tenantId}, true)`;
       const rows = await tx.$queryRaw<Array<{
         id: string; tenantId: string; title: string; state: string; revision: bigint;
       }>>`

@@ -14,6 +14,9 @@ GRANT SELECT ON TABLE workspace_principals, workspace_tenants,
   workspace_projects, workspace_client_project_grants,
   workspace_staff_project_grants, workspace_enrollment_attempts TO cw_runtime;
 GRANT SELECT ON TABLE workspace_milestones, workspace_progress_updates TO cw_runtime;
+GRANT SELECT ON TABLE workspace_principals, workspace_client_memberships,
+  workspace_staff_memberships, workspace_staff_project_grants,
+  workspace_enrollment_attempts TO cw_audit_writer;
 GRANT INSERT ON TABLE workspace_enrollment_attempts TO cw_runtime;
 GRANT UPDATE (state, attempt_count, last_error_code, next_retry_at,
   poisoned_at, auth_created_at, principal_created_at, grant_approved_at,
@@ -28,14 +31,14 @@ ALTER TABLE workspace_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_projects FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_project_read ON workspace_projects
   FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_runtime_project_update ON workspace_projects
   FOR UPDATE TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid)
-  WITH CHECK (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id())
+  WITH CHECK (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_audit_reader_project_read ON workspace_projects
   FOR SELECT TO cw_audit_reader
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_schema_owner_project_all ON workspace_projects
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 
@@ -76,10 +79,10 @@ ALTER TABLE workspace_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_audit_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_audit_read ON workspace_audit_events
   FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_audit_reader_read ON workspace_audit_events
   FOR SELECT TO cw_audit_reader
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_audit_writer_append ON workspace_audit_events
   FOR INSERT TO cw_audit_writer WITH CHECK (true);
 
@@ -92,7 +95,7 @@ ALTER TABLE workspace_milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_milestones FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_milestone_read ON workspace_milestones
   FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_schema_owner_milestone_all ON workspace_milestones
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 
@@ -100,9 +103,34 @@ ALTER TABLE workspace_progress_updates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_progress_updates FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_runtime_progress_read ON workspace_progress_updates
   FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_schema_owner_progress_all ON workspace_progress_updates
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
+
+-- The signing key is private to the non-login schema owner. Runtime and audit
+-- roles receive only execution of a transaction-bound signature validator.
+REVOKE ALL ON public.workspace_context_signing_keys FROM PUBLIC, cw_runtime,
+  cw_auth_runtime, cw_audit_writer, cw_audit_reader;
+GRANT SELECT ON public.workspace_context_signing_keys TO cw_schema_owner;
+ALTER FUNCTION public.cw_verified_workspace_context() OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_workspace_context_tenant_id() OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_workspace_context_allows(uuid,uuid,text,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_founder_bootstrap_target(bytea) OWNER TO cw_schema_owner;
+GRANT EXECUTE ON FUNCTION public.cw_verified_workspace_context() TO cw_audit_writer,
+  cw_schema_owner;
+GRANT EXECUTE ON FUNCTION public.cw_workspace_context_tenant_id() TO cw_runtime,
+  cw_audit_reader, cw_audit_writer, cw_schema_owner;
+GRANT EXECUTE ON FUNCTION public.cw_workspace_context_allows(uuid,uuid,text,text) TO cw_schema_owner;
+GRANT EXECUTE ON FUNCTION public.cw_founder_bootstrap_target(bytea) TO cw_runtime;
+
+ALTER FUNCTION public.cw_lock_staff_project_grant(text,uuid,uuid,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_lock_client_project_grant(text,uuid,uuid,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_ensure_disabled_client_principal(uuid,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_disable_client_principal(uuid,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_begin_founder_bootstrap(bytea,text) OWNER TO cw_schema_owner;
+ALTER FUNCTION public.cw_complete_founder_bootstrap(bytea,text) OWNER TO cw_schema_owner;
+REVOKE ALL ON FUNCTION public.cw_founder_bootstrap_target(bytea) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cw_founder_bootstrap_target(bytea) TO cw_runtime;
 
 -- PostgreSQL requires the new function owner to possess CREATE on the
 -- containing schema *at the instant of ownership transfer*. Revoke it

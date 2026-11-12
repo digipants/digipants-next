@@ -2,7 +2,7 @@ name: Client Workspace disposable DB security rehearsal
 
 on:
   pull_request:
-    branches: [main, feat/client-workspace-trusted-tenant-96]
+    branches: [main, feat/client-workspace-trusted-tenant-96, feat/client-workspace-mail-abuse-gates-117]
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - ".github/workflows/client-workspace-db-security.yml"
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ephemeral-postgres-security:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'fix/client-workspace-neon-installer-101') }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'feat/client-workspace-db-security-90' || github.event.pull_request.head.ref == 'feat/client-workspace-trusted-tenant-96' || github.event.pull_request.head.ref == 'feat/client-workspace-enrollment-recovery-97' || github.event.pull_request.head.ref == 'fix/client-workspace-neon-installer-101' || github.event.pull_request.head.ref == 'fix/workspace-production-migration-guards-121') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -77,6 +77,7 @@ jobs:
             cat experiments/client-workspace-db-security/sql/hardening.sql
             printf '\nCOMMIT;\n'
           } | docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -v ON_ERROR_STOP=1 < scripts/workspace/production-rls-hardening.sql
       - name: Exercise least-privilege roles, RLS limits, append-only audit and rollback negatives
         run: |
           set -euo pipefail

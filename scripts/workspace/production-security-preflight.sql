@@ -59,6 +59,21 @@ SELECT
     AND NOT COALESCE(has_table_privilege('cw_workspace_prod_app',to_regclass('public.workspace_invitation_records'),'SELECT'),false) AS invitation_bearers_private,
   to_regclass('public.workspace_audit_events') IS NOT NULL
     AND NOT COALESCE(has_table_privilege('cw_workspace_prod_app',to_regclass('public.workspace_audit_events'),'INSERT'),false) AS audit_append_restricted,
+  to_regclass('public.workspace_context_signing_keys') IS NOT NULL
+    AND COALESCE((SELECT r.rolname = 'cw_schema_owner'
+      FROM pg_catalog.pg_class c JOIN pg_catalog.pg_roles r ON r.oid=c.relowner
+      WHERE c.oid=to_regclass('public.workspace_context_signing_keys')),false)
+    AND NOT COALESCE(has_table_privilege('cw_workspace_prod_app',
+      to_regclass('public.workspace_context_signing_keys'),'SELECT'),false) AS signed_context_key_private,
+  (SELECT count(*) = 1 AND min(octet_length(signing_key)) = 32
+     FROM public.workspace_context_signing_keys) AS signed_context_key_configured,
+  (SELECT count(*) = 4 FROM pg_catalog.pg_proc p
+      JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+      JOIN pg_catalog.pg_roles r ON r.oid=p.proowner
+     WHERE n.nspname='public'
+       AND p.proname IN ('cw_verified_workspace_context','cw_workspace_context_tenant_id',
+         'cw_workspace_context_allows','cw_founder_bootstrap_target')
+       AND p.prosecdef AND r.rolname='cw_schema_owner') AS signed_context_helpers_owned,
   to_regclass('public._prisma_migrations') IS NOT NULL AS migration_ledger_present,
   CASE WHEN to_regclass('public.workspace_projects') IS NULL THEN false
     ELSE NOT EXISTS (

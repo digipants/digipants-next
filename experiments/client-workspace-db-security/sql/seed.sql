@@ -1,5 +1,10 @@
 -- Fixed synthetic UUIDs and names for disposable CI only.
 \set ON_ERROR_STOP on
+INSERT INTO public.workspace_context_signing_keys(singleton, signing_key)
+VALUES (true, decode(repeat('11', 32), 'hex'))
+ON CONFLICT (singleton) DO UPDATE SET signing_key = EXCLUDED.signing_key,
+  updated_at = statement_timestamp();
+
 INSERT INTO workspace_tenants (id, legal_name) VALUES
   ('11111111-1111-4111-8111-111111111111', 'Synthetic Tenant A'),
   ('22222222-2222-4222-8222-222222222222', 'Synthetic Tenant B');

@@ -250,6 +250,20 @@ model WorkspaceFounderBootstrapControl {
   pendingProviderSubject  String?   @map("pending_provider_subject") @db.Text
   completedProviderSubject String? @map("completed_provider_subject") @db.Text
   completedAt             DateTime? @map("completed_at") @db.Timestamptz(6)
+  targetTenantId          String?   @map("target_tenant_id") @db.Uuid
+  targetProjectId         String?   @map("target_project_id") @db.Uuid
+  staffRole               String    @default("delivery_lead") @map("staff_role") @db.Text
 
   @@map("workspace_founder_bootstrap_control")
+}
+
+// Provisioned and read only by SECURITY DEFINER verification functions. Keep
+// this model ignored so generated application clients cannot query key bytes.
+model WorkspaceContextSigningKey {
+  singleton   Boolean  @id @default(true)
+  signingKey  Bytes    @map("signing_key") @db.ByteA
+  updatedAt   DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@ignore
+  @@map("workspace_context_signing_keys")
 }

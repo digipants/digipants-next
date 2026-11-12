@@ -36,7 +36,7 @@ npm --prefix experiments/client-workspace-auth run db:migrate:deploy
 npm --prefix experiments/client-workspace-auth run db:migrate:status
 ```
 
-The intended new versioned migration is `prisma/migrations/20261112190000_founder_bootstrap_scope_v2`. Ensure it is included in the real Prisma ledger, that the migration count and checksums match the exact source tree, and that each database's schema drift check passes. A manual SQL replay without the Prisma ledger is **not** sufficient.
+The new versioned migrations include `prisma/migrations/20261112190000_founder_bootstrap_scope_v2` and `prisma/migrations/20261112210000_workspace_signed_authorization_context`. Ensure both are included in the real Prisma ledger, that the migration count and checksums match the exact source tree, and that each database's schema drift check passes. A manual SQL replay without the Prisma ledger is **not** sufficient.
 
 Run the following **from repo root with a trusted direct Workspace installer connection**. The first two files must be atomic together, because temporary owner and audit-writer memberships are granted then revoked:
 
@@ -62,6 +62,7 @@ For both databases run their versioned read-only preflights and reject **any** f
 - `scripts/workspace/production-auth-preflight.sql`
 
 Do not claim acceptance from role metadata alone: verify a real non-admin SQL login, transaction-local RLS, privilege denials and pooled TLS separately.
+The `experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs` runner also requires the matching disposable 32-byte `WORKSPACE_RLS_CONTEXT_KEY` alongside two synthetic tenant IDs and the restricted pooled URL; do not use production key material for this test.
 
 ## 3. Dedicated production credentials, without exposure
 
@@ -72,11 +73,14 @@ Construct production-only Netlify runtime secrets with the exact actual Neon `-p
 - `PRODUCTION_WORKSPACE_DATABASE_URL`: `cw_workspace_prod_app` in `digipants_workspace_prod`
 - `PRODUCTION_AUTH_DATABASE_URL`: `cw_auth_prod_app` in `digipants_auth_prod`
 - `PRODUCTION_BETTER_AUTH_SECRET`: new random 256-bit+ secret, never reused from staging
+- `PRODUCTION_WORKSPACE_RLS_CONTEXT_KEY`: independent random 32-byte base64url key used to sign tenant/project/actor/action scope; never reuse the staging or local test key
 - `PRODUCTION_AUTH_BASE_URL`: `https://digipants.com/api/auth`
 - `PRODUCTION_WORKSPACE_MAIL_OUTBOX_KEY`: independently generated AES-256-GCM outbox key
 - `PRODUCTION_RESEND_API_KEY` and `PRODUCTION_WORKSPACE_EMAIL_FROM`: dedicated permitted sender/key for `digipants.com`, not the public contact-form key
 
 Confirm all public/preview/branch/development contexts cannot read these secrets. Rotate on suspected exposure. Do not enable live email until the one-recipient founder verification acceptance is complete.
+
+After applying the versioned Workspace migration and atomic role hardening, provision exactly one row in `workspace_context_signing_keys` through a trusted schema-owner session. Its 32-byte `signing_key` must match the decoded `PRODUCTION_WORKSPACE_RLS_CONTEXT_KEY`; enter the same generated value directly into the protected Netlify production secret field. Do not put the value in SQL files, shell history, CI logs, GitHub, or this runbook. The read-only preflight verifies only row count/length and restricted visibility; it does not prove the application key matches, so a real restricted-login app transaction must also verify signed scope and forged-GUC denial.
 
 ## 4. Real founder provisioning (not synthetic)
 

@@ -52,6 +52,7 @@ ALTER TABLE public.workspace_audit_events OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_founder_bootstrap_control OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_milestones OWNER TO cw_schema_owner;
 ALTER TABLE public.workspace_progress_updates OWNER TO cw_schema_owner;
+ALTER TABLE public.workspace_context_signing_keys OWNER TO cw_schema_owner;
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO cw_schema_owner;

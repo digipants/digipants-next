@@ -7,6 +7,7 @@ import {
   mailboxOutboxTestEnabled,
 } from "./mail-delivery-outbox.js";
 import type { MailPayload } from "./mail-delivery-outbox.js";
+import { setWorkspaceAuthorizationContext } from "./workspace-tenant-context.js";
 
 type Sql = {
   $queryRaw<T = unknown>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -177,7 +178,7 @@ export async function dispatchFounderBootstrapProof(input: {
 
 /** Consume mailbox proof, then reserve the single allowed founder subject. */
 export async function beginFounderBootstrap(input: {
-  workspaceDb: Sql;
+  workspaceDb: TransactionalDb;
   authDb: Sql;
   email: string;
   challengeId: string;
@@ -198,11 +199,22 @@ export async function beginFounderBootstrap(input: {
          AND expires_at > statement_timestamp()
     `;
     if (spent !== 1) return null;
-    const rows = await input.workspaceDb.$queryRaw<Array<{ subject: string | null }>>`
-      SELECT public.cw_begin_founder_bootstrap(
-        ${hash}, ${input.challengeId}
-      ) AS subject
-    `;
+    const rows = await input.workspaceDb.$transaction(async tx => {
+      const targets = await tx.$queryRaw<Array<{ tenantId: string | null; projectId: string | null }>>`
+        SELECT target.tenant_id::text AS "tenantId", target.project_id::text AS "projectId"
+          FROM public.cw_founder_bootstrap_target(${hash}) AS target
+      `;
+      const tenantId = targets[0]?.tenantId;
+      const projectId = targets[0]?.projectId;
+      if (!tenantId || !projectId) return [];
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId, projectId, actorSubject: input.challengeId,
+        purpose: "founder.bootstrap",
+      });
+      return tx.$queryRaw<Array<{ subject: string | null }>>`
+        SELECT public.cw_begin_founder_bootstrap(${hash}, ${input.challengeId}) AS subject
+      `;
+    });
     const subject = rows[0]?.subject;
     return typeof subject === "string" && UUID.test(subject) ? subject : null;
   } catch {
@@ -212,7 +224,7 @@ export async function beginFounderBootstrap(input: {
 
 /** Finalizes exactly one project-scoped delivery-lead grant after signup. */
 export async function completeFounderBootstrap(input: {
-  workspaceDb: Sql;
+  workspaceDb: TransactionalDb;
   email: string;
   providerSubject: string;
 }): Promise<boolean> {
@@ -220,11 +232,22 @@ export async function completeFounderBootstrap(input: {
   const hash = emailHash(input.email);
   if (!hash) return false;
   try {
-    const rows = await input.workspaceDb.$queryRaw<Array<{ completed: boolean }>>`
-      SELECT public.cw_complete_founder_bootstrap(
-        ${hash}, ${input.providerSubject}
-      ) AS completed
-    `;
+    const rows = await input.workspaceDb.$transaction(async tx => {
+      const targets = await tx.$queryRaw<Array<{ tenantId: string | null; projectId: string | null }>>`
+        SELECT target.tenant_id::text AS "tenantId", target.project_id::text AS "projectId"
+          FROM public.cw_founder_bootstrap_target(${hash}) AS target
+      `;
+      const tenantId = targets[0]?.tenantId;
+      const projectId = targets[0]?.projectId;
+      if (!tenantId || !projectId) return [];
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId, projectId, actorSubject: input.providerSubject,
+        purpose: "founder.bootstrap",
+      });
+      return tx.$queryRaw<Array<{ completed: boolean }>>`
+        SELECT public.cw_complete_founder_bootstrap(${hash}, ${input.providerSubject}) AS completed
+      `;
+    });
     return rows.length === 1 && rows[0]?.completed === true;
   } catch {
     return false;

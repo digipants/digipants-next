@@ -7,6 +7,7 @@ import {
 const pooled="postgresql://cw_runtime_ci:synthetic_pw@ep-safe-pooler.c-2.us-east-2.aws.neon.tech/digipants_workspace_dev?sslmode=verify-full";
 const tenantA="11111111-1111-4111-8111-111111111111";
 const tenantB="22222222-2222-4222-8222-222222222222";
+const contextKey=Buffer.alloc(32,0x11);
 
 test("Pooled acceptance refuses direct, privileged, malformed and insecure connection strings",()=>{
   assert.ok(assertPooledNeonUrl(pooled).hostname.includes("-pooler."));
@@ -55,9 +56,14 @@ function mockPoolFactory(state){
         if(s==="COMMIT"||s==="ROLLBACK"){
           state.inside=false;state.scope=null;return {rows:[]};
         }
+        if(s.includes("pg_current_xact_id")){
+          assert.equal(state.inside,true);
+          return {rows:[{xid:"42"}]};
+        }
         if(s.includes("set_config(")){
           assert.equal(state.inside,true);
           state.scope=args[0];
+          assert.match(args[1], /^[0-9a-f]+\.[0-9a-f]{64}$/);
           return {rows:[]};
         }
         if(s.includes("FROM pg_roles"))
@@ -93,7 +99,7 @@ test("Acceptance verifies restricted login and exact tenant reads with transacti
   };
   try{
     const result=await runAcceptance({
-      poolerUrl:pooled,tenantA,tenantB,
+      poolerUrl:pooled,tenantA,tenantB,contextKey,
       makePool:mockPoolFactory(state),verifyClientTls,
     });
     assert.deepEqual(result,{
@@ -108,24 +114,27 @@ test("Acceptance verifies restricted login and exact tenant reads with transacti
 
     await assert.rejects(runAcceptance({
       poolerUrl:pooled,tenantA,tenantB:tenantA,
+      contextKey,
       makePool:mockPoolFactory(state),verifyClientTls,
     }));
 
     const badIdentity={scope:null,inside:false,seen:0,closed:false,forgeInvitation:true};
     await assert.rejects(runAcceptance({
       poolerUrl:pooled,tenantA,tenantB,
+      contextKey,
       makePool:mockPoolFactory(badIdentity),verifyClientTls,
     }),/privileges exceed/);
 
     const wrongTenant={scope:null,inside:false,seen:0,closed:false,spoofTenant:tenantB};
     await assert.rejects(runAcceptance({
       poolerUrl:pooled,tenantA,tenantB,
+      contextKey,
       makePool:mockPoolFactory(wrongTenant),verifyClientTls,
     }),/exactly isolated/);
 
     const noRealTls={scope:null,inside:false,seen:0,closed:false};
     await assert.rejects(runAcceptance({
-      poolerUrl:pooled,tenantA,tenantB,makePool:mockPoolFactory(noRealTls),
+      poolerUrl:pooled,tenantA,tenantB,contextKey,makePool:mockPoolFactory(noRealTls),
     }),/not authenticated TLS/);
     assert.equal(noRealTls.seen,0,
       "a missing verified socket must abort BEFORE any data query");

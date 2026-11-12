@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { checkServerIdentity, TLSSocket } from "node:tls";
+import { createHmac } from "node:crypto";
 import pg from "pg";
 
 const DEMO_DB = "digipants_workspace_dev";
@@ -49,7 +50,7 @@ export function assertVerifiedPooledTlsSocket(client, expectedHostname) {
 }
 
 export async function runAcceptance({
-  poolerUrl,tenantA,tenantB,makePool,verifyClientTls=assertVerifiedPooledTlsSocket,
+  poolerUrl,tenantA,tenantB,contextKey,makePool,verifyClientTls=assertVerifiedPooledTlsSocket,
 }) {
   if(process.env.WORKSPACE_POOLER_ACCEPTANCE_ENABLED!=="1")
     throw Error("Disposable pooled acceptance must be explicitly enabled");
@@ -57,6 +58,8 @@ export async function runAcceptance({
   if(!UUID.test(tenantA)||!UUID.test(tenantB)||
       tenantA.toLowerCase()===tenantB.toLowerCase())
     throw Error("Two distinct synthetic tenant IDs are required");
+  if(!Buffer.isBuffer(contextKey)||contextKey.byteLength!==32)
+    throw Error("A dedicated 32-byte synthetic context signing key is required");
   if(typeof verifyClientTls!=="function")
     throw Error("Client TLS inspection is mandatory");
 
@@ -108,8 +111,17 @@ export async function runAcceptance({
     async function visible(tenant){
       await client.query("BEGIN");
       try{
-        if(tenant)await client.query(
-          "SELECT set_config('app.workspace_tenant_id',$1,true)",[tenant]);
+        if(tenant){
+          const xid=(await client.query("SELECT pg_current_xact_id()::text AS xid")).rows[0]?.xid;
+          if(typeof xid!=="string"||!/^\d{1,20}$/.test(xid))
+            throw Error("Transaction context could not be bound");
+          const payload=["v1",xid,tenant,"","","pooler.acceptance"].join("|");
+          const bytes=Buffer.from(payload,"utf8");
+          const token=`${bytes.toString("hex")}.${createHmac("sha256",contextKey).update(bytes).digest("hex")}`;
+          await client.query(
+            "SELECT set_config('app.workspace_tenant_id',$1,true), set_config('app.workspace_context_token',$2,true)",
+            [tenant,token]);
+        }
         const result=await client.query(
           "SELECT id::text AS id, tenant_id::text AS \"tenantId\" FROM public.workspace_projects ORDER BY id"
         );
@@ -148,6 +160,12 @@ if(process.argv[1] && fileURLToPath(import.meta.url)===process.argv[1]){
     poolerUrl:process.env.WORKSPACE_POOLER_TEST_URL,
     tenantA:process.env.WORKSPACE_POOLER_TEST_TENANT_A,
     tenantB:process.env.WORKSPACE_POOLER_TEST_TENANT_B,
+    contextKey:(()=>{
+      const raw=process.env.WORKSPACE_RLS_CONTEXT_KEY;
+      if(!raw||!/^[A-Za-z0-9_-]{43}$/.test(raw))return null;
+      const key=Buffer.from(raw,"base64url");
+      return key.byteLength===32&&key.toString("base64url")===raw?key:null;
+    })(),
   }).then(result=>{
     process.stdout.write(JSON.stringify(result)+"\n");
   }).catch(()=>{

@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashInvitationToken } from "./invitations.js";
+import { setWorkspaceAuthorizationContext } from "./workspace-tenant-context.js";
 
 // Invitation records are written only through narrow SECURITY DEFINER
 // functions. The caller must still establish the authenticated staff session
@@ -60,6 +61,10 @@ export async function issueClientInvitation(input: {
   const digest = hashInvitationToken(token);
   try {
     return await input.workspaceDb.$transaction(async tx => {
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: input.tenantId, projectId: input.projectId,
+        actorSubject: input.issuerSubject, purpose: "project.activate",
+      });
       const issued = await tx.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.cw_issue_client_invitation(
           ${id}::uuid, ${input.issuerSubject}, ${input.tenantId}::uuid,
@@ -85,6 +90,10 @@ export async function revokeClientInvitation(input: {
   if (!validScope(input) || !UUID.test(input.invitationId)) return false;
   try {
     return await input.workspaceDb.$transaction(async tx => {
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: input.tenantId, projectId: input.projectId,
+        actorSubject: input.issuerSubject, purpose: "project.activate",
+      });
       const rows = await tx.$queryRaw<Array<{ revoked: boolean }>>`
         SELECT public.cw_revoke_client_invitation(
           ${input.issuerSubject}, ${input.tenantId}::uuid,

@@ -14,15 +14,15 @@ CREATE POLICY cw_v2_tenants_owner ON public.workspace_tenants
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_tenants_runtime ON public.workspace_tenants
   FOR SELECT TO cw_runtime
-  USING (id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (id = public.cw_workspace_context_tenant_id());
 
 ALTER TABLE public.workspace_client_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_client_memberships FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_v2_client_memberships_owner ON public.workspace_client_memberships
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_client_memberships_runtime ON public.workspace_client_memberships
-  FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  FOR SELECT TO cw_runtime, cw_audit_writer
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 
 ALTER TABLE public.workspace_client_project_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_client_project_grants FORCE ROW LEVEL SECURITY;
@@ -30,26 +30,26 @@ CREATE POLICY cw_v2_client_grants_owner ON public.workspace_client_project_grant
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_client_grants_runtime ON public.workspace_client_project_grants
   FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 
 ALTER TABLE public.workspace_staff_project_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_staff_project_grants FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_v2_staff_grants_owner ON public.workspace_staff_project_grants
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_staff_grants_runtime ON public.workspace_staff_project_grants
-  FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  FOR SELECT TO cw_runtime, cw_audit_writer
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 
 ALTER TABLE public.workspace_staff_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_staff_memberships FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_v2_staff_memberships_owner ON public.workspace_staff_memberships
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_staff_memberships_runtime ON public.workspace_staff_memberships
-  FOR SELECT TO cw_runtime USING (
+  FOR SELECT TO cw_runtime, cw_audit_writer USING (
     EXISTS (
       SELECT 1 FROM public.workspace_staff_project_grants AS grant_row
        WHERE grant_row.principal_id = workspace_staff_memberships.principal_id
-         AND grant_row.tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid
+         AND grant_row.tenant_id = public.cw_workspace_context_tenant_id()
          AND grant_row.status = 'active' AND grant_row.revoked_at IS NULL
     )
   );
@@ -59,21 +59,21 @@ ALTER TABLE public.workspace_principals FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_v2_principals_owner ON public.workspace_principals
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_principals_runtime ON public.workspace_principals
-  FOR SELECT TO cw_runtime USING (
+  FOR SELECT TO cw_runtime, cw_audit_writer USING (
     EXISTS (
       SELECT 1 FROM public.workspace_client_memberships AS membership
        WHERE membership.principal_id = workspace_principals.id
-         AND membership.tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid
+         AND membership.tenant_id = public.cw_workspace_context_tenant_id()
     )
     OR EXISTS (
       SELECT 1 FROM public.workspace_staff_project_grants AS grant_row
        WHERE grant_row.principal_id = workspace_principals.id
-         AND grant_row.tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid
+         AND grant_row.tenant_id = public.cw_workspace_context_tenant_id()
     )
     OR EXISTS (
       SELECT 1 FROM public.workspace_enrollment_attempts AS attempt
        WHERE attempt.provider_subject = workspace_principals.provider_subject
-         AND attempt.tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid
+         AND attempt.tenant_id = public.cw_workspace_context_tenant_id()
     )
   );
 
@@ -108,15 +108,15 @@ ALTER TABLE public.workspace_enrollment_attempts FORCE ROW LEVEL SECURITY;
 CREATE POLICY cw_v2_enrollment_owner ON public.workspace_enrollment_attempts
   FOR ALL TO cw_schema_owner USING (true) WITH CHECK (true);
 CREATE POLICY cw_v2_enrollment_select ON public.workspace_enrollment_attempts
-  FOR SELECT TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  FOR SELECT TO cw_runtime, cw_audit_writer
+  USING (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_v2_enrollment_insert ON public.workspace_enrollment_attempts
   FOR INSERT TO cw_runtime
-  WITH CHECK (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  WITH CHECK (tenant_id = public.cw_workspace_context_tenant_id());
 CREATE POLICY cw_v2_enrollment_update ON public.workspace_enrollment_attempts
   FOR UPDATE TO cw_runtime
-  USING (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid)
-  WITH CHECK (tenant_id = NULLIF(current_setting('app.workspace_tenant_id', true), '')::uuid);
+  USING (tenant_id = public.cw_workspace_context_tenant_id())
+  WITH CHECK (tenant_id = public.cw_workspace_context_tenant_id());
 
 CREATE OR REPLACE FUNCTION public.cw_enrollment_scope_by_attempt(p_id uuid)
 RETURNS uuid
@@ -128,6 +128,17 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.cw_enrollment_scope_by_attempt(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cw_enrollment_scope_by_attempt(uuid) TO cw_runtime;
+
+CREATE OR REPLACE FUNCTION public.cw_enrollment_project_by_attempt(p_id uuid)
+RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT project_id FROM public.workspace_enrollment_attempts
+   WHERE id = p_id;
+$$;
+REVOKE ALL ON FUNCTION public.cw_enrollment_project_by_attempt(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cw_enrollment_project_by_attempt(uuid) TO cw_runtime;
 
 CREATE OR REPLACE FUNCTION public.cw_enrollment_scope_by_subject(p_subject text)
 RETURNS uuid

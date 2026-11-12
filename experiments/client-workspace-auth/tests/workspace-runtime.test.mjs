@@ -4,6 +4,7 @@ import {
   workspaceRuntimeMode,
   assertStagingRuntimeDatabaseUrl,
   assertProductionRuntimeDatabaseUrl,
+  workspaceRlsContextKey,
   isTrustedWorkspaceRequest,
 } from "../src/workspace-runtime.ts";
 
@@ -48,6 +49,17 @@ test("workspace enables only on exact protected staging or explicitly enabled pr
 test("local integration activation remains separate from every production context", () => {
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1" }), "local-test");
   assert.equal(workspaceRuntimeMode({ NODE_ENV: "production", AUTH_EXPERIMENT_ENABLED: "1" }), "disabled");
+  assert.deepEqual(workspaceRlsContextKey({ NODE_ENV: "test", AUTH_EXPERIMENT_ENABLED: "1" }), Buffer.alloc(32, 0x11));
+});
+
+test("signed database context keys are exact, separate and fail closed by runtime", () => {
+  const stagingKey = Buffer.alloc(32, 0x22).toString("base64url");
+  const productionKey = Buffer.alloc(32, 0x33).toString("base64url");
+  assert.deepEqual(workspaceRlsContextKey({ ...staging, WORKSPACE_RLS_CONTEXT_KEY: stagingKey }), Buffer.alloc(32, 0x22));
+  assert.deepEqual(workspaceRlsContextKey({ ...production, PRODUCTION_WORKSPACE_RLS_CONTEXT_KEY: productionKey }), Buffer.alloc(32, 0x33));
+  assert.throws(() => workspaceRlsContextKey(staging));
+  assert.throws(() => workspaceRlsContextKey({ ...staging, WORKSPACE_RLS_CONTEXT_KEY: productionKey + "=" }));
+  assert.throws(() => workspaceRlsContextKey({ ...production, WORKSPACE_RLS_CONTEXT_KEY: stagingKey }));
 });
 
 test("Netlify forwarded origin is trusted only with exact staging host and HTTPS", () => {

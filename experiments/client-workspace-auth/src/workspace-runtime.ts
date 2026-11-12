@@ -86,6 +86,26 @@ export function workspaceAuthSecret(env: NodeJS.ProcessEnv = process.env): strin
   return mode === "production" ? env.PRODUCTION_BETTER_AUTH_SECRET : env.BETTER_AUTH_SECRET;
 }
 
+/**
+ * RLS scope tokens are signed by the server and verified inside PostgreSQL.
+ * The local-only key is deliberately unavailable in either hosted runtime.
+ */
+export function workspaceRlsContextKey(env: NodeJS.ProcessEnv = process.env): Buffer {
+  const mode = workspaceRuntimeMode(env);
+  if (mode === "local-test") return Buffer.alloc(32, 0x11);
+  const value = mode === "production"
+    ? env.PRODUCTION_WORKSPACE_RLS_CONTEXT_KEY
+    : mode === "protected-staging" ? env.WORKSPACE_RLS_CONTEXT_KEY : undefined;
+  if (!value || !/^[A-Za-z0-9_-]{43}$/.test(value)) {
+    throw new Error("The environment-specific Workspace RLS context key is unavailable.");
+  }
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.byteLength !== 32 || decoded.toString("base64url") !== value) {
+    throw new Error("The environment-specific Workspace RLS context key is invalid.");
+  }
+  return decoded;
+}
+
 export function isLocalWorkspaceTest(): boolean {
   return workspaceRuntimeMode() === "local-test";
 }

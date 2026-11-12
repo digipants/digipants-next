@@ -2,6 +2,24 @@
 -- Run only against ephemeral PostgreSQL 17 after seed.sql, roles.sql and
 -- hardening.sql. Role switching here is test setup, never an app credential.
 
+CREATE TEMP TABLE cw_test_context_marker(id integer) ON COMMIT PRESERVE ROWS;
+CREATE OR REPLACE FUNCTION pg_temp.cw_set_test_context(
+  p_tenant uuid, p_project uuid, p_actor text, p_purpose text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE payload text; payload_bytes bytea; test_key bytea := decode(repeat('11',32),'hex');
+BEGIN
+  payload := concat_ws('|','v1',pg_current_xact_id()::text,p_tenant::text,
+    COALESCE(p_project::text,''),COALESCE(p_actor,''),p_purpose);
+  payload_bytes := convert_to(payload,'UTF8');
+  PERFORM set_config('app.workspace_tenant_id',p_tenant::text,true);
+  PERFORM set_config('app.workspace_context_token',
+    encode(payload_bytes,'hex')||'.'||encode(public.hmac(payload_bytes,test_key,'sha256'),'hex'),true);
+END;
+$$;
+
 -- Migrator owns schema objects but has neither superuser nor role/database admin.
 BEGIN;
 SET LOCAL ROLE cw_migrator;
@@ -43,18 +61,22 @@ BEGIN
      'cw_revoke_client_invitation', 'cw_ensure_disabled_client_principal',
      'cw_disable_client_principal', 'cw_approve_enrollment_grant',
      'cw_founder_bootstrap_active', 'cw_founder_bootstrap_is_open',
-     'cw_begin_founder_bootstrap', 'cw_complete_founder_bootstrap')
+     'cw_begin_founder_bootstrap', 'cw_complete_founder_bootstrap',
+     'cw_verified_workspace_context', 'cw_workspace_context_tenant_id',
+     'cw_workspace_context_allows', 'cw_founder_bootstrap_target')
      AND fn.prosecdef AND owner_role.rolname='cw_schema_owner'
      AND NOT EXISTS (
        SELECT 1 FROM pg_catalog.aclexplode(COALESCE(fn.proacl, '{}'::aclitem[])) AS acl
        WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE');
-  IF helper_count <> 12 THEN
+  IF helper_count <> 16 THEN
     RAISE EXCEPTION 'restricted workflow SECURITY DEFINER functions are missing or incorrectly owned/exposed';
   END IF;
   IF has_function_privilege(
        'cw_runtime',
        'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
        'EXECUTE') IS NOT TRUE OR
+     has_function_privilege('cw_runtime', 'public.cw_verified_workspace_context()', 'EXECUTE') OR
+     has_function_privilege('cw_runtime', 'public.cw_workspace_context_allows(uuid,uuid,text,text)', 'EXECUTE') OR
      has_function_privilege(
        'cw_audit_writer',
        'public.cw_lock_staff_project_grant(text,uuid,uuid,text)',
@@ -83,6 +105,7 @@ BEGIN
      has_table_privilege('cw_runtime', 'public.workspace_invitation_records', 'UPDATE') OR
      has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'SELECT') OR
      has_table_privilege('cw_runtime', 'public.workspace_founder_bootstrap_control', 'UPDATE') OR
+     has_table_privilege('cw_runtime', 'public.workspace_context_signing_keys', 'SELECT') OR
      has_table_privilege('cw_runtime', 'public.workspace_milestones', 'INSERT') OR
      has_table_privilege('cw_runtime', 'public.workspace_milestones', 'UPDATE') OR
      has_table_privilege('cw_runtime', 'public.workspace_progress_updates', 'INSERT') OR
@@ -123,9 +146,8 @@ BEGIN
   IF cw_lock_staff_project_grant(
        'synthetic-security-staff-a',
        '11111111-1111-4111-8111-111111111111',
-       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'delivery.edit')
-       <> '33333333-3333-4333-8333-333333333333'::uuid THEN
-    RAISE EXCEPTION 'runtime could not verify and lock an exact active staff grant';
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'delivery.edit') IS NOT NULL THEN
+    RAISE EXCEPTION 'raw runtime parameters authorized an unsigned grant scope';
   END IF;
   IF cw_lock_staff_project_grant(
        'synthetic-security-staff-a',
@@ -169,7 +191,9 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'runtime could insert audit rows directly'; END IF;
 END $$;
 
-SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
+SELECT pg_temp.cw_set_test_context(
+  '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'synthetic-security-owner', 'project.activate');
 DO $$
 DECLARE denied boolean := false; changed integer; invite_id uuid; client_principal_id uuid;
         approved boolean; redeemed text; created_principal_status text;
@@ -207,12 +231,9 @@ BEGIN
     RAISE EXCEPTION 'restricted invitation lookup disclosed another recipient';
   END IF;
 
-  SELECT id, status INTO client_principal_id, created_principal_status
-    FROM public.cw_ensure_disabled_client_principal(
-      '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
-  IF client_principal_id IS NULL OR created_principal_status <> 'disabled' THEN
-    RAISE EXCEPTION 'restricted principal helper did not create only a disabled client principal';
-  END IF;
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '66666666-6666-4666-8666-666666666666', 'enrollment');
   INSERT INTO workspace_enrollment_attempts
     (id, idempotency_hash, invitation_id, invitation_hash, mailbox_proof_ref_hash,
      provider_subject, tenant_id, project_id, intended_email, intended_role,
@@ -223,6 +244,15 @@ BEGIN
      '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
      'pilot@example.invalid', 'client_viewer', 'grant_ready_for_review', 1,
      statement_timestamp(), statement_timestamp());
+  SELECT id, status INTO client_principal_id, created_principal_status
+    FROM public.cw_ensure_disabled_client_principal(
+      '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
+  IF client_principal_id IS NULL OR created_principal_status <> 'disabled' THEN
+    RAISE EXCEPTION 'restricted principal helper did not create only a disabled client principal';
+  END IF;
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'synthetic-security-owner', 'project.activate');
   approved := public.cw_approve_enrollment_grant(
     '88888888-8888-4888-8888-888888888888', 'synthetic-security-owner');
   IF approved IS NOT TRUE OR
@@ -254,8 +284,9 @@ BEGIN
      AND id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' AND revision=1;
   IF NOT FOUND THEN RAISE EXCEPTION 'exact tenant state update did not match'; END IF;
   PERFORM cw_append_audit_event(
-    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', NULL,
-    'system', 'project.activated', 'workspace_project',
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '44444444-4444-4444-8444-444444444444',
+    'person', 'project.activated', 'workspace_project',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 1, 2, 'state-transition-001');
 
   UPDATE workspace_projects SET state='closed'
@@ -279,8 +310,9 @@ BEGIN
      WHERE tenant_id='11111111-1111-4111-8111-111111111111'
        AND id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' AND revision=2;
     PERFORM cw_append_audit_event(
-      '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', NULL,
-      'system', 'duplicate', 'workspace_project', 'bad', 2, 3, 'state-transition-001');
+      '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '44444444-4444-4444-8444-444444444444',
+      'person', 'duplicate', 'workspace_project', 'bad', 2, 3, 'state-transition-001');
   EXCEPTION WHEN unique_violation THEN denied := true;
   END;
   IF NOT denied THEN RAISE EXCEPTION 'duplicate state/audit command succeeded'; END IF;
@@ -324,10 +356,18 @@ COMMIT;
 -- Audit writer has INSERT only; audit reader has SELECT only.
 BEGIN;
 SET LOCAL ROLE cw_audit_writer;
-SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
+SELECT pg_temp.cw_set_test_context(
+  '11111111-1111-4111-8111-111111111111', NULL,
+  'synthetic-security-owner', 'audit.write.test');
 DO $$
 DECLARE denied boolean := false;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM workspace_principals WHERE provider_subject='synthetic-security-owner') OR
+     EXISTS (SELECT 1 FROM workspace_principals WHERE provider_subject='synthetic-security-staff-a' AND
+       NOT EXISTS (SELECT 1 FROM workspace_staff_project_grants
+         WHERE principal_id=workspace_principals.id AND tenant_id='11111111-1111-4111-8111-111111111111')) THEN
+    RAISE EXCEPTION 'audit writer did not receive only its signed tenant identity projection';
+  END IF;
   INSERT INTO workspace_audit_events
     (tenant_id, project_id, origin, action, object_type, object_id, idempotency_key)
   VALUES
@@ -355,6 +395,9 @@ ROLLBACK;
 -- synthetic pilot project. The runtime cannot mutate its control row directly.
 BEGIN;
 SET LOCAL ROLE cw_runtime;
+SELECT pg_temp.cw_set_test_context(
+  '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '55555555-5555-4555-8555-555555555555', 'founder.bootstrap');
 DO $$
 DECLARE email_hash bytea := decode(repeat('a1',32),'hex');
         subject text := '55555555-5555-4555-8555-555555555555';
@@ -376,6 +419,9 @@ BEGIN
      public.cw_complete_founder_bootstrap(email_hash, '66666666-6666-4666-8666-666666666666') IS TRUE THEN
     RAISE EXCEPTION 'founder bootstrap was reusable after completion';
   END IF;
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    subject, 'delivery.edit');
   IF public.cw_lock_staff_project_grant(
        subject,'11111111-1111-4111-8111-111111111111',
        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','delivery.edit') IS NULL OR
@@ -389,7 +435,9 @@ ROLLBACK;
 
 BEGIN;
 SET LOCAL ROLE cw_audit_reader;
-SET LOCAL app.workspace_tenant_id = '11111111-1111-4111-8111-111111111111';
+SELECT pg_temp.cw_set_test_context(
+  '11111111-1111-4111-8111-111111111111', NULL,
+  'synthetic-security-owner', 'audit.read');
 DO $$
 DECLARE denied boolean := false;
 BEGIN
@@ -411,16 +459,17 @@ BEGIN
 END $$;
 ROLLBACK;
 
--- Demonstrate the limit explicitly: a caller can change an ordinary custom
--- GUC and make RLS show the other tenant. Server code therefore checks the
--- verified Better Auth subject and parameterized exact grant before scoped SQL.
+-- A caller can set ordinary custom GUCs but cannot forge the signed context.
 BEGIN;
 SET LOCAL ROLE cw_runtime;
 SET LOCAL app.workspace_tenant_id = '22222222-2222-4222-8222-222222222222';
+SET LOCAL app.workspace_context_token = '00.00';
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM workspace_projects) <> 1 THEN
-    RAISE EXCEPTION 'expected custom GUC spoof demonstration did not occur';
+  IF public.cw_workspace_context_tenant_id() IS NOT NULL OR
+     (SELECT count(*) FROM workspace_projects) <> 0 OR
+     (SELECT count(*) FROM workspace_tenants) <> 0 THEN
+    RAISE EXCEPTION 'forged custom GUC exposed tenant data';
   END IF;
   IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
      (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
@@ -428,4 +477,4 @@ BEGIN
   END IF;
 END $$;
 ROLLBACK;
-\echo 'PASS: role separation, one-time founder bootstrap, approved progress RLS, denial, audit and exact-scope query requirement verified'
+\echo 'PASS: restricted roles, signed context, GUC forgery denial, founder bootstrap, approved progress, audit and exact-scope checks verified'

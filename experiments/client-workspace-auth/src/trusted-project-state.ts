@@ -4,6 +4,7 @@ import type { WorkspaceProjectState } from "../../../lib/client-workspace/projec
 import { auth } from "./auth.js";
 import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { maxMfaAgeSecondsForAction } from "./mfa-freshness.js";
+import { setWorkspaceAuthorizationContext } from "./workspace-tenant-context.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATES: readonly WorkspaceProjectState[] = ["planned", "active", "paused", "change_review", "handover", "closed"];
@@ -128,6 +129,10 @@ export async function commitVerifiedStaffProjectStateChange(input: {
 
     return await workspaceDb.$transaction(async (tx) => {
       let stage = "grant-lock";
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: values.tenantId, projectId: values.projectId,
+        actorSubject: values.providerSubject, purpose: action,
+      });
       // This definer helper only locks and returns an exact active grant. The
       // caller already verified the Better Auth subject/session/MFA above; its
       // custom-GUC value is set only after the exact grant check below.
@@ -141,11 +146,6 @@ export async function commitVerifiedStaffProjectStateChange(input: {
         debugTrustedStateDenial(stage);
         throw new TrustedProjectStateDenied();
       }
-
-      // This value scopes the defense-in-depth RLS policy only. It is set
-      // after the verified subject's exact active grant has been locked, and
-      // every following query still carries exact tenant/project predicates.
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${values.tenantId}, true)`;
 
       stage = "state-update";
       const changed = await tx.$executeRaw`
