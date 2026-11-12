@@ -191,18 +191,26 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'runtime could insert audit rows directly'; END IF;
 END $$;
 
-SELECT pg_temp.cw_set_test_context(
-  '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  'synthetic-security-owner', 'project.activate');
 DO $$
 DECLARE denied boolean := false; changed integer; invite_id uuid; client_principal_id uuid;
         approved boolean; redeemed text; created_principal_status text;
 BEGIN
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'synthetic-security-owner', 'project.activate');
+  IF public.cw_workspace_context_tenant_id() IS DISTINCT FROM
+     '11111111-1111-4111-8111-111111111111'::uuid THEN
+    RAISE EXCEPTION 'signed tenant A test context did not validate in its transaction';
+  END IF;
   IF (SELECT count(*) FROM workspace_projects) <> 1 OR
      (SELECT count(*) FROM workspace_audit_events) <> 1 OR
      (SELECT count(*) FROM workspace_milestones) <> 2 OR
      (SELECT count(*) FROM workspace_progress_updates) <> 1 THEN
-    RAISE EXCEPTION 'tenant A exact scope unexpectedly differs';
+    RAISE EXCEPTION 'tenant A scope mismatch: projects %, audit %, milestones %, progress %',
+      (SELECT count(*) FROM workspace_projects),
+      (SELECT count(*) FROM workspace_audit_events),
+      (SELECT count(*) FROM workspace_milestones),
+      (SELECT count(*) FROM workspace_progress_updates);
   END IF;
 
   invite_id := public.cw_issue_client_invitation(
@@ -356,12 +364,12 @@ COMMIT;
 -- Audit writer has INSERT only; audit reader has SELECT only.
 BEGIN;
 SET LOCAL ROLE cw_audit_writer;
-SELECT pg_temp.cw_set_test_context(
-  '11111111-1111-4111-8111-111111111111', NULL,
-  'synthetic-security-owner', 'audit.write.test');
 DO $$
 DECLARE denied boolean := false;
 BEGIN
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', NULL,
+    'synthetic-security-owner', 'audit.write.test');
   IF NOT EXISTS (SELECT 1 FROM workspace_principals WHERE provider_subject='synthetic-security-owner') OR
      EXISTS (SELECT 1 FROM workspace_principals WHERE provider_subject='synthetic-security-staff-a' AND
        NOT EXISTS (SELECT 1 FROM workspace_staff_project_grants
@@ -395,13 +403,13 @@ ROLLBACK;
 -- synthetic pilot project. The runtime cannot mutate its control row directly.
 BEGIN;
 SET LOCAL ROLE cw_runtime;
-SELECT pg_temp.cw_set_test_context(
-  '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  '55555555-5555-4555-8555-555555555555', 'founder.bootstrap');
 DO $$
 DECLARE email_hash bytea := decode(repeat('a1',32),'hex');
         subject text := '55555555-5555-4555-8555-555555555555';
 BEGIN
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    subject, 'founder.bootstrap');
   IF public.cw_founder_bootstrap_active() IS NOT TRUE OR
      public.cw_founder_bootstrap_is_open(email_hash) IS NOT TRUE OR
      public.cw_founder_bootstrap_is_open(decode(repeat('a2',32),'hex')) IS TRUE THEN
@@ -435,12 +443,12 @@ ROLLBACK;
 
 BEGIN;
 SET LOCAL ROLE cw_audit_reader;
-SELECT pg_temp.cw_set_test_context(
-  '11111111-1111-4111-8111-111111111111', NULL,
-  'synthetic-security-owner', 'audit.read');
 DO $$
 DECLARE denied boolean := false;
 BEGIN
+  PERFORM pg_temp.cw_set_test_context(
+    '11111111-1111-4111-8111-111111111111', NULL,
+    'synthetic-security-owner', 'audit.read');
   IF NOT EXISTS (SELECT 1 FROM workspace_audit_events
       WHERE tenant_id='11111111-1111-4111-8111-111111111111') OR
      EXISTS (SELECT 1 FROM workspace_audit_events

@@ -123,6 +123,15 @@ jobs:
           done
           npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
 
+      - name: Seed synthetic-only signed RLS context key for loopback tests
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          docker exec "$POSTGRES_CONTAINER_ID" psql -v ON_ERROR_STOP=1 \
+            -U digipants_ws_dev -d digipants_workspace_dev \
+            -c "INSERT INTO public.workspace_context_signing_keys(singleton, signing_key) VALUES (true, decode(repeat('11', 32), 'hex')) ON CONFLICT (singleton) DO UPDATE SET signing_key = EXCLUDED.signing_key, updated_at = statement_timestamp()"
+
       - name: Generate and apply the isolated Better Auth schema
         working-directory: experiments/client-workspace-auth
         run: |
