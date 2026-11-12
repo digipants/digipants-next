@@ -3,6 +3,7 @@ import { randomUUID, createHash } from "node:crypto";
 import test from "node:test";
 import { assertDisposableLoopbackDatabaseUrl } from "../src/test-target.ts";
 import { normalizeInvitedEmail } from "../src/invite-issuance.ts";
+import { setWorkspaceAuthorizationContext } from "../src/workspace-tenant-context.ts";
 
 test("synthetic invitation recipient addresses are normalized and malformed ones rejected", () => {
   assert.equal(normalizeInvitedEmail("Client.Test+1@EXAMPLE.invalid"), "client.test+1@example.invalid");
@@ -65,6 +66,16 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
       await tx.$executeRaw`INSERT INTO workspace_projects(id,tenant_id,title) VALUES (${id.projectA}::uuid,${id.tenantA}::uuid,'Synthetic invite A'),(${id.projectB}::uuid,${id.tenantB}::uuid,'Synthetic invite B')`;
       await tx.$executeRaw`INSERT INTO workspace_staff_project_grants(tenant_id,project_id,principal_id,role) VALUES (${id.tenantA}::uuid,${id.projectA}::uuid,${id.owner}::uuid,'workspace_owner')`;
     });
+
+    const context = await db.$transaction(async tx => {
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: id.tenantA, projectId: id.projectA,
+        actorSubject: ownerSubject, purpose: "project.activate",
+      });
+      return tx.$queryRaw`SELECT public.cw_workspace_context_tenant_id()::text AS tenant_id`;
+    });
+    assert.equal(context[0]?.tenant_id, id.tenantA,
+      "PostgreSQL validates the signed tenant scope inside its originating transaction");
 
     const inviteA = await issue();
     assert.ok(inviteA, "only an active owner of this project can issue");

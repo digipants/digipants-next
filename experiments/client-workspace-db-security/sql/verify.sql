@@ -194,13 +194,27 @@ END $$;
 DO $$
 DECLARE denied boolean := false; changed integer; invite_id uuid; client_principal_id uuid;
         approved boolean; redeemed text; created_principal_status text;
+        context_token text; payload_bytes bytea; token_parts text[];
+        test_key bytea := decode(repeat('11',32),'hex');
 BEGIN
   PERFORM pg_temp.cw_set_test_context(
     '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'synthetic-security-owner', 'project.activate');
+  context_token := current_setting('app.workspace_context_token', true);
+  IF context_token IS NULL OR context_token !~ '^[0-9a-f]+\.[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'signed tenant A test token was not set';
+  END IF;
+  payload_bytes := decode(split_part(context_token, '.', 1), 'hex');
+  token_parts := string_to_array(convert_from(payload_bytes, 'UTF8'), '|');
+  IF cardinality(token_parts) <> 6 OR token_parts[2] <> pg_current_xact_id()::text THEN
+    RAISE EXCEPTION 'signed tenant A test token was not bound to the current transaction';
+  END IF;
+  IF public.hmac(payload_bytes, test_key, 'sha256') <> decode(split_part(context_token, '.', 2), 'hex') THEN
+    RAISE EXCEPTION 'signed tenant A test token signature did not match the synthetic key';
+  END IF;
   IF public.cw_workspace_context_tenant_id() IS DISTINCT FROM
      '11111111-1111-4111-8111-111111111111'::uuid THEN
-    RAISE EXCEPTION 'signed tenant A test context did not validate in its transaction';
+    RAISE EXCEPTION 'database rejected correctly signed tenant A context for this transaction';
   END IF;
   IF (SELECT count(*) FROM workspace_projects) <> 1 OR
      (SELECT count(*) FROM workspace_audit_events) <> 1 OR
