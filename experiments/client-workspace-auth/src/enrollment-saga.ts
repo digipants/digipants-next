@@ -113,7 +113,14 @@ export async function prepareEnrollmentAttempt(input: {
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const invitationHash = hashInvitationToken(values.token);
   const lookupStableAttempt = async () => {
-    const rows = await workspaceDb.$queryRaw<AttemptRow[]>`
+    return workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string }>>`
+        SELECT tenant_id::text AS "tenantId"
+          FROM public.cw_invitation_context(NULL, ${email}, ${invitationHash}, false)
+      `;
+      if (!scopes[0]?.tenantId) return null;
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${scopes[0].tenantId}, true)`;
+      const rows = await tx.$queryRaw<AttemptRow[]>`
       SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
              invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
              mailbox_proof_ref_hash AS "mailboxProofRefHash", provider_subject AS "providerSubject",
@@ -126,7 +133,8 @@ export async function prepareEnrollmentAttempt(input: {
     `;
     const row = rows[0];
     if (!row || row.mailboxProofRefHash !== proofReferenceHash(row.invitationId, email, values.challengeId)) return null;
-    return row;
+      return row;
+    });
   };
   try {
     return await workspaceDb.$transaction(async (tx) => {
@@ -151,6 +159,7 @@ export async function prepareEnrollmentAttempt(input: {
         });
         return null;
       }
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${invitation.tenantId}, true)`;
       const proofHash = proofReferenceHash(invitation.id, email, values.challengeId);
       const idemHash = idempotencyHash(invitationHash, email, proofHash);
       const existing = await tx.$queryRaw<Array<AttemptRow & { retryBlocked: boolean }>>`
@@ -275,10 +284,16 @@ export async function consumeMailboxProofForEnrollment(input: {
   catch { return false; }
   if (!UUID.test(values.attemptId) || !UUID.test(values.challengeId) ||
       typeof values.code !== "string" || values.code.length < 32 || values.code.length > 512) return false;
-  const workspaceDb = getWorkspacePrisma() as unknown as Sql;
+  const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const authDb = getAuthPrisma() as unknown as TransactionalSql;
   try {
-    const attempts = await workspaceDb.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
+    const attempts = await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${values.attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return [];
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${scopes[0].tenantId}, true)`;
+      return tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
       SELECT a.id::text AS id, a.idempotency_hash AS "idempotencyHash",
              a.invitation_id::text AS "invitationId", a.invitation_hash AS "invitationHash",
              a.mailbox_proof_ref_hash AS "mailboxProofRefHash", a.provider_subject AS "providerSubject",
@@ -292,7 +307,8 @@ export async function consumeMailboxProofForEnrollment(input: {
           a.invitation_id, a.intended_email, NULL, false
         ) AS invitation
        WHERE a.id = ${values.attemptId}::uuid
-    `;
+      `;
+    });
     const attempt = attempts[0];
     if (!attempt || attempt.state !== "pending") return false;
     if (attempt.inviteStatus !== "pending" || !attempt.notExpired) {
@@ -359,6 +375,7 @@ export async function consumeMailboxProofForEnrollment(input: {
 async function transitionPendingToCancelled(attempt: AttemptRow, errorCode: "invitation_invalid"): Promise<void> {
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   await workspaceDb.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
     const changed = await tx.$executeRaw`
       UPDATE workspace_enrollment_attempts SET state='cancelled', cancelled_at=statement_timestamp(),
         last_error_code=${errorCode}, updated_at=statement_timestamp()
@@ -387,6 +404,11 @@ export async function recordEnrollmentFailure(
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   try {
     return await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return false;
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${scopes[0].tenantId}, true)`;
       const rows = await tx.$queryRaw<Array<AttemptRow & { retryBlocked: boolean }>>`
         SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
                invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
@@ -431,6 +453,7 @@ async function poisonInTransaction(
   attempt: AttemptRow,
   errorCode: "identity_conflict" | "invitation_invalid",
 ): Promise<void> {
+  await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
   const changed = await tx.$executeRaw`
     UPDATE workspace_enrollment_attempts SET state='needs_repair', poisoned_at=statement_timestamp(),
       last_error_code=${errorCode}, next_retry_at=NULL, updated_at=statement_timestamp()
@@ -456,10 +479,16 @@ async function poisonAttempt(attempt: AttemptRow, errorCode: "identity_conflict"
 /** Reconcile an auth identity committed before the Workspace journal advanced. */
 export async function reconcileEnrollmentAttempt(attemptId: string): Promise<string | null> {
   if (!UUID.test(attemptId)) return null;
-  const workspaceDb = getWorkspacePrisma() as unknown as Sql;
+  const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const authDb = getAuthPrisma() as unknown as Sql;
   try {
-    const attempts = await workspaceDb.$queryRaw<AttemptRow[]>`
+    const attempts = await workspaceDb.$transaction(async tx => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return [];
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${scopes[0].tenantId}, true)`;
+      return tx.$queryRaw<AttemptRow[]>`
       SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
              invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
              mailbox_proof_ref_hash AS "mailboxProofRefHash", provider_subject AS "providerSubject",
@@ -467,7 +496,8 @@ export async function reconcileEnrollmentAttempt(attemptId: string): Promise<str
              intended_email AS "intendedEmail", intended_role AS "intendedRole", state,
              attempt_count AS "attemptCount", next_retry_at AS "nextRetryAt"
         FROM workspace_enrollment_attempts WHERE id=${attemptId}::uuid
-    `;
+      `;
+    });
     const attempt = attempts[0];
     if (!attempt) return null;
     const users = await authDb.$queryRaw<Array<{ id: string; email: string }>>`
@@ -475,8 +505,9 @@ export async function reconcileEnrollmentAttempt(attemptId: string): Promise<str
     `;
     if (!users.length) {
       const orphan = await workspaceDb.$queryRaw<Array<{ present: boolean }>>`
-        SELECT EXISTS (SELECT 1 FROM workspace_principals WHERE provider='better_auth'
-          AND provider_subject=${attempt.providerSubject}) AS present
+        SELECT public.cw_principal_exists_for_attempt(
+          ${attempt.id}::uuid, ${attempt.providerSubject}
+        ) AS present
       `;
       if (orphan[0]?.present) await poisonAttempt(attempt, "identity_conflict");
       else if (attempt.state === "pending") {
@@ -492,9 +523,13 @@ export async function reconcileEnrollmentAttempt(attemptId: string): Promise<str
         `;
         if (!invite[0]?.valid) await transitionPendingToCancelled(attempt, "invitation_invalid");
       }
-      return (await workspaceDb.$queryRaw<Array<{ state: string }>>`
-        SELECT state FROM workspace_enrollment_attempts WHERE id=${attempt.id}::uuid
-      `)[0]?.state ?? null;
+      const latest = await workspaceDb.$transaction(async tx => {
+        await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
+        return tx.$queryRaw<Array<{ state: string }>>`
+          SELECT state FROM workspace_enrollment_attempts WHERE id=${attempt.id}::uuid
+        `;
+      });
+      return latest[0]?.state ?? null;
     }
     if (users[0]!.email.toLowerCase() !== attempt.intendedEmail.toLowerCase()) {
       await poisonAttempt(attempt, "identity_conflict");
@@ -518,6 +553,11 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
     `;
     if (users.length !== 1 || users[0]!.email.toLowerCase() !== email) return null;
     return await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_subject(${providerSubject})::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return null;
+      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${scopes[0].tenantId}, true)`;
       const rows = await tx.$queryRaw<Array<AttemptRow & {
         inviteStatus: string; notExpired: boolean; tenantStatus: string; projectTenantId: string | null;
       }>>`
