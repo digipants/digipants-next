@@ -1,0 +1,27 @@
+name: Client Workspace production release checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feat/client-workspace-mail-abuse-gates-117
+    paths:
+      - "scripts/workspace/production-*-preflight.sql"
+      - "tests/workspace-production-preflight.test.mjs"
+      - ".github/workflows/client-workspace-production-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-release-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify no-write production preflight coverage
+        run: node --test tests/workspace-production-preflight.test.mjs
