@@ -77,11 +77,13 @@ export function createWorkspaceResendMailboxTransport(
   ((message: MailPayload) => Promise<boolean>) | null {
   const production = isProductionWorkspace();
   const emailEnabled = production
-    ? scope === "all" && process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1"
+    ? scope === "founder-bootstrap"
+      ? process.env.CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED === "1"
+      : process.env.CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED === "1"
     : scope === "founder-bootstrap"
       ? process.env.CLIENT_WORKSPACE_FOUNDER_EMAIL_ENABLED === "1"
       : process.env.CLIENT_WORKSPACE_REAL_EMAILS_ENABLED === "1";
-  if (!isActiveWorkspaceRuntime() || (production && scope === "founder-bootstrap") || !emailEnabled) return null;
+  if (!isActiveWorkspaceRuntime() || !emailEnabled) return null;
   const apiKey = production ? process.env.PRODUCTION_RESEND_API_KEY : process.env.RESEND_API_KEY;
   const from = production ? process.env.PRODUCTION_WORKSPACE_EMAIL_FROM : process.env.WORKSPACE_EMAIL_FROM;
   if (!apiKey || !from) return null;
