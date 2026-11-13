@@ -150,9 +150,9 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          workspace_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
+          workspace_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
           auth_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
-          test "$workspace_rights" = "digipants_workspace_prod|true"
+          test "$workspace_rights" = "digipants_workspace_prod|true|true"
           test "$auth_rights" = "digipants_auth_prod|true|true"
 
       - name: Create child-only Prisma shadow databases
@@ -166,6 +166,18 @@ jobs:
           DROP DATABASE IF EXISTS auth_activation_shadow WITH (FORCE);
           CREATE DATABASE auth_activation_shadow;
           SQL
+
+      - name: Resolve the verified zero-effect failed migration before retry
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          repair_state="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT CASE WHEN EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20261112210000_workspace_signed_authorization_context' AND finished_at IS NULL AND rolled_back_at IS NULL) THEN CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto') OR to_regclass('public.workspace_context_signing_keys') IS NOT NULL OR to_regprocedure('public.cw_verified_workspace_context()') IS NOT NULL THEN 'unsafe' ELSE 'failed' END ELSE 'clean' END")"
+          case "$repair_state" in
+            failed) npx prisma migrate resolve --rolled-back 20261112210000_workspace_signed_authorization_context ;;
+            clean) ;;
+            *) echo "The failed migration has effects that need review; details suppressed." >&2; exit 1 ;;
+          esac
 
       - name: Deploy and verify the Workspace migration ledger twice
         run: |
