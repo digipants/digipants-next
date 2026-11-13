@@ -435,6 +435,12 @@ BEGIN
      EXISTS (SELECT 1 FROM workspace_enrollment_attempts WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') THEN
     RAISE EXCEPTION 'tenant B signed context did not isolate all seeded sensitive records';
   END IF;
+  -- Bind the exceptional orphan lookup to the exact verified subject and
+  -- enrollment purpose it accepts, rather than the staff delivery context
+  -- used above to prove tenant B's ordinary row visibility.
+  PERFORM pg_temp.cw_set_test_context(
+    '22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '99999999-9999-4999-8999-999999999999', 'enrollment');
   IF public.cw_principal_exists_for_attempt(
        'aaaaaaa0-bbbb-4ccc-8ddd-eeeeeeeeeeee',
        '99999999-9999-4999-8999-999999999999') IS NOT TRUE OR

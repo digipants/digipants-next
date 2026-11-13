@@ -248,6 +248,8 @@ jobs:
         run: node --import tsx --test tests/invitation-postgres.test.mjs tests/invite-issuance-postgres.test.mjs tests/mailbox-proof-postgres.test.mjs tests/staff-authorization-postgres.test.mjs
       - name: Run the full isolated non-database contract suite
         working-directory: experiments/client-workspace-auth
+        env:
+          NODE_OPTIONS: --conditions=react-server
         run: npm test
       - name: Run the complete repository test suite
         run: node --test tests/*.test.mjs
