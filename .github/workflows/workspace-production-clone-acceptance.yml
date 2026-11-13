@@ -188,6 +188,14 @@ jobs:
           npm run db:migrate:status
           npx prisma migrate diff --from-migrations prisma/migrations --to-config-datasource --exit-code
 
+      - name: Generate an ephemeral local Better Auth schema secret
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          import { randomBytes } from "node:crypto";
+          process.stdout.write(`BETTER_AUTH_SECRET=${randomBytes(32).toString("base64url")}\n`);
+          NODE
+
       - name: Deploy and verify the Better Auth migration ledger twice
         working-directory: experiments/client-workspace-auth
         run: |
