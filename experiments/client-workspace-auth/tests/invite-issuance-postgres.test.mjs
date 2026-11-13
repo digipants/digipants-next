@@ -3,6 +3,7 @@ import { randomUUID, createHash } from "node:crypto";
 import test from "node:test";
 import { assertDisposableLoopbackDatabaseUrl } from "../src/test-target.ts";
 import { normalizeInvitedEmail } from "../src/invite-issuance.ts";
+import { setWorkspaceAuthorizationContext } from "../src/workspace-tenant-context.ts";
 
 test("synthetic invitation recipient addresses are normalized and malformed ones rejected", () => {
   assert.equal(normalizeInvitedEmail("Client.Test+1@EXAMPLE.invalid"), "client.test+1@example.invalid");
@@ -65,6 +66,54 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
       await tx.$executeRaw`INSERT INTO workspace_projects(id,tenant_id,title) VALUES (${id.projectA}::uuid,${id.tenantA}::uuid,'Synthetic invite A'),(${id.projectB}::uuid,${id.tenantB}::uuid,'Synthetic invite B')`;
       await tx.$executeRaw`INSERT INTO workspace_staff_project_grants(tenant_id,project_id,principal_id,role) VALUES (${id.tenantA}::uuid,${id.projectA}::uuid,${id.owner}::uuid,'workspace_owner')`;
     });
+
+    const context = await db.$transaction(async tx => {
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId: id.tenantA, projectId: id.projectA,
+        actorSubject: ownerSubject, purpose: "project.activate",
+      });
+      return tx.$queryRaw`WITH context AS (
+          SELECT current_setting('app.workspace_context_token', true) AS token
+        ), decoded AS (
+          SELECT token, decode(split_part(token, '.', 1), 'hex') AS payload_bytes
+            FROM context WHERE token IS NOT NULL
+        ), payload AS (
+          SELECT token, payload_bytes, convert_from(payload_bytes, 'UTF8') AS value FROM decoded
+        )
+        SELECT context.token IS NOT NULL AS token_set,
+          COALESCE(context.token ~ '^[0-9a-f]+\.[0-9a-f]{64}$' AND length(context.token) <= 1089, false) AS token_format_matches,
+          COALESCE(split_part(payload.value, '|', 1) = 'v1', false) AS version_matches,
+          COALESCE(split_part(payload.value, '|', 2) = pg_current_xact_id()::text, false) AS transaction_matches,
+          COALESCE(split_part(payload.value, '|', 3) = ${id.tenantA}, false) AS tenant_matches,
+          COALESCE(split_part(payload.value, '|', 4) = ${id.projectA}, false) AS project_matches,
+          COALESCE(split_part(payload.value, '|', 5) = ${ownerSubject}, false) AS actor_matches,
+          COALESCE(split_part(payload.value, '|', 6) = 'project.activate', false) AS purpose_matches,
+          COALESCE(EXISTS (SELECT 1 FROM public.workspace_context_signing_keys
+            WHERE singleton AND signing_key = decode(repeat('11',32),'hex')), false) AS synthetic_key_present,
+          COALESCE(has_table_privilege('cw_schema_owner',
+            'public.workspace_context_signing_keys', 'SELECT'), false) AS owner_can_read_key,
+          COALESCE(has_function_privilege('cw_schema_owner',
+            'public.hmac(bytea,bytea,text)', 'EXECUTE'), false) AS owner_can_hmac,
+          COALESCE(public.hmac(payload.payload_bytes, signing.signing_key, 'sha256') =
+            decode(split_part(payload.token, '.', 2), 'hex'), false) AS signature_matches,
+          public.cw_workspace_context_tenant_id()::text AS tenant_id
+          FROM context LEFT JOIN payload ON true
+          LEFT JOIN public.workspace_context_signing_keys AS signing ON signing.singleton`;
+    });
+    assert.equal(context[0]?.token_set, true, "transaction-local signed scope was set");
+    assert.equal(context[0]?.token_format_matches, true, "signed scope matches the database token format");
+    assert.equal(context[0]?.version_matches, true, "signed scope uses a supported version");
+    assert.equal(context[0]?.transaction_matches, true, "signed scope is transaction-bound");
+    assert.equal(context[0]?.tenant_matches, true, "signed scope contains the requested tenant");
+    assert.equal(context[0]?.project_matches, true, "signed scope contains the requested project");
+    assert.equal(context[0]?.actor_matches, true, "signed scope contains the authenticated actor");
+    assert.equal(context[0]?.purpose_matches, true, "signed scope contains the requested action");
+    assert.equal(context[0]?.synthetic_key_present, true, "isolated test database has the synthetic key");
+    assert.equal(context[0]?.owner_can_read_key, true, "validator owner can read the protected key");
+    assert.equal(context[0]?.owner_can_hmac, true, "validator owner can execute HMAC");
+    assert.equal(context[0]?.signature_matches, true, "signed scope matches the synthetic DB key");
+    assert.equal(context[0]?.tenant_id, id.tenantA,
+      "PostgreSQL accepts the signed tenant scope inside its originating transaction");
 
     const inviteA = await issue();
     assert.ok(inviteA, "only an active owner of this project can issue");

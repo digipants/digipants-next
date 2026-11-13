@@ -6,6 +6,7 @@ import { getAuthPrisma, getWorkspacePrisma } from "./database.js";
 import { maxMfaAgeSecondsForAction } from "./mfa-freshness.js";
 import { normalizeInvitedEmail } from "./invite-issuance.js";
 import { hashInvitationToken } from "./invitations.js";
+import { setWorkspaceAuthorizationContext } from "./workspace-tenant-context.js";
 
 type Sql = {
   $queryRaw<T = unknown>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -67,8 +68,12 @@ function liveInvitation(row: { status: string; notExpired: boolean; tenantStatus
 
 async function appendAudit(tx: Sql, values: {
   tenantId: string; projectId: string; actorId?: string | null;
-  action: string; objectId: string; idempotencyKey: string;
+  actorSubject: string; action: string; objectId: string; idempotencyKey: string;
 }): Promise<void> {
+  await setWorkspaceAuthorizationContext(tx, {
+    tenantId: values.tenantId, projectId: values.projectId,
+    actorSubject: values.actorSubject, purpose: "enrollment",
+  });
   const rows = await tx.$queryRaw<Array<{ appended: boolean }>>`
     SELECT NOT (cw_append_audit_event(
       ${values.tenantId}::uuid, ${values.projectId}::uuid, ${values.actorId ?? null}::uuid,
@@ -76,6 +81,15 @@ async function appendAudit(tx: Sql, values: {
       NULL, NULL, ${values.idempotencyKey}) IS NULL) AS appended
   `;
   if (rows[0]?.appended !== true) throw new Error("Enrollment audit append did not complete.");
+}
+
+async function setEnrollmentContext(
+  tx: Sql, tenantId: string, actorSubject: string | null = null,
+  projectId: string | null = null,
+): Promise<void> {
+  await setWorkspaceAuthorizationContext(tx, {
+    tenantId, projectId, actorSubject, purpose: "enrollment",
+  });
 }
 
 function publicAttempt(row: AttemptRow): Pick<AttemptRow,
@@ -113,7 +127,14 @@ export async function prepareEnrollmentAttempt(input: {
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const invitationHash = hashInvitationToken(values.token);
   const lookupStableAttempt = async () => {
-    const rows = await workspaceDb.$queryRaw<AttemptRow[]>`
+    return workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string }>>`
+        SELECT tenant_id::text AS "tenantId"
+          FROM public.cw_invitation_context(NULL, ${email}, ${invitationHash}, false)
+      `;
+      if (!scopes[0]?.tenantId) return null;
+      await setEnrollmentContext(tx, scopes[0].tenantId);
+      const rows = await tx.$queryRaw<AttemptRow[]>`
       SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
              invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
              mailbox_proof_ref_hash AS "mailboxProofRefHash", provider_subject AS "providerSubject",
@@ -126,7 +147,8 @@ export async function prepareEnrollmentAttempt(input: {
     `;
     const row = rows[0];
     if (!row || row.mailboxProofRefHash !== proofReferenceHash(row.invitationId, email, values.challengeId)) return null;
-    return row;
+      return row;
+    });
   };
   try {
     return await workspaceDb.$transaction(async (tx) => {
@@ -134,16 +156,15 @@ export async function prepareEnrollmentAttempt(input: {
         id: string; tenantId: string; projectId: string; intendedEmail: string; intendedRole: string;
         status: string; notExpired: boolean; tenantStatus: string; projectTenantId: string | null;
       }>>`
-        SELECT i.id::text AS id, i.tenant_id::text AS "tenantId", i.project_id::text AS "projectId",
-               i.intended_email AS "intendedEmail", i.intended_role AS "intendedRole",
-               i.status, i.expires_at > statement_timestamp() AS "notExpired", t.status AS "tenantStatus",
-               p.tenant_id::text AS "projectTenantId"
-          FROM workspace_invitation_records AS i
-          JOIN workspace_tenants AS t ON t.id = i.tenant_id
-          JOIN workspace_projects AS p ON p.tenant_id = i.tenant_id AND p.id = i.project_id
-         WHERE i.invitation_token_hash = ${invitationHash}
-           AND lower(i.intended_email) = ${email}
-         FOR UPDATE OF i, t, p
+        SELECT invitation.id::text AS id, invitation.tenant_id::text AS "tenantId",
+               invitation.project_id::text AS "projectId",
+               invitation.intended_email AS "intendedEmail", invitation.intended_role AS "intendedRole",
+               invitation.status, invitation.not_expired AS "notExpired",
+               invitation.tenant_status AS "tenantStatus",
+               invitation.project_tenant_id::text AS "projectTenantId"
+          FROM public.cw_invitation_context(
+            NULL, ${email}, ${invitationHash}, true
+          ) AS invitation
       `;
       const invitation = invitations[0];
       if (!invitation || !CLIENT_ROLES.has(invitation.intendedRole)) {
@@ -152,6 +173,7 @@ export async function prepareEnrollmentAttempt(input: {
         });
         return null;
       }
+      await setEnrollmentContext(tx, invitation.tenantId, null, invitation.projectId);
       const proofHash = proofReferenceHash(invitation.id, email, values.challengeId);
       const idemHash = idempotencyHash(invitationHash, email, proofHash);
       const existing = await tx.$queryRaw<Array<AttemptRow & { retryBlocked: boolean }>>`
@@ -177,8 +199,9 @@ export async function prepareEnrollmentAttempt(input: {
               last_error_code='unknown', next_retry_at=NULL, poisoned_at=statement_timestamp(),
               updated_at=statement_timestamp() WHERE id=${prior.id}::uuid AND state='pending'
           `;
-          await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${prior.tenantId}, true)`;
+          await setEnrollmentContext(tx, prior.tenantId, prior.providerSubject, prior.projectId);
           await appendAudit(tx, { tenantId: prior.tenantId, projectId: prior.projectId,
+            actorSubject: prior.providerSubject,
             action: "enrollment.needs_repair", objectId: prior.id,
             idempotencyKey: auditKey(prior.id, "poisoned", MAX_ATTEMPTS) });
           return { ...publicAttempt(prior), state: "needs_repair", attemptCount: MAX_ATTEMPTS };
@@ -187,8 +210,9 @@ export async function prepareEnrollmentAttempt(input: {
           UPDATE workspace_enrollment_attempts SET attempt_count=${nextCount}, next_retry_at=NULL,
             updated_at=statement_timestamp() WHERE id=${prior.id}::uuid AND state='pending'
         `;
-        await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${prior.tenantId}, true)`;
+        await setEnrollmentContext(tx, prior.tenantId, prior.providerSubject, prior.projectId);
         await appendAudit(tx, { tenantId: prior.tenantId, projectId: prior.projectId,
+          actorSubject: prior.providerSubject,
           action: "enrollment.retry_started", objectId: prior.id,
           idempotencyKey: auditKey(prior.id, "retry-started", nextCount) });
         return { ...publicAttempt(prior), attemptCount: nextCount };
@@ -227,9 +251,9 @@ export async function prepareEnrollmentAttempt(input: {
                   intended_email AS "intendedEmail", intended_role AS "intendedRole", state,
                   attempt_count AS "attemptCount", next_retry_at AS "nextRetryAt"
       `;
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${invitation.tenantId}, true)`;
       await appendAudit(tx, {
         tenantId: invitation.tenantId, projectId: invitation.projectId,
+        actorSubject: providerSubject,
         action: isLive ? "enrollment.started" : "enrollment.cancelled",
         objectId: attemptId, idempotencyKey: auditKey(attemptId, isLive ? "started" : "cancelled"),
       });
@@ -276,22 +300,31 @@ export async function consumeMailboxProofForEnrollment(input: {
   catch { return false; }
   if (!UUID.test(values.attemptId) || !UUID.test(values.challengeId) ||
       typeof values.code !== "string" || values.code.length < 32 || values.code.length > 512) return false;
-  const workspaceDb = getWorkspacePrisma() as unknown as Sql;
+  const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const authDb = getAuthPrisma() as unknown as TransactionalSql;
   try {
-    const attempts = await workspaceDb.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
+    const attempts = await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${values.attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return [];
+      await setEnrollmentContext(tx, scopes[0].tenantId);
+      return tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean; retryBlocked: boolean }>>`
       SELECT a.id::text AS id, a.idempotency_hash AS "idempotencyHash",
              a.invitation_id::text AS "invitationId", a.invitation_hash AS "invitationHash",
              a.mailbox_proof_ref_hash AS "mailboxProofRefHash", a.provider_subject AS "providerSubject",
              a.tenant_id::text AS "tenantId", a.project_id::text AS "projectId",
              a.intended_email AS "intendedEmail", a.intended_role AS "intendedRole", a.state,
              a.attempt_count AS "attemptCount", a.next_retry_at AS "nextRetryAt",
-             i.status AS "inviteStatus", i.expires_at > statement_timestamp() AS "notExpired",
+             invitation.status AS "inviteStatus", invitation.not_expired AS "notExpired",
              COALESCE(a.next_retry_at > statement_timestamp(), false) AS "retryBlocked"
         FROM workspace_enrollment_attempts AS a
-        JOIN workspace_invitation_records AS i ON i.id = a.invitation_id
+        CROSS JOIN LATERAL public.cw_invitation_context(
+          a.invitation_id, a.intended_email, NULL, false
+        ) AS invitation
        WHERE a.id = ${values.attemptId}::uuid
-    `;
+      `;
+    });
     const attempt = attempts[0];
     if (!attempt || attempt.state !== "pending") return false;
     if (attempt.inviteStatus !== "pending" || !attempt.notExpired) {
@@ -358,15 +391,16 @@ export async function consumeMailboxProofForEnrollment(input: {
 async function transitionPendingToCancelled(attempt: AttemptRow, errorCode: "invitation_invalid"): Promise<void> {
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   await workspaceDb.$transaction(async (tx) => {
+    await setEnrollmentContext(tx, attempt.tenantId, attempt.providerSubject, attempt.projectId);
     const changed = await tx.$executeRaw`
       UPDATE workspace_enrollment_attempts SET state='cancelled', cancelled_at=statement_timestamp(),
         last_error_code=${errorCode}, updated_at=statement_timestamp()
        WHERE id=${attempt.id}::uuid AND state='pending'
     `;
     if (!changed) return;
-    await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
     await appendAudit(tx, {
       tenantId: attempt.tenantId, projectId: attempt.projectId,
+      actorSubject: attempt.providerSubject,
       action: "enrollment.cancelled", objectId: attempt.id,
       idempotencyKey: auditKey(attempt.id, "cancelled", attempt.attemptCount),
     });
@@ -386,6 +420,11 @@ export async function recordEnrollmentFailure(
   const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   try {
     return await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return false;
+      await setEnrollmentContext(tx, scopes[0].tenantId);
       const rows = await tx.$queryRaw<Array<AttemptRow & { retryBlocked: boolean }>>`
         SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
                invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
@@ -412,9 +451,10 @@ export async function recordEnrollmentFailure(
          WHERE id=${attempt.id}::uuid
       `;
       if (!changed) return false;
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
+      await setEnrollmentContext(tx, attempt.tenantId, attempt.providerSubject, attempt.projectId);
       await appendAudit(tx, {
         tenantId: attempt.tenantId, projectId: attempt.projectId,
+        actorSubject: attempt.providerSubject,
         action: poison ? "enrollment.needs_repair" : "enrollment.retry_failed",
         objectId: attempt.id, idempotencyKey: auditKey(attempt.id, poison ? "poisoned" : "retry", count),
       });
@@ -430,19 +470,19 @@ async function poisonInTransaction(
   attempt: AttemptRow,
   errorCode: "identity_conflict" | "invitation_invalid",
 ): Promise<void> {
+  await setEnrollmentContext(tx, attempt.tenantId, attempt.providerSubject, attempt.projectId);
   const changed = await tx.$executeRaw`
     UPDATE workspace_enrollment_attempts SET state='needs_repair', poisoned_at=statement_timestamp(),
       last_error_code=${errorCode}, next_retry_at=NULL, updated_at=statement_timestamp()
      WHERE id=${attempt.id}::uuid AND state IN ('pending','auth_created','grant_ready_for_review')
   `;
   if (!changed) return;
-  await tx.$executeRaw`
-    UPDATE workspace_principals SET status='disabled'
-     WHERE provider='better_auth' AND provider_subject=${attempt.providerSubject} AND kind='client' AND status='active'
+  await tx.$queryRaw`
+    SELECT public.cw_disable_client_principal(${attempt.id}::uuid, ${attempt.providerSubject})
   `;
-  await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
   await appendAudit(tx, {
     tenantId: attempt.tenantId, projectId: attempt.projectId,
+    actorSubject: attempt.providerSubject,
     action: "enrollment.needs_repair", objectId: attempt.id,
     idempotencyKey: auditKey(attempt.id, "poisoned", attempt.attemptCount + 1),
   });
@@ -456,10 +496,16 @@ async function poisonAttempt(attempt: AttemptRow, errorCode: "identity_conflict"
 /** Reconcile an auth identity committed before the Workspace journal advanced. */
 export async function reconcileEnrollmentAttempt(attemptId: string): Promise<string | null> {
   if (!UUID.test(attemptId)) return null;
-  const workspaceDb = getWorkspacePrisma() as unknown as Sql;
+  const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
   const authDb = getAuthPrisma() as unknown as Sql;
   try {
-    const attempts = await workspaceDb.$queryRaw<AttemptRow[]>`
+    const attempts = await workspaceDb.$transaction(async tx => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${attemptId}::uuid)::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return [];
+      await setEnrollmentContext(tx, scopes[0].tenantId);
+      return tx.$queryRaw<AttemptRow[]>`
       SELECT id::text AS id, idempotency_hash AS "idempotencyHash",
              invitation_id::text AS "invitationId", invitation_hash AS "invitationHash",
              mailbox_proof_ref_hash AS "mailboxProofRefHash", provider_subject AS "providerSubject",
@@ -467,31 +513,45 @@ export async function reconcileEnrollmentAttempt(attemptId: string): Promise<str
              intended_email AS "intendedEmail", intended_role AS "intendedRole", state,
              attempt_count AS "attemptCount", next_retry_at AS "nextRetryAt"
         FROM workspace_enrollment_attempts WHERE id=${attemptId}::uuid
-    `;
+      `;
+    });
     const attempt = attempts[0];
     if (!attempt) return null;
     const users = await authDb.$queryRaw<Array<{ id: string; email: string }>>`
       SELECT id, email FROM auth_spike."user" WHERE id=${attempt.providerSubject} LIMIT 1
     `;
     if (!users.length) {
-      const orphan = await workspaceDb.$queryRaw<Array<{ present: boolean }>>`
-        SELECT EXISTS (SELECT 1 FROM workspace_principals WHERE provider='better_auth'
-          AND provider_subject=${attempt.providerSubject}) AS present
-      `;
+      const orphan = await workspaceDb.$transaction(async tx => {
+        await setEnrollmentContext(
+          tx, attempt.tenantId, attempt.providerSubject, attempt.projectId,
+        );
+        return tx.$queryRaw<Array<{ present: boolean }>>`
+          SELECT public.cw_principal_exists_for_attempt(
+            ${attempt.id}::uuid, ${attempt.providerSubject}
+          ) AS present
+        `;
+      });
       if (orphan[0]?.present) await poisonAttempt(attempt, "identity_conflict");
       else if (attempt.state === "pending") {
         const invite = await workspaceDb.$queryRaw<Array<{ valid: boolean }>>`
-          SELECT EXISTS (SELECT 1 FROM workspace_invitation_records i
-            JOIN workspace_tenants t ON t.id=i.tenant_id
-            JOIN workspace_projects p ON p.tenant_id=i.tenant_id AND p.id=i.project_id
-            WHERE i.id=${attempt.invitationId}::uuid AND i.status='pending'
-              AND i.expires_at > statement_timestamp() AND t.status='active') AS valid
+          SELECT EXISTS (
+            SELECT 1 FROM public.cw_invitation_context(
+              ${attempt.invitationId}::uuid, ${attempt.intendedEmail}, NULL, false
+            ) AS invitation
+             WHERE invitation.status='pending' AND invitation.not_expired
+               AND invitation.tenant_status='active'
+               AND invitation.project_tenant_id=invitation.tenant_id
+          ) AS valid
         `;
         if (!invite[0]?.valid) await transitionPendingToCancelled(attempt, "invitation_invalid");
       }
-      return (await workspaceDb.$queryRaw<Array<{ state: string }>>`
-        SELECT state FROM workspace_enrollment_attempts WHERE id=${attempt.id}::uuid
-      `)[0]?.state ?? null;
+      const latest = await workspaceDb.$transaction(async tx => {
+        await setEnrollmentContext(tx, attempt.tenantId, attempt.providerSubject, attempt.projectId);
+        return tx.$queryRaw<Array<{ state: string }>>`
+          SELECT state FROM workspace_enrollment_attempts WHERE id=${attempt.id}::uuid
+        `;
+      });
+      return latest[0]?.state ?? null;
     }
     if (users[0]!.email.toLowerCase() !== attempt.intendedEmail.toLowerCase()) {
       await poisonAttempt(attempt, "identity_conflict");
@@ -515,6 +575,11 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
     `;
     if (users.length !== 1 || users[0]!.email.toLowerCase() !== email) return null;
     return await workspaceDb.$transaction(async (tx) => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_subject(${providerSubject})::text AS "tenantId"
+      `;
+      if (!scopes[0]?.tenantId) return null;
+      await setEnrollmentContext(tx, scopes[0].tenantId, providerSubject);
       const rows = await tx.$queryRaw<Array<AttemptRow & {
         inviteStatus: string; notExpired: boolean; tenantStatus: string; projectTenantId: string | null;
       }>>`
@@ -524,17 +589,22 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
                a.tenant_id::text AS "tenantId", a.project_id::text AS "projectId",
                a.intended_email AS "intendedEmail", a.intended_role AS "intendedRole", a.state,
                a.attempt_count AS "attemptCount", a.next_retry_at AS "nextRetryAt",
-               i.status AS "inviteStatus", i.expires_at > statement_timestamp() AS "notExpired", t.status AS "tenantStatus",
-               p.tenant_id::text AS "projectTenantId"
+               invitation.status AS "inviteStatus", invitation.not_expired AS "notExpired",
+               invitation.tenant_status AS "tenantStatus",
+               invitation.project_tenant_id::text AS "projectTenantId"
           FROM workspace_enrollment_attempts a
-          JOIN workspace_invitation_records i ON i.id=a.invitation_id
-          JOIN workspace_tenants t ON t.id=a.tenant_id
-          LEFT JOIN workspace_projects p ON p.tenant_id=a.tenant_id AND p.id=a.project_id
+          CROSS JOIN LATERAL public.cw_invitation_context(
+            a.invitation_id, a.intended_email, NULL, true
+          ) AS invitation
          WHERE a.provider_subject=${providerSubject}
-         FOR UPDATE OF a,i,t
+         FOR UPDATE OF a
       `;
       const attempt = rows[0];
       if (!attempt) return null;
+      // The first lookup is tenant-scoped so RLS can find the enrollment row.
+      // Rebind the signed context to its exact project before calling the
+      // identity helper, which rejects a missing or mismatched project scope.
+      await setEnrollmentContext(tx, attempt.tenantId, providerSubject, attempt.projectId);
       const proofSpend = await authDb.$queryRaw<Array<{ attemptId: string; proofRefHash: string }>>`
         SELECT attempt_id::text AS "attemptId", proof_ref_hash AS "proofRefHash"
           FROM auth_spike.workspace_mailbox_proof_spends
@@ -558,25 +628,15 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
         return "needs_repair";
       }
       const principals = await tx.$queryRaw<Array<{ id: string; kind: string; status: string }>>`
-        SELECT id::text AS id, kind, status FROM workspace_principals
-         WHERE provider='better_auth' AND provider_subject=${providerSubject}
-         LIMIT 1 FOR UPDATE
+        SELECT principal.id::text AS id, principal.kind, principal.status
+          FROM public.cw_ensure_disabled_client_principal(
+            ${randomUUID()}::uuid, ${providerSubject}
+          ) AS principal
       `;
-      let principalId: string;
-      if (principals[0]) {
-        if (principals[0].kind !== "client" || principals[0].status !== "disabled") {
-          await poisonInTransaction(tx, attempt, "identity_conflict");
-          return "needs_repair";
-        }
-        principalId = principals[0].id;
-      } else {
-        principalId = randomUUID();
-        await tx.$executeRaw`
-          INSERT INTO workspace_principals(id,provider,provider_subject,kind,status)
-          VALUES (${principalId}::uuid,'better_auth',${providerSubject},'client','disabled')
-        `;
+      if (!principals[0] || principals[0].kind !== "client" || principals[0].status !== "disabled") {
+        await poisonInTransaction(tx, attempt, "identity_conflict");
+        return "needs_repair";
       }
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
       if (attempt.state === "pending") {
         await tx.$executeRaw`
           UPDATE workspace_enrollment_attempts SET state='auth_created', auth_created_at=statement_timestamp(),
@@ -585,6 +645,7 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
         `;
         await appendAudit(tx, {
           tenantId: attempt.tenantId, projectId: attempt.projectId,
+          actorSubject: providerSubject,
           action: "enrollment.auth_created", objectId: attempt.id,
           idempotencyKey: auditKey(attempt.id, "auth-created"),
         });
@@ -595,6 +656,7 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
       `;
       await appendAudit(tx, {
         tenantId: attempt.tenantId, projectId: attempt.projectId,
+        actorSubject: providerSubject,
         action: "enrollment.grant_review_ready", objectId: attempt.id,
         idempotencyKey: auditKey(attempt.id, "grant-review-ready"),
       });
@@ -638,107 +700,30 @@ export async function approveEnrollmentGrantForVerifiedSubject(input: {
       return false;
     }
     const workspaceDb = getWorkspacePrisma() as unknown as TransactionalSql;
-    return await workspaceDb.$transaction(async (tx) => {
-      stage = "lock-attempt-and-invitation";
-      const attempts = await tx.$queryRaw<Array<AttemptRow & { inviteStatus: string; notExpired: boolean }>>`
-        SELECT a.id::text AS id, a.idempotency_hash AS "idempotencyHash",
-               a.invitation_id::text AS "invitationId", a.invitation_hash AS "invitationHash",
-               a.mailbox_proof_ref_hash AS "mailboxProofRefHash", a.provider_subject AS "providerSubject",
-               a.tenant_id::text AS "tenantId", a.project_id::text AS "projectId",
-               a.intended_email AS "intendedEmail", a.intended_role AS "intendedRole", a.state,
-               a.attempt_count AS "attemptCount", a.next_retry_at AS "nextRetryAt",
-               i.status AS "inviteStatus", i.expires_at > statement_timestamp() AS "notExpired"
-          FROM workspace_enrollment_attempts a
-          JOIN workspace_invitation_records i ON i.id=a.invitation_id
-         WHERE a.id=${values.attemptId}::uuid
-         FOR UPDATE OF a,i
+    stage = "approve-enrollment-through-restricted-helper";
+    const rows = await workspaceDb.$transaction(async tx => {
+      const scopes = await tx.$queryRaw<Array<{ tenantId: string | null; projectId: string | null }>>`
+        SELECT public.cw_enrollment_scope_by_attempt(${values.attemptId}::uuid)::text AS "tenantId",
+               public.cw_enrollment_project_by_attempt(${values.attemptId}::uuid)::text AS "projectId"
       `;
-      const attempt = attempts[0];
-      if (!attempt || !CLIENT_ROLES.has(attempt.intendedRole)) {
-        debugEnrollmentFailure("owner-approval-attempt-denied", {
-          attemptFound: Boolean(attempt),
-          roleAllowed: attempt ? CLIENT_ROLES.has(attempt.intendedRole) : false,
-        });
-        return false;
-      }
-      stage = "lock-exact-owner-grant";
-      // The shared helper locks the exact owner grant chain under the limited
-      // runtime role. The current Better Auth session/MFA was verified above.
-      const owners = await tx.$queryRaw<Array<{ id: string | null }>>`
-        SELECT cw_lock_staff_project_grant(
-          ${values.providerSubject}, ${attempt.tenantId}::uuid, ${attempt.projectId}::uuid, 'project.activate'
-        )::text AS id
-      `;
-      const owner = owners[0];
-      if (!owner?.id) {
-        debugEnrollmentFailure("owner-approval-grant-denied", {});
-        return false;
-      }
-      if (attempt.state === "completed") return true;
-      // Retry backoff applies to provider/proof retry work. It cannot block
-      // the separate owner decision once identity is ready for review; current
-      // owner MFA, exact scope/role, invitation validity and bounded state are
-      // rechecked below before any grant is written.
-      if (attempt.state !== "grant_ready_for_review" || attempt.inviteStatus !== "pending" ||
-          !attempt.notExpired) {
-        debugEnrollmentFailure("owner-approval-state-denied", {
-          stateAllowed: attempt.state === "grant_ready_for_review",
-          invitationPending: attempt.inviteStatus === "pending", invitationUnexpired: attempt.notExpired,
-        });
-        await poisonInTransaction(tx, attempt, "invitation_invalid");
-        return false;
-      }
-      stage = "activate-client-principal";
-      const principals = await tx.$queryRaw<Array<{ id: string; status: string }>>`
-        SELECT id::text AS id,status FROM workspace_principals
-         WHERE provider='better_auth' AND provider_subject=${attempt.providerSubject} AND kind='client'
-         LIMIT 1 FOR UPDATE
-      `;
-      const client = principals[0];
-      if (!client || client.status !== "disabled") {
-        debugEnrollmentFailure("owner-approval-principal-denied", {
-          principalFound: Boolean(client), principalDisabled: client?.status === "disabled",
-        });
-        await poisonInTransaction(tx, attempt, "identity_conflict");
-        return false;
-      }
-      stage = "commit-membership-grant-and-audit";
-      await tx.$queryRaw`SELECT set_config('app.workspace_tenant_id', ${attempt.tenantId}, true)`;
-      await tx.$executeRaw`UPDATE workspace_principals SET status='active' WHERE id=${client.id}::uuid AND status='disabled'`;
-      await tx.$executeRaw`
-        INSERT INTO workspace_client_memberships(tenant_id,principal_id,principal_kind,status)
-        VALUES (${attempt.tenantId}::uuid,${client.id}::uuid,'client','active')
-        ON CONFLICT (tenant_id,principal_id) DO UPDATE
-          SET status='active', revoked_at=NULL, granted_at=statement_timestamp()
-      `;
-      await tx.$executeRaw`
-        INSERT INTO workspace_client_project_grants(tenant_id,project_id,principal_id,role,status)
-        VALUES (${attempt.tenantId}::uuid,${attempt.projectId}::uuid,${client.id}::uuid,${attempt.intendedRole},'active')
-        ON CONFLICT (tenant_id,project_id,principal_id,role) DO UPDATE
-          SET status='active', revoked_at=NULL, granted_at=statement_timestamp()
-      `;
-      const redeemed = await tx.$executeRaw`
-        UPDATE workspace_invitation_records SET status='redeemed', redeemed_by_client_id=${client.id}::uuid,
-          redeemed_at=statement_timestamp()
-         WHERE id=${attempt.invitationId}::uuid AND tenant_id=${attempt.tenantId}::uuid
-           AND project_id=${attempt.projectId}::uuid AND status='pending'
-           AND expires_at > statement_timestamp()
-      `;
-      if (redeemed !== 1) throw new Error("Invitation was no longer redeemable.");
-      const completed = await tx.$executeRaw`
-        UPDATE workspace_enrollment_attempts SET state='completed', next_retry_at=NULL,
-          grant_approved_at=statement_timestamp(),
-          completed_at=statement_timestamp(), updated_at=statement_timestamp()
-         WHERE id=${attempt.id}::uuid AND state='grant_ready_for_review'
-      `;
-      if (completed !== 1) throw new Error("Enrollment approval was no longer available.");
-      await appendAudit(tx, {
-        tenantId: attempt.tenantId, projectId: attempt.projectId, actorId: owner.id,
-        action: "enrollment.grant_approved", objectId: attempt.id,
-        idempotencyKey: auditKey(attempt.id, "grant-approved"),
+      const tenantId = scopes[0]?.tenantId;
+      const projectId = scopes[0]?.projectId;
+      if (!tenantId || !projectId) return [];
+      await setWorkspaceAuthorizationContext(tx, {
+        tenantId, projectId, actorSubject: values.providerSubject,
+        purpose: "project.activate",
       });
-      return true;
+      return tx.$queryRaw<Array<{ approved: boolean }>>`
+        SELECT public.cw_approve_enrollment_grant(
+          ${values.attemptId}::uuid, ${values.providerSubject}
+        ) AS approved
+      `;
     }, { isolationLevel: "Serializable" });
+    if (rows[0]?.approved !== true) {
+      debugEnrollmentFailure("owner-approval-helper-denied", {});
+      return false;
+    }
+    return true;
   } catch (error) {
     const safeError = error as {
       code?: unknown;
