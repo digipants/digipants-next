@@ -88,7 +88,7 @@ jobs:
           if (rootCertificates.length === 0) throw new Error("The runner has no trusted TLS roots");
           writeFileSync(
             `${process.env.RUNNER_TEMP}/neon-ca-bundle.pem`,
-            rootCertificates.join("\\n") + "\\n",
+            rootCertificates.join("\n") + "\n",
             { mode: 0o600 },
           );
           NODE
