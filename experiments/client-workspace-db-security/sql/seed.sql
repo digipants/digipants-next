@@ -26,17 +26,17 @@ INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id,
 -- rows during the tenant A and forged-GUC checks.
 INSERT INTO workspace_principals (id, provider_subject, kind) VALUES
   ('55555555-5555-4555-8555-555555555555', 'synthetic-security-staff-b', 'staff'),
-  ('66666666-6666-4666-8666-666666666666', '99999999-9999-4999-8999-999999999999', 'client');
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '99999999-9999-4999-8999-999999999999', 'client');
 INSERT INTO workspace_staff_memberships (principal_id) VALUES
   ('55555555-5555-4555-8555-555555555555');
 INSERT INTO workspace_client_memberships (tenant_id, principal_id) VALUES
-  ('22222222-2222-4222-8222-222222222222', '66666666-6666-4666-8666-666666666666');
+  ('22222222-2222-4222-8222-222222222222', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
 INSERT INTO workspace_staff_project_grants (tenant_id, project_id, principal_id, role) VALUES
   ('22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
    '55555555-5555-4555-8555-555555555555', 'delivery_lead');
 INSERT INTO workspace_client_project_grants (tenant_id, project_id, principal_id, role) VALUES
   ('22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-   '66666666-6666-4666-8666-666666666666', 'client_viewer');
+   'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'client_viewer');
 INSERT INTO workspace_invitation_records
   (id, tenant_id, project_id, intended_email, intended_role, invitation_token_hash,
    issued_by_staff_id, expires_at)
