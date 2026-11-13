@@ -94,6 +94,7 @@ jobs:
           NODE
           docker cp "$RUNNER_TEMP/neon-ca-bundle.pem" "$POSTGRES_CONTAINER_ID:/tmp/neon-ca-bundle.pem"
           docker exec -u 0 "$POSTGRES_CONTAINER_ID" chmod 0644 /tmp/neon-ca-bundle.pem
+          docker exec "$POSTGRES_CONTAINER_ID" test -s /tmp/neon-ca-bundle.pem
 
       - name: Validate the child-only direct URL and define TLS-verified targets
         env:
@@ -143,6 +144,16 @@ jobs:
             appendFileSync(process.env.GITHUB_ENV, key + "=" + value + "\n");
           }
           NODE
+
+      - name: Verify migrator access to both cloned databases
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          workspace_db="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database()"')"
+          auth_db="$(docker exec -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database()"')"
+          test "$workspace_db" = "digipants_workspace_prod"
+          test "$auth_db" = "digipants_auth_prod"
 
       - name: Create child-only Prisma shadow databases
         env:
