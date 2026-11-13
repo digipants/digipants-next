@@ -105,3 +105,30 @@ Only after all preceding evidence is green **on the exact reviewed release SHA**
 If any gate fails, restore `CLIENT_WORKSPACE_ENABLED=0` or `CLIENT_WORKSPACE_PRODUCTION_ENABLED=0`, `CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED=0`, `CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED=0`, revoke affected sessions and pause outbox deliveries. Roll back automatically deployed code using a reviewed Git rollback followed by Netlify normal deployment; do not expose staging credentials or synthetic records as an emergency bypass.
 
 **Tracking:** #117 (bundle), #120 (sensitive-table RLS release blocker), #121 (RLS/founder changes + preflights), #101 (real pooled-TLS).
+
+
+## Hosted production execution evidence — 14 November 2026
+
+- **Production project/branch:** `flat-glitter-05386028` / `br-floral-shadow-zapa2jbz`. These immutable IDs, rather than the mutable branch name, are authoritative.
+- **Schema state:** six versioned Workspace SQL migrations and six Better Auth migrations from reviewed head `9370f1c79155ea6407f9d2b7cacd2e2f329209b9` executed in database-scoped transactions. A Prisma-compatible `_prisma_migrations` ledger was populated using SHA-256 of each exact repository migration file. **These steps used the connected Neon SQL API, not `prisma migrate deploy`; a separate official Prisma CLI reconciliation and schema drift check remain required before final activation.** Do not falsely label this as a CLI run.
+- **Hardening:** reviewed Workspace owner/role scripts, FORCE RLS and signed-context hardening applied. Auth runtime grants applied. Both read-only production database preflights returned all flags true. Restricted actual role logins on their respective databases succeeded through the Neon connector, while unscoped Workspace reads returned zero. The connector **does not** establish independent client-to-pooler TLS.
+- **Production secrets:** matching restricted Workspace/Auth pooled connection URLs, a unique Better Auth secret, a mail-outbox encryption key, and the database-matched signed RLS context key are set in Netlify's **production-only** scope. Production activation, founder and general email switches remain `0`. A separately provisioned production Resend API key is **not configured**; do not enable founder or general mail until available.
+- **Founder scope:** one real internal DigiPants tenant and internal project are configured for a one-time, approved founder mailbox hash with `workspace_owner` scope. No customer tenant or synthetic fixture data was imported into the production branch. Real mailbox proof, password, TOTP and independent browser authentication are pending.
+- **Rehearsal:** synthetic two-tenant signed-RLS tests passed under a genuine `session_user=cw_workspace_prod_app` login via the Neon SQL connector. Forged GUC/token denied all rows; signed Tenant A and B each saw exactly one own tenant/project and zero foreign projects. The temporary synthetic branch was deleted.
+
+### Neon snapshot restore hazard — verified
+
+The first snapshot of the empty production branch (`snap-round-shape-zaj2mp2k`) was restored into a **new** branch for recovery rehearsal. Despite specifying no existing target branch, the restore operation **promoted the restored branch to default and moved/replaced the compute hostname**, renaming the original production branch. This was detected and corrected immediately:
+
+1. The original production branch ID `br-floral-shadow-zapa2jbz` was explicitly made default again and renamed `production`.
+2. Database migration counts, signing key, and real internal target were verified on that original branch.
+3. The temporary restored branch was deleted; only the original production branch remains active.
+4. The replacement production compute `ep-steep-resonance-zaen4209` was configured for transaction pooling. Both production Netlify pooled URLs were updated to its matching hostname without revealing credentials, and both restricted runtime logins were retested successfully.
+
+**Critical recovery rule:** Never assume a Neon snapshot restore is a harmless branch creation. Before and immediately after any restore, check the default branch ID, compute binding, public pooler hostname, database contents and Netlify runtime URLs. Avoid restore rehearsals in the active production project while customer data is live unless the restore operation and its default-branch behavior are independently documented and controlled.
+
+The Neon Free project currently permits only one snapshot and has no remaining protected-branch allowance. Its existing snapshot is from the **empty** preactivation schema, not a backup of the current production schema or future customer data. Obtain an approved, verified post-schema/data recovery strategy before real client onboarding.
+
+### Still required for GO
+
+A live independent TLS-verified pooled login/tenant test on an isolated child, official Prisma migration-ledger reconciliation, tested post-schema/data backup recovery, production mail sender/API key, real founder mailbox/password/TOTP onboarding, protected browser UAT and signed-context/revocation-race security review. **A passing catalog preflight alone does not authorize enabling the production site.**
