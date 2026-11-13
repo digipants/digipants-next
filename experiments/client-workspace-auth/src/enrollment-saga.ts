@@ -601,6 +601,10 @@ export async function markAuthIdentityCreated(providerSubject: string, emailInpu
       `;
       const attempt = rows[0];
       if (!attempt) return null;
+      // The first lookup is tenant-scoped so RLS can find the enrollment row.
+      // Rebind the signed context to its exact project before calling the
+      // identity helper, which rejects a missing or mismatched project scope.
+      await setEnrollmentContext(tx, attempt.tenantId, providerSubject, attempt.projectId);
       const proofSpend = await authDb.$queryRaw<Array<{ attemptId: string; proofRefHash: string }>>`
         SELECT attempt_id::text AS "attemptId", proof_ref_hash AS "proofRefHash"
           FROM auth_spike.workspace_mailbox_proof_spends

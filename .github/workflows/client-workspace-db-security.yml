@@ -104,6 +104,7 @@ jobs:
           rm -f "$backup"
       - name: Existing repository tests and TypeScript validation
         run: |
+          (cd experiments/client-workspace-auth && npm ci && npm run db:generate)
           node --test tests/*.test.mjs
           npx tsc --noEmit
       - name: Normal production build (no new routes)
