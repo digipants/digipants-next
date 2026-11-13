@@ -265,6 +265,7 @@ jobs:
             printf '\nCOMMIT;\n'
           } | docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1'
           docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' < scripts/workspace/production-rls-hardening.sql
+          docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "GRANT cw_schema_owner TO cw_activation_migrator WITH INHERIT TRUE, SET TRUE"'
           docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' <<'SQL'
           SET ROLE cw_schema_owner;
           BEGIN;
