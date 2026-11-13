@@ -362,4 +362,5 @@ jobs:
 
       - name: Report isolated acceptance completion
         if: success()
-        run: echo "PASS: current-head migrations, Neon pooled TLS, tenant isolation, both preflights, and Neon clone backup/restore"
+        run: |
+          echo "PASS: current-head migrations, Neon pooled TLS, tenant isolation, both preflights, and Neon clone backup/restore"
