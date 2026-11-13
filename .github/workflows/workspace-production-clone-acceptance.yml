@@ -150,8 +150,8 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          workspace_rights="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '''|''' || has_schema_privilege(current_user, '''public''', '''CREATE''')::text"')"
-          auth_rights="$(docker exec -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '''|''' || has_database_privilege(current_user, current_database(), '''CREATE''')::text || '''|''' || has_schema_privilege(current_user, '''public''', '''CREATE''')::text"')"
+          workspace_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
+          auth_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
           test "$workspace_rights" = "digipants_workspace_prod|true"
           test "$auth_rights" = "digipants_auth_prod|true|true"
 
