@@ -8,6 +8,7 @@ const pooled="postgresql://cw_runtime_ci:synthetic_pw@ep-safe-pooler.c-2.us-east
 const tenantA="11111111-1111-4111-8111-111111111111";
 const tenantB="22222222-2222-4222-8222-222222222222";
 const contextKey=Buffer.alloc(32,0x11);
+const pooledProductionClone=pooled.replace("digipants_workspace_dev","digipants_workspace_prod");
 
 test("Pooled acceptance refuses direct, privileged, malformed and insecure connection strings",()=>{
   assert.ok(assertPooledNeonUrl(pooled).hostname.includes("-pooler."));
@@ -19,6 +20,7 @@ test("Pooled acceptance refuses direct, privileged, malformed and insecure conne
     pooled+"&host=attacker.invalid",
     pooled.replace("cw_runtime_ci","postgres_admin"),
     pooled.replace("digipants_workspace_dev","production"),
+    pooled.replace("ep-safe","ep-late-morning-za8o4jl4"),
     pooled.replace("postgresql://","http://"),
     pooled.replace(".neon.tech/",".neon.tech:5433/"),
     "postgresql://cw_runtime_ci:secret@localhost/digipants_workspace_dev?sslmode=verify-full",
@@ -27,6 +29,9 @@ test("Pooled acceptance refuses direct, privileged, malformed and insecure conne
   ];
   for(const value of invalid)
     assert.throws(()=>assertPooledNeonUrl(value));
+  assert.equal(assertPooledNeonUrl(pooledProductionClone,"digipants_workspace_prod").pathname,
+    "/digipants_workspace_prod");
+  assert.throws(()=>assertPooledNeonUrl(pooledProductionClone));
 });
 test("Backend SQL or a fake encrypted socket does not count as client-to-pooler TLS",()=>{
   const hostname=assertPooledNeonUrl(pooled).hostname;
@@ -37,7 +42,7 @@ test("Backend SQL or a fake encrypted socket does not count as client-to-pooler 
   assert.throws(()=>assertVerifiedPooledTlsSocket({},hostname));
 });
 
-function mockPoolFactory(state){
+function mockPoolFactory(state,expectedDatabase="digipants_workspace_dev"){
   return class MockPool{
     constructor(config){
       state.configuration=config;
@@ -47,7 +52,7 @@ function mockPoolFactory(state){
       assert.equal(config.ssl.servername,"ep-safe-pooler.c-2.us-east-2.aws.neon.tech");
       assert.equal(typeof config.ssl.checkServerIdentity,"function");
       assert.equal(config.user,"cw_runtime_ci");
-      assert.equal(config.database,"digipants_workspace_dev");
+      assert.equal(config.database,expectedDatabase);
     }
     async connect(){
       return {connection:{stream:{simulated:true}},query:async(sql,args=[])=>{
@@ -56,6 +61,15 @@ function mockPoolFactory(state){
         if(s==="COMMIT"||s==="ROLLBACK"){
           state.inside=false;state.scope=null;return {rows:[]};
         }
+        if(s.startsWith("SELECT invitation_token_hash")||
+           s.startsWith("SELECT signing_key")||
+           s.startsWith("INSERT INTO public.workspace_tenants")||
+           s.startsWith("INSERT INTO public.workspace_audit_events")||
+           s.startsWith("UPDATE public.workspace_audit_events")||
+           s.startsWith("DELETE FROM public.workspace_audit_events")||
+           s.startsWith("TRUNCATE public.workspace_audit_events")||
+           s.startsWith("CREATE TABLE public.cw_pooler_acceptance_probe"))
+          throw Object.assign(new Error("permission denied"),{code:"42501"});
         if(s.includes("pg_current_xact_id")){
           assert.equal(state.inside,true);
           return {rows:[{xid:"42"}]};
@@ -72,7 +86,18 @@ function mockPoolFactory(state){
             rolcreatedb:false,rolbypassrls:false,runtimeGrant:true}]};
         if(s.includes("has_table_privilege"))
           return {rows:[{canRead:true,canInvite:state.forgeInvitation??false,
-            canForgeAudit:false,canCreate:false}]};
+            canForgeAudit:false,canReadContextKey:false,canCreateTenant:false,
+            canRewriteAudit:false,canDeleteAudit:false,canTruncateAudit:false,
+            canCreate:false}]};
+        if(s.includes('AS "enrollmentAttempts"')){
+          const empty={tenants:0,principals:0,clientMemberships:0,staffMemberships:0,
+            clientGrants:0,staffGrants:0,enrollmentAttempts:0};
+          const a={tenants:1,principals:2,clientMemberships:0,staffMemberships:2,
+            clientGrants:0,staffGrants:2,enrollmentAttempts:0};
+          const b={tenants:1,principals:2,clientMemberships:1,staffMemberships:1,
+            clientGrants:1,staffGrants:1,enrollmentAttempts:1};
+          return {rows:[state.scope===tenantA?a:state.scope===tenantB?b:empty]};
+        }
         if(s.includes("FROM public.workspace_projects")){
           state.seen++;
           return {rows:state.scope?[{
@@ -105,6 +130,7 @@ test("Acceptance verifies restricted login and exact tenant reads with transacti
     assert.deepEqual(result,{
       clientPooledTlsVerified:true,restrictedRole:true,
       tenantScopeReset:true,exactTenantIsolation:true,
+      allSensitiveTablesIsolated:true,unauthorizedSqlDenied:true,
     });
     assert.equal(state.seen,5);
     assert.equal(state.closed,true);
@@ -138,6 +164,19 @@ test("Acceptance verifies restricted login and exact tenant reads with transacti
     }),/not authenticated TLS/);
     assert.equal(noRealTls.seen,0,
       "a missing verified socket must abort BEFORE any data query");
+
+    const productionCloneState={scope:null,inside:false,seen:0,closed:false,released:false};
+    await runAcceptance({
+      poolerUrl:pooledProductionClone,tenantA,tenantB,contextKey,databaseName:"digipants_workspace_prod",
+      testBranchId:"br-disposable-security-test",productionBranchId:"br-production-primary",
+      makePool:mockPoolFactory(productionCloneState,"digipants_workspace_prod"),verifyClientTls,
+    });
+    assert.equal(productionCloneState.closed,true);
+    await assert.rejects(runAcceptance({
+      poolerUrl:pooledProductionClone,tenantA,tenantB,contextKey,databaseName:"digipants_workspace_prod",
+      testBranchId:"br-production-primary",productionBranchId:"br-production-primary",
+      makePool:mockPoolFactory({scope:null,inside:false,seen:0},"digipants_workspace_prod"),verifyClientTls,
+    }),/distinct verified disposable Neon branch ID/);
   }finally{
     if(previous===undefined)delete process.env.WORKSPACE_POOLER_ACCEPTANCE_ENABLED;
     else process.env.WORKSPACE_POOLER_ACCEPTANCE_ENABLED=previous;

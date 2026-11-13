@@ -82,7 +82,7 @@ CREATE POLICY cw_v2_principals_runtime ON public.workspace_principals
 CREATE OR REPLACE FUNCTION public.cw_principal_exists_for_attempt(
   p_attempt_id uuid, p_provider_subject text
 ) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE sql VOLATILE SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
   SELECT p_attempt_id IS NOT NULL
@@ -95,6 +95,9 @@ AS $$
           AND principal.provider_subject = attempt.provider_subject
         WHERE attempt.id = p_attempt_id
           AND attempt.provider_subject = p_provider_subject
+          AND public.cw_workspace_context_allows(
+            attempt.tenant_id, attempt.project_id, p_provider_subject, 'enrollment'
+          )
      );
 $$;
 REVOKE ALL ON FUNCTION public.cw_principal_exists_for_attempt(uuid,text) FROM PUBLIC;

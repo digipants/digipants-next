@@ -29,6 +29,7 @@ test("Workspace production preflight covers every sensitive journal and grant ta
   assert.match(workspace, /signed_context_key_private/);
   assert.match(workspace, /signed_context_key_configured/);
   assert.match(workspace, /signed_context_helpers_owned/);
+  assert.match(workspace, /orphan_lookup_is_signed_scope_bound/);
 });
 
 test("Better Auth production preflight denies administrator privileges and mail deletion", () => {

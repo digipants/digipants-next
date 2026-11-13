@@ -62,7 +62,7 @@ For both databases run their versioned read-only preflights and reject **any** f
 - `scripts/workspace/production-auth-preflight.sql`
 
 Do not claim acceptance from role metadata alone: verify a real non-admin SQL login, transaction-local RLS, privilege denials and pooled TLS separately.
-The `experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs` runner also requires the matching disposable 32-byte `WORKSPACE_RLS_CONTEXT_KEY` alongside two synthetic tenant IDs and the restricted pooled URL; do not use production key material for this test.
+The `experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs` runner also requires the matching disposable 32-byte `WORKSPACE_RLS_CONTEXT_KEY` alongside two synthetic tenant IDs and the restricted pooled URL; do not use production key material for this test. For a production-shaped clone, set `WORKSPACE_POOLER_TEST_DATABASE=digipants_workspace_prod`, `WORKSPACE_POOLER_TEST_BRANCH_ID` and `WORKSPACE_POOLER_LIVE_BRANCH_ID`; the runner rejects the known live production endpoint and requires distinct Neon branch IDs.
 
 ## 3. Dedicated production credentials, without exposure
 
@@ -92,7 +92,7 @@ Under controlled founder-only deployment, enable only the minimum needed: normal
 
 ## 5. Actual pooled TLS, application UAT and monitoring
 
-On a fresh **disposable, synthetic-only** production-project clone (not the real production branch), run the true public `-pooler` acceptance with a restricted login whose `session_user=current_user` equals the app role. Verify Node `TLSSocket.authorized=true` and certificate hostname, `sslmode=verify-full`, no privileged role membership, and A/B tenant isolation under repeated pooled transactions and rollbacks. Static URL validation or the Neon SQL connector is insufficient.
+On a fresh **disposable, synthetic-only** production-project clone (not the real production branch), run only the approved migrations, then `experiments/client-workspace-db-security/sql/seed.sql`, the reviewed role/hardening scripts, and the production RLS hardening. Do not run `verify.sql` before the pooled acceptance: its committed workflow fixtures intentionally change the expected seed counts. Confirm the pooled hostname belongs to this child branch in Neon and record both branch IDs before running `experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs` with a restricted login whose `session_user=current_user` equals the app role. For production-shaped acceptance, set `WORKSPACE_POOLER_TEST_DATABASE=digipants_workspace_prod`, `WORKSPACE_POOLER_TEST_BRANCH_ID=<child-branch-id>`, and `WORKSPACE_POOLER_LIVE_BRANCH_ID=br-floral-shadow-zapa2jbz`. The runner rejects the known live production endpoint and requires distinct branch IDs. It verifies Node `TLSSocket.authorized=true`, certificate hostname, `sslmode=verify-full`, owner/runtime privilege denials, cleared-scope emptiness, and isolation of tenant/project data plus all seven sensitive identity, membership, grant and enrollment tables across pooled transactions. Static URL validation or the Neon SQL connector is insufficient.
 
 Run protected browser UAT with a real founder login and separately invited test client: rightful scope visible, foreign tenant/project denied, logout and session revocation enforced, MFA recovery tested, no client-content analytics, no exposed mail proofs, no open registration. Keep client-facing progress and documents approval-gated. Confirm sending quotas, encrypted outbox delivery/ack/retry, rate limit and fail-closed provider outage.
 

@@ -86,11 +86,21 @@ jobs:
         run: |
           set -euo pipefail
           backup="$RUNNER_TEMP/workspace-synthetic.dump"
+          expected_counts="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d digipants_workspace_dev -Atqc \
+            "SELECT (SELECT count(*) FROM workspace_tenants)::text || '|' || (SELECT count(*) FROM workspace_projects)::text || '|' || (SELECT count(*) FROM workspace_audit_events)::text")"
+          IFS='|' read -r expected_tenant_count expected_project_count expected_audit_count <<< "$expected_counts"
+          test "$expected_tenant_count" -ge 0
+          test "$expected_project_count" -ge 0
+          test "$expected_audit_count" -ge 0
           docker exec "$POSTGRES_CONTAINER_ID" pg_dump -U digipants_ws_dev -d digipants_workspace_dev --format=custom > "$backup"
           test -s "$backup"
           docker exec "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE workspace_restore_test"
           docker exec -i "$POSTGRES_CONTAINER_ID" pg_restore -U digipants_ws_dev -d workspace_restore_test --no-owner --no-acl < "$backup"
-          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d workspace_restore_test -v ON_ERROR_STOP=1 < experiments/client-workspace-db-security/sql/verify-restore.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U digipants_ws_dev -d workspace_restore_test -v ON_ERROR_STOP=1 \
+            -v expected_tenant_count="$expected_tenant_count" \
+            -v expected_project_count="$expected_project_count" \
+            -v expected_audit_count="$expected_audit_count" \
+            < experiments/client-workspace-db-security/sql/verify-restore.sql
           rm -f "$backup"
       - name: Existing repository tests and TypeScript validation
         run: |

@@ -245,6 +245,17 @@ BEGIN
       (SELECT count(*) FROM workspace_milestones),
       (SELECT count(*) FROM workspace_progress_updates);
   END IF;
+  IF (SELECT count(*) FROM workspace_tenants) <> 1 OR
+     (SELECT count(*) FROM workspace_principals) <> 2 OR
+     (SELECT count(*) FROM workspace_principals WHERE provider_subject IN
+       ('synthetic-security-staff-a','synthetic-security-owner')) <> 2 OR
+     (SELECT count(*) FROM workspace_staff_memberships) <> 2 OR
+     (SELECT count(*) FROM workspace_staff_project_grants) <> 2 OR
+     (SELECT count(*) FROM workspace_client_memberships) <> 0 OR
+     (SELECT count(*) FROM workspace_client_project_grants) <> 0 OR
+     (SELECT count(*) FROM workspace_enrollment_attempts) <> 0 THEN
+    RAISE EXCEPTION 'tenant A signed context leaked or hid sensitive identity rows';
+  END IF;
 
   invite_id := public.cw_issue_client_invitation(
     '55555555-5555-4555-8555-555555555555', 'synthetic-security-owner',
@@ -290,6 +301,12 @@ BEGIN
       '66666666-6666-4666-8666-666666666666', '66666666-6666-4666-8666-666666666666');
   IF client_principal_id IS NULL OR created_principal_status <> 'disabled' THEN
     RAISE EXCEPTION 'restricted principal helper did not create only a disabled client principal';
+  END IF;
+  IF public.cw_principal_exists_for_attempt(
+       '88888888-8888-4888-8888-888888888888', '66666666-6666-4666-8666-666666666666') IS NOT TRUE OR
+     public.cw_principal_exists_for_attempt(
+       '88888888-8888-4888-8888-888888888888', '77777777-7777-4777-8777-777777777777') IS TRUE THEN
+    RAISE EXCEPTION 'orphan-principal helper did not enforce the signed enrollment actor and attempt';
   END IF;
   PERFORM pg_temp.cw_set_test_context(
     '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -393,6 +410,41 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'runtime could erase enrollment recovery history'; END IF;
 END $$;
 COMMIT;
+
+-- Tenant B has seeded rows in every identity table. Verify its signed scope
+-- sees those exact rows, while never exposing tenant A's records.
+BEGIN;
+SET LOCAL ROLE cw_runtime;
+SELECT pg_temp.cw_set_test_context(
+  '22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'synthetic-security-staff-b', 'delivery.edit');
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM workspace_tenants) <> 1 OR
+     (SELECT count(*) FROM workspace_projects) <> 1 OR
+     (SELECT count(*) FROM workspace_principals) <> 2 OR
+     (SELECT count(*) FROM workspace_client_memberships) <> 1 OR
+     (SELECT count(*) FROM workspace_staff_memberships) <> 1 OR
+     (SELECT count(*) FROM workspace_client_project_grants) <> 1 OR
+     (SELECT count(*) FROM workspace_staff_project_grants) <> 1 OR
+     (SELECT count(*) FROM workspace_enrollment_attempts) <> 1 OR
+     EXISTS (SELECT 1 FROM workspace_projects WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') OR
+     EXISTS (SELECT 1 FROM workspace_client_memberships WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') OR
+     EXISTS (SELECT 1 FROM workspace_client_project_grants WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') OR
+     EXISTS (SELECT 1 FROM workspace_staff_project_grants WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') OR
+     EXISTS (SELECT 1 FROM workspace_enrollment_attempts WHERE tenant_id <> '22222222-2222-4222-8222-222222222222') THEN
+    RAISE EXCEPTION 'tenant B signed context did not isolate all seeded sensitive records';
+  END IF;
+  IF public.cw_principal_exists_for_attempt(
+       '88888888-8888-4888-8888-888888888888',
+       '99999999-9999-4999-8999-999999999999') IS NOT TRUE OR
+     public.cw_principal_exists_for_attempt(
+       '88888888-8888-4888-8888-888888888888',
+       '66666666-6666-4666-8666-666666666666') IS TRUE THEN
+    RAISE EXCEPTION 'tenant B orphan-principal check escaped its signed subject/attempt scope';
+  END IF;
+END $$;
+ROLLBACK;
 
 -- Audit writer has INSERT only; audit reader has SELECT only.
 BEGIN;
@@ -515,6 +567,19 @@ BEGIN
   IF (SELECT count(*) FROM workspace_milestones) <> 0 OR
      (SELECT count(*) FROM workspace_progress_updates) <> 0 THEN
     RAISE EXCEPTION 'tenant B context exposed tenant A progress';
+  END IF;
+  IF (SELECT count(*) FROM workspace_principals) <> 0 OR
+     (SELECT count(*) FROM workspace_client_memberships) <> 0 OR
+     (SELECT count(*) FROM workspace_staff_memberships) <> 0 OR
+     (SELECT count(*) FROM workspace_client_project_grants) <> 0 OR
+     (SELECT count(*) FROM workspace_staff_project_grants) <> 0 OR
+     (SELECT count(*) FROM workspace_enrollment_attempts) <> 0 THEN
+    RAISE EXCEPTION 'forged custom GUC exposed tenant identity, grants, memberships or enrollment data';
+  END IF;
+  IF public.cw_principal_exists_for_attempt(
+       '88888888-8888-4888-8888-888888888888',
+       '99999999-9999-4999-8999-999999999999') IS TRUE THEN
+    RAISE EXCEPTION 'forged custom GUC let an untrusted caller use the orphan-principal helper';
   END IF;
 END $$;
 ROLLBACK;

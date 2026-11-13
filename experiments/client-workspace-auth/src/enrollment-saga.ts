@@ -521,11 +521,16 @@ export async function reconcileEnrollmentAttempt(attemptId: string): Promise<str
       SELECT id, email FROM auth_spike."user" WHERE id=${attempt.providerSubject} LIMIT 1
     `;
     if (!users.length) {
-      const orphan = await workspaceDb.$queryRaw<Array<{ present: boolean }>>`
-        SELECT public.cw_principal_exists_for_attempt(
-          ${attempt.id}::uuid, ${attempt.providerSubject}
-        ) AS present
-      `;
+      const orphan = await workspaceDb.$transaction(async tx => {
+        await setEnrollmentContext(
+          tx, attempt.tenantId, attempt.providerSubject, attempt.projectId,
+        );
+        return tx.$queryRaw<Array<{ present: boolean }>>`
+          SELECT public.cw_principal_exists_for_attempt(
+            ${attempt.id}::uuid, ${attempt.providerSubject}
+          ) AS present
+        `;
+      });
       if (orphan[0]?.present) await poisonAttempt(attempt, "identity_conflict");
       else if (attempt.state === "pending") {
         const invite = await workspaceDb.$queryRaw<Array<{ valid: boolean }>>`

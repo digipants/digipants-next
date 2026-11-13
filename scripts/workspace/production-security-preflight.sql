@@ -74,6 +74,18 @@ SELECT
        AND p.proname IN ('cw_verified_workspace_context','cw_workspace_context_tenant_id',
          'cw_workspace_context_allows','cw_founder_bootstrap_target')
        AND p.prosecdef AND r.rolname='cw_schema_owner') AS signed_context_helpers_owned,
+  COALESCE((
+    SELECT p.prosecdef AND p.provolatile='v' AND r.rolname='cw_schema_owner'
+       AND pg_catalog.pg_get_functiondef(p.oid) LIKE '%cw_workspace_context_allows%'
+       AND has_function_privilege('cw_workspace_prod_app',p.oid,'EXECUTE')
+       AND NOT EXISTS (
+         SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,'{}'::aclitem[])) AS acl
+          WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'
+       )
+      FROM pg_catalog.pg_proc AS p
+      JOIN pg_catalog.pg_roles AS r ON r.oid=p.proowner
+     WHERE p.oid=to_regprocedure('public.cw_principal_exists_for_attempt(uuid,text)')
+  ),false) AS orphan_lookup_is_signed_scope_bound,
   to_regclass('public._prisma_migrations') IS NOT NULL AS migration_ledger_present,
   CASE WHEN to_regclass('public.workspace_projects') IS NULL THEN false
     ELSE NOT EXISTS (

@@ -172,6 +172,25 @@ jobs:
           fi
           npm run db:migrate:diff
 
+      - name: Prepare schema-owner fixture permissions before hardening
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql \
+            -v ON_ERROR_STOP=1 \
+            -U digipants_ws_dev \
+            -d digipants_workspace_dev <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'cw_schema_owner') THEN
+              CREATE ROLE cw_schema_owner NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+            END IF;
+          END $$;
+          GRANT USAGE ON SCHEMA public TO cw_schema_owner;
+          GRANT SELECT ON public.workspace_context_signing_keys TO cw_schema_owner;
+          SQL
+
       - name: Run existing authentication integration suite
         if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' && github.event.pull_request.head.ref != 'feat/client-workspace-pilot-activation-114' && github.event.pull_request.head.ref != 'feat/client-workspace-invite-onboarding-115' && github.event.pull_request.head.ref != 'feat/client-workspace-delivery-reliability-116' && (github.event.pull_request.head.ref != 'feat/client-workspace-mail-abuse-gates-117' && github.event.pull_request.head.ref != 'fix/workspace-production-migration-guards-121') }}
         working-directory: experiments/client-workspace-auth
