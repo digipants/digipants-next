@@ -318,7 +318,12 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' < experiments/client-workspace-auth/sql/runtime-privileges.sql
-          docker exec -i -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' < experiments/client-workspace-auth/sql/verify-runtime-privileges.sql
+          # This child-only migrator has no SET permission on cw_auth_runtime:
+          # verify explicit role ACLs without assuming that role. The original
+          # verifier's SET LOCAL ROLE statement is for privileged CI setup;
+          # all its permission assertions name cw_auth_runtime explicitly.
+          sed '/^SET LOCAL ROLE cw_auth_runtime;$/d' experiments/client-workspace-auth/sql/verify-runtime-privileges.sql |
+            docker exec -i -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1'
 
       - name: Require every read-only production security preflight flag
         working-directory: experiments/client-workspace-auth
