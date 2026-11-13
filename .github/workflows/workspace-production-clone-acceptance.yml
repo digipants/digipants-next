@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: false
+  push:
+    branches:
+      - feat/client-workspace-pooler-tls-acceptance-119
+    paths:
+      - .github/workflows/workspace-production-clone-acceptance.yml
 
 permissions:
   contents: read
@@ -18,7 +23,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && inputs.run_acceptance == true && vars.WORKSPACE_POOLER_ACCEPTANCE_RUN == '1' }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && vars.WORKSPACE_POOLER_ACCEPTANCE_RUN == '1' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[workspace-acceptance-once]')) ) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     environment:
