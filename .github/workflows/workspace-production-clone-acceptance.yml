@@ -150,9 +150,9 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          workspace_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
+          workspace_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text || '|' || (SELECT COALESCE(bool_or(admin_option),false) FROM pg_auth_members WHERE roleid='cw_schema_owner'::regrole AND member=current_user::regrole)::text")"
           auth_rights="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '|' || has_database_privilege(current_user, current_database(), 'CREATE')::text || '|' || has_schema_privilege(current_user, 'public', 'CREATE')::text")"
-          test "$workspace_rights" = "digipants_workspace_prod|true|true"
+          test "$workspace_rights" = "digipants_workspace_prod|true|true|true"
           test "$auth_rights" = "digipants_auth_prod|true|true"
 
       - name: Create child-only Prisma shadow databases
