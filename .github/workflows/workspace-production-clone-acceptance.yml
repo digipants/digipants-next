@@ -318,6 +318,10 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' < experiments/client-workspace-auth/sql/runtime-privileges.sql
+          # This must remain a restricted migration identity, not an
+          # impersonation of the authentication application group role.
+          denied="$(docker exec -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT NOT pg_has_role(current_user, '\''cw_auth_runtime'\'', '\''SET'\'') AND NOT pg_has_role(current_user, '\''cw_auth_runtime'\'', '\''USAGE'\'')"')"
+          test "$denied" = "t"
           # This child-only migrator has no SET permission on cw_auth_runtime:
           # verify explicit role ACLs without assuming that role. The original
           # verifier's SET LOCAL ROLE statement is for privileged CI setup;
