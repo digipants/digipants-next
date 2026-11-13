@@ -311,9 +311,10 @@ jobs:
           RESET ROLE;
           SQL
           {
-            printf 'SET ROLE cw_schema_owner;\n'
+            printf 'SET ROLE cw_schema_owner;\nBEGIN;\n'
+            printf 'CREATE POLICY cw_clone_fixture_audit_insert ON public.workspace_audit_events FOR INSERT TO cw_schema_owner WITH CHECK (true);\n'
             cat experiments/client-workspace-db-security/sql/seed.sql
-            printf '\nRESET ROLE;\n'
+            printf '\nDROP POLICY cw_clone_fixture_audit_insert ON public.workspace_audit_events;\nCOMMIT;\nRESET ROLE;\n'
           } | docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1'
 
       - name: Apply and validate restricted Better Auth runtime grants
