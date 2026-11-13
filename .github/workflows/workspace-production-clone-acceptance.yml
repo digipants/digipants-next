@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && vars.WORKSPACE_POOLER_ACCEPTANCE_RUN == '1' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[workspace-acceptance-once]')) ) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[workspace-acceptance-once]')) ) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     environment:
@@ -43,6 +43,11 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     steps:
+      - name: Confirm protected one-time run gate
+        env:
+          WORKSPACE_POOLER_ACCEPTANCE_RUN: ${{ vars.WORKSPACE_POOLER_ACCEPTANCE_RUN }}
+        run: test "$WORKSPACE_POOLER_ACCEPTANCE_RUN" = "1"
+
       - name: Check out the reviewed production-hardening commit
         uses: actions/checkout@v4
         with:
