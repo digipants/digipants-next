@@ -35,7 +35,7 @@ jobs:
           POSTGRES_USER: local_restore
           POSTGRES_PASSWORD: disposable_ci_only
           POSTGRES_DB: local_restore
-          PGSSLROOTCERT: system
+          PGSSLROOTCERT: /tmp/neon-ca-bundle.pem
         ports:
           - 5432:5432
         options: >-
@@ -76,6 +76,24 @@ jobs:
         run: |
           set -euo pipefail
           printf 'POSTGRES_CONTAINER_ID=%s\n' "$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
+
+      - name: Provide libpq with the runner's trusted CA roots
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          import { rootCertificates } from "node:tls";
+          if (rootCertificates.length === 0) throw new Error("The runner has no trusted TLS roots");
+          writeFileSync(
+            `${process.env.RUNNER_TEMP}/neon-ca-bundle.pem`,
+            rootCertificates.join("\\n") + "\\n",
+            { mode: 0o600 },
+          );
+          NODE
+          docker cp "$RUNNER_TEMP/neon-ca-bundle.pem" "$POSTGRES_CONTAINER_ID:/tmp/neon-ca-bundle.pem"
+          docker exec -u 0 "$POSTGRES_CONTAINER_ID" chmod 0644 /tmp/neon-ca-bundle.pem
 
       - name: Validate the child-only direct URL and define TLS-verified targets
         env:
