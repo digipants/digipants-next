@@ -145,15 +145,15 @@ jobs:
           }
           NODE
 
-      - name: Verify migrator access to both cloned databases
+      - name: Verify child migrator database and DDL privileges
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          workspace_db="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database()"')"
-          auth_db="$(docker exec -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database()"')"
-          test "$workspace_db" = "digipants_workspace_prod"
-          test "$auth_db" = "digipants_auth_prod"
+          workspace_rights="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '''|''' || has_schema_privilege(current_user, '''public''', '''CREATE''')::text"')"
+          auth_rights="$(docker exec -e DATABASE_URL="$AUTH_DATABASE_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database() || '''|''' || has_database_privilege(current_user, current_database(), '''CREATE''')::text || '''|''' || has_schema_privilege(current_user, '''public''', '''CREATE''')::text"')"
+          test "$workspace_rights" = "digipants_workspace_prod|true"
+          test "$auth_rights" = "digipants_auth_prod|true|true"
 
       - name: Create child-only Prisma shadow databases
         env:
