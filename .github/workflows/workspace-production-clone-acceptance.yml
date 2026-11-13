@@ -35,6 +35,7 @@ jobs:
           POSTGRES_USER: local_restore
           POSTGRES_PASSWORD: disposable_ci_only
           POSTGRES_DB: local_restore
+          PGSSLROOTCERT: system
         ports:
           - 5432:5432
         options: >-
