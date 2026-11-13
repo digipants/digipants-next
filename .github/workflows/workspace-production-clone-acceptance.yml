@@ -222,7 +222,7 @@ jobs:
             try {
               await client.connect();
               const rows = (await client.query(
-                'SELECT migration_name, checksum, finished_at, rolled_back_at FROM public."_prisma_migrations" ORDER BY migration_name'
+                'SELECT migration_name, checksum, finished_at, rolled_back_at FROM public."_prisma_migrations" WHERE rolled_back_at IS NULL ORDER BY migration_name'
               )).rows;
               const entries = (await readdir(directory, { withFileTypes: true }))
                 .filter(entry => entry.isDirectory())
