@@ -184,7 +184,7 @@ jobs:
           }
 
           try {
-            await verify("workspace", "../../../prisma/migrations", process.env.DIRECT_URL);
+            await verify("workspace", "../../prisma/migrations", process.env.DIRECT_URL);
             await verify("auth", "prisma/migrations", process.env.AUTH_DATABASE_URL);
             process.stdout.write("PASS: both hosted migration ledgers and checksums match the pinned source\n");
           } catch {
@@ -242,8 +242,8 @@ jobs:
           }
 
           try {
-            await verifyPreflight("workspace", "../../../scripts/workspace/production-security-preflight.sql", process.env.DIRECT_URL);
-            await verifyPreflight("auth", "../../../scripts/workspace/production-auth-preflight.sql", process.env.AUTH_DATABASE_URL);
+            await verifyPreflight("workspace", "../../scripts/workspace/production-security-preflight.sql", process.env.DIRECT_URL);
+            await verifyPreflight("auth", "../../scripts/workspace/production-auth-preflight.sql", process.env.AUTH_DATABASE_URL);
             process.stdout.write("PASS: every Workspace and authentication security-preflight flag is true\n");
           } catch {
             process.stderr.write("A production database security-preflight flag failed; details suppressed.\n");
@@ -265,7 +265,6 @@ jobs:
           set -euo pipefail
           pooler_password="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           echo "::add-mask::$pooler_password"
-          export WORKSPACE_POOLER_PASSWORD="$pooler_password"
           export PGOPTIONS="-c app.pooler_test_password=$pooler_password"
           docker exec -i -e DATABASE_URL="$DIRECT_URL" -e PGOPTIONS="$PGOPTIONS" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1' <<'SQL'
           DO $do$
@@ -287,21 +286,19 @@ jobs:
           GRANT cw_runtime TO cw_pooler_acceptance WITH INHERIT TRUE, SET FALSE;
           GRANT CONNECT ON DATABASE digipants_workspace_prod TO cw_pooler_acceptance;
           SQL
-          node --input-type=module <<'NODE'
-          import { appendFileSync } from "node:fs";
+          export WORKSPACE_POOLER_PASSWORD="$pooler_password"
+          export WORKSPACE_POOLER_TEST_URL="$(node --input-type=module <<'NODE'
           const url = new URL(process.env.DIRECT_URL);
           url.hostname = "ep-red-meadow-zaur4xpd-pooler.c-2.eu-west-2.aws.neon.tech";
           url.username = "cw_pooler_acceptance";
           url.password = process.env.WORKSPACE_POOLER_PASSWORD;
           url.searchParams.set("sslmode", "verify-full");
-          const poolerUrl = url.href;
-          const contextKey = Buffer.alloc(32, 0x11).toString("base64url");
-          process.stdout.write("::add-mask::" + poolerUrl + "\n");
-          process.stdout.write("::add-mask::" + contextKey + "\n");
-          appendFileSync(process.env.GITHUB_ENV,
-            "WORKSPACE_POOLER_TEST_URL=" + poolerUrl + "\n" +
-            "WORKSPACE_RLS_CONTEXT_KEY=" + contextKey + "\n");
+          process.stdout.write(url.href);
           NODE
+          )"
+          export WORKSPACE_RLS_CONTEXT_KEY="$(node -e 'process.stdout.write(Buffer.alloc(32, 0x11).toString("base64url"))')"
+          echo "::add-mask::$WORKSPACE_POOLER_TEST_URL"
+          echo "::add-mask::$WORKSPACE_RLS_CONTEXT_KEY"
           node scripts/neon-pooler-acceptance.mjs
 
       - name: Create an idempotent synthetic state transition for restore proof
@@ -338,7 +335,7 @@ jobs:
           backup="$RUNNER_TEMP/workspace-neon-child.dump"
           trap 'rm -f "$backup"' EXIT
           docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS workspace_restore_test WITH (FORCE)" -c "CREATE DATABASE workspace_restore_test"'
-          counts="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F "|" ' <<'SQL'
+          counts="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" sh -eu -c 'psql "$DATABASE_URL" -X -qAt -F "|" -v ON_ERROR_STOP=1 ' <<'SQL'
           SET ROLE cw_schema_owner;
           SELECT (SELECT count(*) FROM public.workspace_tenants)::text,
                  (SELECT count(*) FROM public.workspace_projects)::text,
