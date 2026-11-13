@@ -436,10 +436,10 @@ BEGIN
     RAISE EXCEPTION 'tenant B signed context did not isolate all seeded sensitive records';
   END IF;
   IF public.cw_principal_exists_for_attempt(
-       '88888888-8888-4888-8888-888888888888',
+       'aaaaaaa0-bbbb-4ccc-8ddd-eeeeeeeeeeee',
        '99999999-9999-4999-8999-999999999999') IS NOT TRUE OR
      public.cw_principal_exists_for_attempt(
-       '88888888-8888-4888-8888-888888888888',
+       'aaaaaaa0-bbbb-4ccc-8ddd-eeeeeeeeeeee',
        '66666666-6666-4666-8666-666666666666') IS TRUE THEN
     RAISE EXCEPTION 'tenant B orphan-principal check escaped its signed subject/attempt scope';
   END IF;
@@ -577,7 +577,7 @@ BEGIN
     RAISE EXCEPTION 'forged custom GUC exposed tenant identity, grants, memberships or enrollment data';
   END IF;
   IF public.cw_principal_exists_for_attempt(
-       '88888888-8888-4888-8888-888888888888',
+       'aaaaaaa0-bbbb-4ccc-8ddd-eeeeeeeeeeee',
        '99999999-9999-4999-8999-999999999999') IS TRUE THEN
     RAISE EXCEPTION 'forged custom GUC let an untrusted caller use the orphan-principal helper';
   END IF;

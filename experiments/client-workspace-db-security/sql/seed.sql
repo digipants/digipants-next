@@ -49,7 +49,7 @@ INSERT INTO workspace_enrollment_attempts
   (id, idempotency_hash, invitation_id, invitation_hash, mailbox_proof_ref_hash,
    provider_subject, tenant_id, project_id, intended_email, intended_role)
 VALUES
-  ('88888888-8888-4888-8888-888888888888', repeat('f',64),
+  ('aaaaaaa0-bbbb-4ccc-8ddd-eeeeeeeeeeee', repeat('f',64),
    '77777777-7777-4777-8777-777777777777', repeat('a',64), repeat('b',64),
    '99999999-9999-4999-8999-999999999999',
    '22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
