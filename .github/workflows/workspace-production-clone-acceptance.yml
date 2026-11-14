@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '9d9dfa13470227a342999dbf7dee36a7fcbe274f')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '48bb10c9d3f22d9f8c92855d959c146278a6150f')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -276,7 +276,10 @@ jobs:
                     (pg_has_role(current_user,'cw_schema_owner','SET'))::text || '|' || \
                     (NOT pg_has_role(current_user,'cw_runtime','USAGE'))::text || '|' || \
                     (NOT pg_has_role(current_user,'cw_audit_writer','USAGE'))::text")"
-          test "$checks" = "true|true|true|true|true|true|true"
+          if [[ "$checks" != "true|true|true|true|true|true|true" ]]; then
+            echo "Workspace clone role flags: $checks"
+            exit 1
+          fi
           auth_checks="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" \
             -X -qAt -v ON_ERROR_STOP=1 -c \
             "SELECT (count(*)=3 AND bool_and(NOT has_table_privilege(current_user,c.oid,'SELECT')))::text \
@@ -285,7 +288,10 @@ jobs:
               WHERE n.nspname='auth_spike' \
                 AND c.relname IN ('user','session','mail_delivery_outbox') \
                 AND c.relkind='r'")"
-          test "$auth_checks" = "true"
+          if [[ "$auth_checks" != "true" ]]; then
+            echo "Auth clone table privacy flag: $auth_checks"
+            exit 1
+          fi
 
       - name: Verify both migration ledgers and security preflights on the clone
         working-directory: production-source/experiments/client-workspace-auth
