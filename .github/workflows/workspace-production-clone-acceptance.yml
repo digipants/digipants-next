@@ -1,6 +1,9 @@
 name: Disposable Neon production-clone acceptance
 
 on:
+  push:
+    branches:
+      - feat/client-workspace-pooler-tls-acceptance-119
   workflow_dispatch:
     inputs:
       run_acceptance:
@@ -18,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '95acbc464147f88b78c28c795e230408e74236e3')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
