@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '106b9dcef9a1b88ddd9ada3dad0a779550ce1f5e')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '0250121b15703a7c0e4b46842361e884b4a6636e')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -330,23 +330,32 @@ jobs:
               await client.connect();
               await client.query("SET ROLE cw_schema_owner");
               const result = await client.query(await readFile(filename, "utf8"));
-              if (result.rows.length !== 1 ||
-                  Object.values(result.rows[0]).some(value => value !== true)) {
-                throw new Error("flag");
+              if (result.rows.length !== 1) throw new Error("preflight-row-count");
+              const failedFlags = Object.entries(result.rows[0])
+                .filter(([, value]) => value !== true)
+                .map(([name]) => name);
+              if (failedFlags.length) {
+                process.stderr.write("Preflight false flags: " + failedFlags.join(", ") + "\\n");
+                throw new Error("preflight-flags");
               }
             } finally { await client.end().catch(() => {}); }
           }
 
+          let stage = "workspace migration ledger";
           try {
             await verify("../../prisma/migrations", process.env.DIRECT_URL);
+            stage = "auth migration ledger";
             await verify("prisma/migrations", process.env.AUTH_DATABASE_URL);
+            stage = "workspace security preflight";
             await preflight("../../scripts/workspace/production-security-preflight.sql",
               process.env.DIRECT_URL);
+            stage = "auth security preflight";
             await preflight("../../scripts/workspace/production-auth-preflight.sql",
               process.env.AUTH_DATABASE_URL);
-            process.stdout.write("PASS: cloned Workspace/Auth ledgers, checksums, and every security-preflight flag\n");
-          } catch {
-            process.stderr.write("Clone ledger, checksum, or security-preflight acceptance failed; details suppressed.\n");
+            process.stdout.write("PASS: cloned Workspace/Auth ledgers, checksums, and every security-preflight flag\\n");
+          } catch (error) {
+            const code = typeof error?.code === "string" ? error.code : "validation";
+            process.stderr.write("Clone acceptance failed during " + stage + " (" + code + "); details suppressed.\\n");
             process.exitCode = 1;
           }
           NODE
