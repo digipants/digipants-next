@@ -7,13 +7,15 @@ import {
   createSignedContextToken,
 } from "../scripts/neon-pooler-acceptance.mjs";
 
-const pooled = "postgresql://cw_pooler_acceptance:" + "x".repeat(48) +
+const pooled = "postgresql://cw_pooler_acceptance:" + "x".repeat(16) +
   "@" + CHILD_POOLER_HOST + "/" + CHILD_DATABASE +
   "?sslmode=verify-full&channel_binding=require";
 
 test("only the pinned child pooler URL and restricted login are accepted", () => {
   assert.equal(assertPooledNeonUrl(pooled).hostname, CHILD_POOLER_HOST);
+  const shortPassword = pooled.replace("x".repeat(16), "x".repeat(15));
   const invalid = [
+    shortPassword,
     pooled.replace("-pooler.", "."),
     pooled.replace(CHILD_POOLER_HOST, "ep-other-pooler.c-2.eu-west-2.aws.neon.tech"),
     pooled.replace("cw_pooler_acceptance", "postgres"),
