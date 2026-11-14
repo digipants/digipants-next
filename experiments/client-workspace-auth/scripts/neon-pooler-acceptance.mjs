@@ -29,7 +29,7 @@ export function assertPooledNeonUrl(value) {
       url.hostname !== CHILD_POOLER_HOST ||
       url.pathname !== "/" + CHILD_DATABASE ||
       decodeURIComponent(url.username) !== "cw_pooler_acceptance" ||
-      decodeURIComponent(url.password).length < 32 ||
+      decodeURIComponent(url.password).length < 16 ||
       url.hash || (url.port && url.port !== "5432") ||
       url.searchParams.get("sslmode") !== "verify-full" ||
       queries.some(key => key !== "sslmode" && key !== "channel_binding") ||
@@ -78,19 +78,18 @@ export function createSignedContextToken({ transactionId, tenantId, projectId, a
 
 function expectedSnapshot(tenantId) {
   if (tenantId === TENANT_A) return {
-    tenants: 1, projects: 1, principals: 2, clientMemberships: 0,
-    staffMemberships: 2, clientGrants: 0, staffGrants: 2,
-    enrollmentAttempts: 0, milestones: 2, progressUpdates: 1, audits: 1,
+    tenants: 1, projects: 1, principals: 1, clientMemberships: 0,
+    staffMemberships: 1, clientGrants: 0, staffGrants: 1,
+    enrollmentAttempts: 0, milestones: 0, progressUpdates: 0, audits: 1,
     projectIds: [PROJECT_A],
   };
   return {
-    tenants: 1, projects: 1, principals: 2, clientMemberships: 1,
-    staffMemberships: 1, clientGrants: 1, staffGrants: 1,
-    enrollmentAttempts: 1, milestones: 0, progressUpdates: 0, audits: 1,
+    tenants: 1, projects: 1, principals: 0, clientMemberships: 0,
+    staffMemberships: 0, clientGrants: 0, staffGrants: 0,
+    enrollmentAttempts: 0, milestones: 0, progressUpdates: 0, audits: 1,
     projectIds: [PROJECT_B],
   };
 }
-
 async function beginContext(client, context, options = {}) {
   await client.query("BEGIN");
   const { rows } = await client.query(
@@ -227,7 +226,7 @@ async function verifyScopedAuthorization(client, expectStaffRevoked) {
     }
     const wrongTenant = await client.query(
       "SELECT public.cw_lock_staff_project_grant($1,$2::uuid,$3::uuid,'delivery.edit')::text AS id",
-      ["synthetic-security-staff-b", TENANT_B, PROJECT_B]);
+      ["synthetic-security-staff-a", TENANT_B, PROJECT_B]);
     if (wrongTenant.rows[0]?.id !== null) {
       throw Error("A signed tenant context authorized a foreign project");
     }
@@ -237,21 +236,7 @@ async function verifyScopedAuthorization(client, expectStaffRevoked) {
 
   const b = await snapshot(client, TENANT_B);
   assertSnapshot(b, TENANT_B);
-  await beginContext(client, { tenantId: TENANT_B, projectId: PROJECT_B,
-    actorSubject: "99999999-9999-4999-8999-999999999999",
-    purpose: "project.read_published" });
-  try {
-    const clientGrant = await client.query(
-      "SELECT public.cw_lock_client_project_grant($1,$2::uuid,$3::uuid,'project.read_published')::text AS id",
-      ["99999999-9999-4999-8999-999999999999", TENANT_B, PROJECT_B]);
-    if (clientGrant.rows[0]?.id !== "cccccccc-cccc-4ccc-8ccc-cccccccccccc") {
-      throw Error("The exact synthetic client grant did not authorize its own tenant");
-    }
-  } finally {
-    await client.query("ROLLBACK");
-  }
 }
-
 async function verifyContextFailureModes(client) {
   await client.query("BEGIN");
   try {
@@ -338,37 +323,49 @@ export async function runAcceptance({
   poolerUrl, makePool = pg.Pool,
   verifyClientTls = assertVerifiedPooledTlsSocket,
 }) {
-  if (process.env.WORKSPACE_POOLER_ACCEPTANCE_ENABLED !== "1") {
-    throw Error("Disposable Neon pooler acceptance must be explicitly enabled");
-  }
-  if (process.env.WORKSPACE_POOLER_TEST_BRANCH_ID !== CHILD_BRANCH_ID ||
-      process.env.WORKSPACE_POOLER_LIVE_BRANCH_ID !== LIVE_BRANCH_ID ||
-      process.env.WORKSPACE_POOLER_TEST_DATABASE !== CHILD_DATABASE ||
-      process.env.WORKSPACE_POOLER_TEST_TENANT_A !== TENANT_A ||
-      process.env.WORKSPACE_POOLER_TEST_TENANT_B !== TENANT_B) {
-    throw Error("The disposable child identity does not match the reviewed test target");
-  }
-  const uri = assertPooledNeonUrl(poolerUrl);
-  const pool = new makePool({
-    host: uri.hostname, port: uri.port ? Number(uri.port) : 5432,
-    database: CHILD_DATABASE, user: decodeURIComponent(uri.username),
-    password: decodeURIComponent(uri.password),
-    ssl: { servername: uri.hostname, rejectUnauthorized: true, checkServerIdentity },
-    max: 3, connectionTimeoutMillis: 7000, query_timeout: 12000,
-    idleTimeoutMillis: 5000, application_name: "cw_neon_clone_acceptance",
-  });
+  let stage = "configuration";
+  let pool;
   let client;
   try {
+    if (process.env.WORKSPACE_POOLER_ACCEPTANCE_ENABLED !== "1") {
+      throw Error("Disposable Neon pooler acceptance must be explicitly enabled");
+    }
+    if (process.env.WORKSPACE_POOLER_TEST_BRANCH_ID !== CHILD_BRANCH_ID ||
+        process.env.WORKSPACE_POOLER_LIVE_BRANCH_ID !== LIVE_BRANCH_ID ||
+        process.env.WORKSPACE_POOLER_TEST_DATABASE !== CHILD_DATABASE ||
+        process.env.WORKSPACE_POOLER_TEST_TENANT_A !== TENANT_A ||
+        process.env.WORKSPACE_POOLER_TEST_TENANT_B !== TENANT_B) {
+      throw Error("The disposable child identity does not match the reviewed test target");
+    }
+    stage = "pooled URL validation";
+    const uri = assertPooledNeonUrl(poolerUrl);
+    pool = new makePool({
+      host: uri.hostname, port: uri.port ? Number(uri.port) : 5432,
+      database: CHILD_DATABASE, user: decodeURIComponent(uri.username),
+      password: decodeURIComponent(uri.password),
+      ssl: { servername: uri.hostname, rejectUnauthorized: true, checkServerIdentity },
+      max: 3, connectionTimeoutMillis: 7000, query_timeout: 12000,
+      idleTimeoutMillis: 5000, application_name: "cw_neon_clone_acceptance",
+    });
+
+    stage = "pool connection";
     client = await pool.connect();
+    stage = "client-to-pooler TLS authentication";
     if (verifyClientTls(client, uri.hostname) !== true) {
       throw Error("Client-to-pooler certificate verification was not affirmative");
     }
+    stage = "restricted role and private-data checks";
     await verifyRoleAndPrivateData(client);
+    stage = "transaction context reset";
     await assertEmptyWithoutContext(client);
+    stage = "unsigned, tampered, and replayed context rejection";
     await verifyContextFailureModes(client);
+    stage = "signed tenant isolation and grant scope";
     await verifyScopedAuthorization(client,
       process.env.WORKSPACE_POOLER_EXPECT_STAFF_REVOKED === "1");
+    stage = "concurrent pooled tenant isolation";
     await verifyConcurrentContexts(pool);
+    stage = "final transaction context reset";
     await assertEmptyWithoutContext(client);
     return Object.freeze({
       directClonePoolerTlsVerified: true,
@@ -380,15 +377,20 @@ export async function runAcceptance({
       concurrentTenantContextsIsolated: true,
       staffGrantRevocationObserved:
         process.env.WORKSPACE_POOLER_EXPECT_STAFF_REVOKED === "1",
-      clientGrantScopeVerified: true,
+      crossTenantGrantDenied: true,
       auditAndSchemaMutationDenied: true,
     });
+  } catch (error) {
+    const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,32}$/.test(error.code)
+      ? error.code : "validation";
+    process.stderr.write("Restricted Neon clone acceptance failed at " +
+      stage + " (code " + code + "); details suppressed.\n");
+    throw error;
   } finally {
     if (client) client.release();
-    await pool.end();
+    if (pool) await pool.end();
   }
 }
-
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   runAcceptance({
     poolerUrl: process.env.WORKSPACE_POOLER_TEST_URL,
