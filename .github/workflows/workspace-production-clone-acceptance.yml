@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'fae7c63e7b693974eca4fdfa853388a44a0f3cf6')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '9d9dfa13470227a342999dbf7dee36a7fcbe274f')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -343,11 +343,10 @@ jobs:
             } finally { await client.end().catch(() => {}); }
           }
 
-          async function preflight(filename, connectionString) {
+          async function preflight(filename, connectionString, setSchemaOwnerRole) {
             const client = new pg.Client({ connectionString });
             try {
-              await client.connect();
-              await client.query("SET ROLE cw_schema_owner");
+              await client.conneif (setSchemaOwnerRole) await client.query("SET ROLE cw_schema_owner");E cw_schema_owner");
               const result = await client.query(await readFile(filename, "utf8"));
               if (result.rows.length !== 1) throw new Error("preflight-row-count");
               const failedFlags = Object.entries(result.rows[0])
@@ -367,10 +366,10 @@ jobs:
             await verify("prisma/migrations", process.env.AUTH_DATABASE_URL);
             stage = "workspace security preflight";
             await preflight("../../scripts/workspace/production-security-preflight.sql",
-              process.env.DIRECT_URL);
+              process.env.DIRECT_URL, true);
             stage = "auth security preflight";
             await preflight("../../scripts/workspace/production-auth-preflight.sql",
-              process.env.AUTH_DATABASE_URL);
+              process.env.AUTH_DATABASE_URL, false);
             process.stdout.write("PASS: cloned Workspace/Auth ledgers, checksums, and every security-preflight flag\\n");
           } catch (error) {
             const code = typeof error?.code === "string" ? error.code : "validation";
