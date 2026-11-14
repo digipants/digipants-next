@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '1fd74b7a2f065a1c94ccc544238251e2e9d028fb')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '1aa4d44d70f73d861f58e8af5942464705f69c68')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -227,6 +227,7 @@ jobs:
           set -euo pipefail
           echo "::add-mask::$WORKSPACE_ACTIVATION_DIRECT_URL"
           node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
           let url;
           try { url = new URL(process.env.WORKSPACE_ACTIVATION_DIRECT_URL || ""); }
           catch { throw new Error("The direct connection URL is unavailable or malformed"); }
