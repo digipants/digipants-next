@@ -156,8 +156,17 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     await adminDb.$executeRaw`UPDATE workspace_projects SET publication='published'
       WHERE id=${id.projectA}::uuid`;
     assert.equal((await read()).id, id.projectA, "republishing restores authorized read");
+    await authDb.session.update({ where: { id: id.session },
+      data: { expiresAt: new Date(Date.now() - 60_000) } });
+    await assert.rejects(read(), PublishedProjectAccessDenied,
+      "an expired session cannot authorize a published-project read");
+    await authDb.session.update({ where: { id: id.session },
+      data: { expiresAt: new Date(Date.now() + 60 * 60_000) } });
+    assert.equal((await read()).id, id.projectA,
+      "restoring a valid synthetic session restores the exact active grant");
+
     await authDb.session.delete({ where: { id: id.session } });
     await assert.rejects(read(), PublishedProjectAccessDenied,
-      "session revoked after DB grant check cannot authorize later reads");
+      "logout/session revocation prevents later reads");
   });
 }
