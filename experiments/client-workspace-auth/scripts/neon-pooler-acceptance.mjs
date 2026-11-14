@@ -76,10 +76,11 @@ export function createSignedContextToken({ transactionId, tenantId, projectId, a
   return payloadHex + "." + signature;
 }
 
-function expectedSnapshot(tenantId) {
+function expectedSnapshot(tenantId, expectStaffRevoked = false) {
   if (tenantId === TENANT_A) return {
     tenants: 1, projects: 1, principals: 2, clientMemberships: 0,
-    staffMemberships: 2, clientGrants: 0, staffGrants: 2,
+    staffMemberships: expectStaffRevoked ? 1 : 2,
+    clientGrants: 0, staffGrants: 2,
     enrollmentAttempts: 0, milestones: 2, progressUpdates: 1, audits: 1,
     projectIds: [PROJECT_A],
   };
@@ -141,8 +142,8 @@ async function snapshot(client, tenantId, options = {}) {
   }
 }
 
-function assertSnapshot(actual, tenantId) {
-  const expected = expectedSnapshot(tenantId);
+function assertSnapshot(actual, tenantId, expectStaffRevoked = false) {
+  const expected = expectedSnapshot(tenantId, expectStaffRevoked);
   const normalized = {
     ...actual,
     projectIds: actual.projectIds,
@@ -213,7 +214,7 @@ async function verifyRoleAndPrivateData(client) {
 
 async function verifyScopedAuthorization(client, expectStaffRevoked) {
   const active = await snapshot(client, TENANT_A);
-  assertSnapshot(active, TENANT_A);
+  assertSnapshot(active, TENANT_A, expectStaffRevoked);
   const staffContext = { tenantId: TENANT_A, projectId: PROJECT_A,
     actorSubject: "synthetic-security-staff-a", purpose: "delivery.edit" };
   await beginContext(client, staffContext);
