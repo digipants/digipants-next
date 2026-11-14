@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'b3d546e48bf7aa919c7ca92eb77ab0ba6d9cbe55')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '01bf9b4f213caa9c38e5168bb9ef739b8ddd989b')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -657,29 +657,56 @@ jobs:
         run: |
           set -euo pipefail
           backup="$RUNNER_TEMP/workspace-child-recovery.dump"
-          trap 'rm -f "$backup"' EXIT
+          cleanup() {
+            docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+              sh -eu -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1' \
+              >/dev/null 2>&1 <<'SQL' || true
+          SET ROLE cw_schema_owner;
+          DROP POLICY IF EXISTS cw_clone_backup_audit_read ON public.workspace_audit_events;
+          RESET ROLE;
+          SQL
+            rm -f "$backup"
+          }
+          trap cleanup EXIT
           docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres \
             -v ON_ERROR_STOP=1 -c "CREATE DATABASE workspace_restore_test"
           counts="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
             sh -eu -c 'psql "$DATABASE_URL" -X -qAt -F "|" -v ON_ERROR_STOP=1' <<'SQL'
           SET ROLE cw_schema_owner;
           SELECT (SELECT count(*) FROM public.workspace_tenants)::text,
-                 (SELECT count(*) FROM public.workspace_projects)::text,
-                 (SELECT count(*) FROM public.workspace_audit_events)::text;
+                 (SELECT count(*) FROM public.workspace_projects)::text;
           RESET ROLE;
           SQL
           )"
-          IFS='|' read -r expected_tenants expected_projects expected_audits <<< "$counts"
+          IFS='|' read -r expected_tenants expected_projects <<< "$counts"
           test "$expected_tenants" = "2"
           test "$expected_projects" = "2"
-          test "$expected_audits" = "3"
+          expected_audits=3
+
+          docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          CREATE POLICY cw_clone_backup_audit_read ON public.workspace_audit_events
+            FOR SELECT TO cw_schema_owner USING (true);
+          RESET ROLE;
+          SQL
           docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
             sh -eu -c 'pg_dump --format=custom --no-owner --no-acl --role=cw_schema_owner --dbname="$DATABASE_URL"' \
             > "$backup"
           test -s "$backup"
+
+          docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          DROP POLICY cw_clone_backup_audit_read ON public.workspace_audit_events;
+          RESET ROLE;
+          SQL
           docker exec -i "$POSTGRES_CONTAINER_ID" pg_restore \
             -U local_restore -d workspace_restore_test --exit-on-error \
             --no-owner --no-acl < "$backup"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d workspace_restore_test -v ON_ERROR_STOP=1 \
+            -c "DROP POLICY cw_clone_backup_audit_read ON public.workspace_audit_events"
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
             -d workspace_restore_test -v ON_ERROR_STOP=1 \
             -v expected_tenant_count="$expected_tenants" \
@@ -688,7 +715,6 @@ jobs:
             < production-source/experiments/client-workspace-db-security/sql/verify-restore.sql
           rm -f "$backup"
           trap - EXIT
-
       - name: Report completed disposable acceptance
         if: success()
         run: |
