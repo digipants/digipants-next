@@ -76,12 +76,12 @@ export function createSignedContextToken({ transactionId, tenantId, projectId, a
   return payloadHex + "." + signature;
 }
 
-function expectedSnapshot(tenantId, expectStaffRevoked = false) {
+function expectedSnapshot(tenantId, expectStaffRevoked = false, auditCount = 1) {
   if (tenantId === TENANT_A) return {
     tenants: 1, projects: 1, principals: 2, clientMemberships: 0,
     staffMemberships: expectStaffRevoked ? 1 : 2,
     clientGrants: 0, staffGrants: 2,
-    enrollmentAttempts: 0, milestones: 2, progressUpdates: 1, audits: 1,
+    enrollmentAttempts: 0, milestones: 2, progressUpdates: 1, audits: auditCount,
     projectIds: [PROJECT_A],
   };
   return {
@@ -130,12 +130,19 @@ async function snapshot(client, tenantId, options = {}) {
       "(SELECT count(*) FROM public.workspace_audit_events)::int AS audits"
     )).rows[0];
     const projects = (await client.query(
-      "SELECT id::text AS id, tenant_id::text AS \"tenantId\" " +
+      "SELECT id::text AS id, tenant_id::text AS \"tenantId\", state, revision::text AS revision " +
       "FROM public.workspace_projects ORDER BY id")).rows;
+    const auditRows = (await client.query(
+      "SELECT idempotency_key AS \"idempotencyKey\", action, " +
+      "object_type AS \"objectType\", object_id AS \"objectId\", " +
+      "before_revision::text AS \"beforeRevision\", after_revision::text AS \"afterRevision\" " +
+      "FROM public.workspace_audit_events ORDER BY idempotency_key")).rows;
     return {
       ...counts,
       projectIds: projects.map(row => row.id),
+      projectStates: projects.map(row => ({ id: row.id, state: row.state, revision: row.revision })),
       tenantIds: projects.map(row => row.tenantId),
+      auditRows,
     };
   } finally {
     await client.query("COMMIT");
@@ -143,13 +150,39 @@ async function snapshot(client, tenantId, options = {}) {
 }
 
 function assertSnapshot(actual, tenantId, expectStaffRevoked = false) {
-  const expected = expectedSnapshot(tenantId, expectStaffRevoked);
+  const fixtureAudit = tenantId === TENANT_A
+    ? { idempotencyKey: "fixture-tenant-a", action: "fixture.created",
+        objectType: "workspace_project", objectId: PROJECT_A,
+        beforeRevision: null, afterRevision: null }
+    : { idempotencyKey: "fixture-tenant-b", action: "fixture.created",
+        objectType: "workspace_project", objectId: PROJECT_B,
+        beforeRevision: null, afterRevision: null };
+  const transitionAudit = {
+    idempotencyKey: "state-transition-001", action: "state.transition",
+    objectType: "workspace_project", objectId: PROJECT_A,
+    beforeRevision: "1", afterRevision: "2",
+  };
+  const hasTransition = tenantId === TENANT_A &&
+    actual.auditRows.some(row => row.idempotencyKey === "state-transition-001");
+  const expectedAuditRows = tenantId === TENANT_A && hasTransition
+    ? [fixtureAudit, transitionAudit] : [fixtureAudit];
+  if (JSON.stringify(actual.auditRows) !== JSON.stringify(expectedAuditRows)) {
+    throw Error("Tenant-visible audit rows did not match the reviewed synthetic events");
+  }
+  const expected = expectedSnapshot(tenantId, expectStaffRevoked, expectedAuditRows.length);
+  const expectedProjectStates = tenantId === TENANT_A
+    ? [{ id: PROJECT_A, state: hasTransition ? "active" : "planned",
+        revision: hasTransition ? "2" : "1" }]
+    : [{ id: PROJECT_B, state: "planned", revision: "1" }];
   const normalized = {
     ...actual,
     projectIds: actual.projectIds,
   };
   delete normalized.tenantIds;
-  if (JSON.stringify(normalized) !== JSON.stringify(expected)) {
+  delete normalized.projectStates;
+  delete normalized.auditRows;
+  if (JSON.stringify(normalized) !== JSON.stringify(expected) ||
+      JSON.stringify(actual.projectStates) !== JSON.stringify(expectedProjectStates)) {
     throw Error("Signed RLS tenant snapshot did not match its synthetic fixture");
   }
   if (actual.tenantIds.length !== 1 || actual.tenantIds[0] !== tenantId) {
