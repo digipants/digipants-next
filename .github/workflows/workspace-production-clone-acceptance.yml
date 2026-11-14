@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'd7a645140bd9bfa82137260b73aa269f7d60e0a1')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'a529e6f802129e726501d6591d75dd50a5f98f8e')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -609,14 +609,19 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          transition_state="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
-            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 \
-              -c "SET ROLE cw_schema_owner" \
-              -c "SELECT CASE WHEN state='''planned''' AND revision=1 THEN '''ready''' \
-                        WHEN state='''active''' AND revision=2 THEN '''complete''' \
-                        ELSE '''unexpected''' END \
-                   FROM public.workspace_projects \
-                  WHERE id='''aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'''::uuid"')"
+          transition_output="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          SELECT CASE
+            WHEN state = 'planned' AND revision = 1 THEN 'ready'
+            WHEN state = 'active' AND revision = 2 THEN 'complete'
+            ELSE 'unexpected'
+          END
+          FROM public.workspace_projects
+          WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid;
+          SQL
+          )"
+          transition_state="$(printf '%s\\n' "$transition_output" | tr -d '\\r' | sed '/^[[:space:]]*$/d' | tail -n 1)"
           case "$transition_state" in
             ready)
               node --input-type=module <<'NODE'
