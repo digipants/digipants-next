@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '8c8765fcadadfc4a8bedfaae85e047cfeb58bb37')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'd55a7a3d41beae0ce841c70a28b51fa3d205535d')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -130,8 +130,10 @@ jobs:
         run: |
           set -euo pipefail
           local_auth_secret="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
+          local_workspace_test_password="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           echo "::add-mask::$local_auth_secret"
-          printf 'BETTER_AUTH_SECRET=%s\n' "$local_auth_secret" >> "$GITHUB_ENV"
+          echo "::add-mask::$local_workspace_test_password"
+          printf 'BETTER_AUTH_SECRET=%s\nLOCAL_WORKSPACE_TEST_PASSWORD=%s\n' "$local_auth_secret" "$local_workspace_test_password" >> "$GITHUB_ENV"
 
       - name: Apply versioned migrations to fresh local databases and prove they contain no fixtures
         env:
@@ -200,6 +202,11 @@ jobs:
           docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore \
             -d digipants_workspace_dev -v ON_ERROR_STOP=1 -c \
             "GRANT cw_runtime TO cw_client_read_ci WITH INHERIT TRUE, SET FALSE"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres \
+            -v workspace_password="$LOCAL_WORKSPACE_TEST_PASSWORD" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE digipants_ws_dev LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'workspace_password';
+          GRANT cw_schema_owner TO digipants_ws_dev WITH INHERIT TRUE, SET TRUE;
+          SQL
 
       - name: Verify trusted session, MFA, project-grant, revocation and logout behavior on local PostgreSQL
         working-directory: production-source/experiments/client-workspace-auth
@@ -207,9 +214,11 @@ jobs:
           RUN_AUTH_EXPERIMENT_INTEGRATION: "1"
           AUTH_EXPERIMENT_ENABLED: "1"
           AUTH_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/auth_spike_test
-          WORKSPACE_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
           WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:local-only-ci-password@127.0.0.1:5432/digipants_workspace_dev
-        run: node --conditions=react-server --import tsx --test tests/trusted-published-project-postgres.test.mjs
+        run: |
+          set -euo pipefail
+          export WORKSPACE_DATABASE_URL="postgresql://digipants_ws_dev:${LOCAL_WORKSPACE_TEST_PASSWORD}@127.0.0.1:5432/digipants_workspace_dev"
+          node --conditions=react-server --import tsx --test tests/trusted-published-project-postgres.test.mjs
 
       - name: Validate the child-only direct URL and pin hosted connection targets
         env:
