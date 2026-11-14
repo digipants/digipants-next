@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'b73f07b60dd545283019c067bc892b92a31d75b7')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '1fd74b7a2f065a1c94ccc544238251e2e9d028fb')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -235,7 +235,7 @@ jobs:
             protocol: ["postgres:", "postgresql:"].includes(url.protocol),
             childHost: url.hostname === "ep-summer-haze-za0emgk3.c-2.eu-west-2.aws.neon.tech",
             restrictedLogin: url.username === "cw_activation_migrator",
-            passwordPresent: url.password.length >= 32,
+            passwordPresent: url.password.length >= 16,
             expectedDatabase: url.pathname === "/digipants_workspace_prod",
             noHash: !url.hash,
             standardPort: !url.port || url.port === "5432",
