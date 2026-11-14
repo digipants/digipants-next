@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '98bda603f6ffccb7fe369e308a413c5342fd9aaf')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '47873294cd572b1b32470848a9329f15c16b3e70')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -392,9 +392,8 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          fixture_state="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
-            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL' | \
-            awk '/^(empty|seeded|unexpected)$/ { state=$0 } END { print state }'
+          fixture_output="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL'
           SET ROLE cw_schema_owner;
           WITH counts AS (
             SELECT
@@ -503,9 +502,9 @@ jobs:
             ELSE 'unexpected'
           END
           FROM counts CROSS JOIN markers;
-          RESET ROLE;
           SQL
           )"
+          fixture_state="$(printf '%s\n' "$fixture_output" | tr -d '\r' | grep -Eo 'empty|seeded|unexpected' | tail -n 1 || true)"
           case "$fixture_state" in
             empty)
               {
