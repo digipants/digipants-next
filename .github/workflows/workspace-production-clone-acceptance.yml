@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '0250121b15703a7c0e4b46842361e884b4a6636e')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'b093f6f5d1deaad4d752a16251bb9eac176e04c7')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -306,19 +306,35 @@ jobs:
             const client = new pg.Client({ connectionString });
             try {
               await client.connect();
+              const identity = (await client.query(
+                "SELECT current_user AS role, current_database() AS database, " +
+                  "has_table_privilege(current_user,'public._prisma_migrations','SELECT') AS can_read_ledger"
+              )).rows[0];
+              const expectedDatabase = directory === "prisma/migrations"
+                ? "digipants_auth_prod" : "digipants_workspace_prod";
+              const target = {
+                role: identity?.role ?? null,
+                database: identity?.database ?? null,
+                canReadLedger: identity?.can_read_ledger ?? null,
+              };
+              process.stdout.write("Ledger verifier target: " + JSON.stringify(target) + "\\n");
+              if (target.role !== "cw_activation_migrator" ||
+                  target.database !== expectedDatabase || target.canReadLedger !== true) {
+                throw new Error("ledger-target-or-select");
+              }
               const rows = (await client.query(
                 'SELECT migration_name,checksum,finished_at,rolled_back_at FROM public."_prisma_migrations" WHERE rolled_back_at IS NULL ORDER BY migration_name'
               )).rows;
               const entries = (await readdir(directory, { withFileTypes: true }))
                 .filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
-              if (rows.length !== entries.length) throw new Error("count");
+              if (rows.length !== entries.length) throw new Error("ledger-count");
               for (const name of entries) {
                 const row = rows.find(item => item.migration_name === name);
                 const checksum = createHash("sha256")
                   .update(await readFile(path.join(directory, name, "migration.sql")))
                   .digest("hex");
                 if (!row || !row.finished_at || row.rolled_back_at || row.checksum !== checksum) {
-                  throw new Error("checksum");
+                  throw new Error("ledger-checksum");
                 }
               }
             } finally { await client.end().catch(() => {}); }
