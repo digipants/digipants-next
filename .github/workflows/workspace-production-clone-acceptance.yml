@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '6c7ff3f227e8cdeb207a2ab146f59b032d3066c0')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'a5cb21b41aaa218cc806ed3742e14a3acf09d2b9')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -465,7 +465,7 @@ jobs:
                   AND tenant_id='11111111-1111-4111-8111-111111111111'
                   AND project_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
                   AND status='approved' AND client_visible
-                  AND approved_by_staff_id='33333333-3333-4333-8333-333333333333') AS progress_exact,
+                  AND approved_by_staff_id='33333333-3333-4333-8333-333333333333') AS progress_exact
           )
           SELECT CASE
             WHEN tenants=0 AND projects=0 AND principals=0 AND client_memberships=0
