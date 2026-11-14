@@ -78,18 +78,19 @@ export function createSignedContextToken({ transactionId, tenantId, projectId, a
 
 function expectedSnapshot(tenantId) {
   if (tenantId === TENANT_A) return {
-    tenants: 1, projects: 1, principals: 1, clientMemberships: 0,
-    staffMemberships: 1, clientGrants: 0, staffGrants: 1,
-    enrollmentAttempts: 0, milestones: 0, progressUpdates: 0, audits: 1,
+    tenants: 1, projects: 1, principals: 2, clientMemberships: 0,
+    staffMemberships: 2, clientGrants: 0, staffGrants: 2,
+    enrollmentAttempts: 0, milestones: 2, progressUpdates: 1, audits: 1,
     projectIds: [PROJECT_A],
   };
   return {
-    tenants: 1, projects: 1, principals: 0, clientMemberships: 0,
-    staffMemberships: 0, clientGrants: 0, staffGrants: 0,
-    enrollmentAttempts: 0, milestones: 0, progressUpdates: 0, audits: 1,
+    tenants: 1, projects: 1, principals: 2, clientMemberships: 1,
+    staffMemberships: 1, clientGrants: 1, staffGrants: 1,
+    enrollmentAttempts: 1, milestones: 0, progressUpdates: 0, audits: 1,
     projectIds: [PROJECT_B],
   };
 }
+
 async function beginContext(client, context, options = {}) {
   await client.query("BEGIN");
   const { rows } = await client.query(
@@ -226,7 +227,7 @@ async function verifyScopedAuthorization(client, expectStaffRevoked) {
     }
     const wrongTenant = await client.query(
       "SELECT public.cw_lock_staff_project_grant($1,$2::uuid,$3::uuid,'delivery.edit')::text AS id",
-      ["synthetic-security-staff-a", TENANT_B, PROJECT_B]);
+      ["synthetic-security-staff-b", TENANT_B, PROJECT_B]);
     if (wrongTenant.rows[0]?.id !== null) {
       throw Error("A signed tenant context authorized a foreign project");
     }
@@ -236,7 +237,21 @@ async function verifyScopedAuthorization(client, expectStaffRevoked) {
 
   const b = await snapshot(client, TENANT_B);
   assertSnapshot(b, TENANT_B);
+  await beginContext(client, { tenantId: TENANT_B, projectId: PROJECT_B,
+    actorSubject: "99999999-9999-4999-8999-999999999999",
+    purpose: "project.read_published" });
+  try {
+    const clientGrant = await client.query(
+      "SELECT public.cw_lock_client_project_grant($1,$2::uuid,$3::uuid,'project.read_published')::text AS id",
+      ["99999999-9999-4999-8999-999999999999", TENANT_B, PROJECT_B]);
+    if (clientGrant.rows[0]?.id !== "cccccccc-cccc-4ccc-8ccc-cccccccccccc") {
+      throw Error("The exact synthetic client grant did not authorize its own tenant");
+    }
+  } finally {
+    await client.query("ROLLBACK");
+  }
 }
+
 async function verifyContextFailureModes(client) {
   await client.query("BEGIN");
   try {
@@ -377,7 +392,7 @@ export async function runAcceptance({
       concurrentTenantContextsIsolated: true,
       staffGrantRevocationObserved:
         process.env.WORKSPACE_POOLER_EXPECT_STAFF_REVOKED === "1",
-      crossTenantGrantDenied: true,
+      clientGrantScopeVerified: true,
       auditAndSchemaMutationDenied: true,
     });
   } catch (error) {
