@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '2d16d5f325b48e130ec0cf33801f149557133b87')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '6546cc46c9061b5e683adf0e51098bdb7cb4bb8b')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -700,7 +700,7 @@ jobs:
           RESET ROLE;
           SQL
           docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
-            sh -eu -c 'pg_dump --format=custom --no-owner --no-acl --role=cw_schema_owner --dbname="$DATABASE_URL"' \
+            sh -eu -c 'pg_dump --enable-row-security --format=custom --no-owner --no-acl --role=cw_schema_owner --dbname="$DATABASE_URL"' \
             > "$backup"
           test -s "$backup"
 
