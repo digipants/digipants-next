@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '4fb5db9583f3f399b1254d86a50e2da51930e9de')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '106b9dcef9a1b88ddd9ada3dad0a779550ce1f5e')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -294,14 +294,8 @@ jobs:
         run: |
           set -euo pipefail
           npm --prefix ../.. run db:generate
-          npm --prefix ../.. run db:migrate:deploy
-          npm --prefix ../.. run db:migrate:deploy
-          npm --prefix ../.. run db:migrate:status
           npm run auth:schema
           npm run db:generate
-          npm run db:migrate:deploy
-          npm run db:migrate:deploy
-          npm run db:migrate:status
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
           import { readdir, readFile } from "node:fs/promises";
