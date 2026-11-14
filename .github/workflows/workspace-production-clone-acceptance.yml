@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '86ed8d3291111ea3fb1fe41630b08c627a980c06')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '491d0a54584b799a51f14d13fbcea7ecaea8a6a6')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -231,17 +231,22 @@ jobs:
           try { url = new URL(process.env.WORKSPACE_ACTIVATION_DIRECT_URL || ""); }
           catch { throw new Error("The direct connection URL is unavailable or malformed"); }
           const allowed = new Set(["sslmode", "channel_binding"]);
-          if (!["postgres:", "postgresql:"].includes(url.protocol) ||
-              url.hostname !== "ep-summer-haze-za0emgk3.c-2.eu-west-2.aws.neon.tech" ||
-              url.username !== "cw_activation_migrator" ||
-              url.password.length < 32 ||
-              url.pathname !== "/digipants_workspace_prod" ||
-              url.hash || (url.port && url.port !== "5432") ||
-              url.searchParams.get("sslmode") !== "verify-full" ||
-              url.searchParams.get("channel_binding") !== "require" ||
-              [...url.searchParams.keys()].some(key => !allowed.has(key))) {
+          const checks = {
+            protocol: ["postgres:", "postgresql:"].includes(url.protocol),
+            childHost: url.hostname === "ep-summer-haze-za0emgk3.c-2.eu-west-2.aws.neon.tech",
+            restrictedLogin: url.username === "cw_activation_migrator",
+            passwordPresent: url.password.length >= 32,
+            expectedDatabase: url.pathname === "/digipants_workspace_prod",
+            noHash: !url.hash,
+            standardPort: !url.port || url.port === "5432",
+            supportedQueryKeys: [...url.searchParams.keys()].every(key => allowed.has(key)),
+          };
+          if (!Object.values(checks).every(Boolean)) {
+            process.stdout.write("Direct URL validation checks: " + JSON.stringify(checks) + "\n");
             throw new Error("The URL is not the reviewed restricted login on the disposable child");
           }
+          url.searchParams.set("sslmode", "verify-full");
+          url.searchParams.set("channel_binding", "require");
           const workspace = new URL(url);
           const auth = new URL(url);
           auth.pathname = "/digipants_auth_prod";
