@@ -1,0 +1,541 @@
+name: Disposable Neon production-clone acceptance
+
+on:
+  push:
+    branches:
+      - feat/client-workspace-pooler-tls-acceptance-119
+  workflow_dispatch:
+    inputs:
+      run_acceptance:
+        description: Run the one-time synthetic clone rehearsal
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-workspace-production-clone-acceptance
+  cancel-in-progress: false
+
+jobs:
+  clone-acceptance:
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'd55a7a3d41beae0ce841c70a28b51fa3d205535d')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: neon-pooler-acceptance
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: local_restore
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: local_restore
+          PGSSLROOTCERT: /tmp/neon-ca-bundle.pem
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U local_restore -d local_restore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Confirm protected one-time run gate
+        env:
+          WORKSPACE_POOLER_ACCEPTANCE_RUN: ${{ vars.WORKSPACE_POOLER_ACCEPTANCE_RUN }}
+        run: test "$WORKSPACE_POOLER_ACCEPTANCE_RUN" = "1"
+
+      - name: Check out the reviewed test harness at the dispatched revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: acceptance-harness
+          persist-credentials: false
+
+      - name: Check out the reviewed production source commit
+        uses: actions/checkout@v4
+        with:
+          ref: de772825a1eeb92b9fd1a7331fb9978930d378c6
+          path: production-source
+          persist-credentials: false
+
+      - name: Verify immutable source pins
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C acceptance-harness rev-parse HEAD)" = "$DISPATCH_SHA"
+          test "$(git -C production-source rev-parse HEAD)" = "de772825a1eeb92b9fd1a7331fb9978930d378c6"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Copy only the acceptance harness into the pinned source
+        run: |
+          set -euo pipefail
+          mkdir -p production-source/experiments/client-workspace-auth/scripts
+          cp acceptance-harness/experiments/client-workspace-auth/scripts/neon-pooler-acceptance.mjs \
+            production-source/experiments/client-workspace-auth/scripts/
+          cp acceptance-harness/experiments/client-workspace-auth/tests/neon-pooler-acceptance.test.mjs \
+            production-source/experiments/client-workspace-auth/tests/
+          cp acceptance-harness/experiments/client-workspace-auth/tests/trusted-published-project-postgres.test.mjs \
+            production-source/experiments/client-workspace-auth/tests/
+
+      - name: Install locked production-source dependencies
+        run: |
+          set -euo pipefail
+          npm ci --prefix production-source
+          npm ci --prefix production-source/experiments/client-workspace-auth
+
+      - name: Run harness unit checks before any hosted credential is exposed
+        working-directory: production-source/experiments/client-workspace-auth
+        run: node --test tests/neon-pooler-acceptance.test.mjs
+
+      - name: Initialize the isolated PostgreSQL 17 service
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          printf 'POSTGRES_CONTAINER_ID=%s\n' "$POSTGRES_CONTAINER_ID" >> "$GITHUB_ENV"
+
+      - name: Provide libpq with the runner's trusted CA roots
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          import { rootCertificates } from "node:tls";
+          if (rootCertificates.length === 0) throw new Error("The runner has no trusted TLS roots");
+          writeFileSync(
+            `${process.env.RUNNER_TEMP}/neon-ca-bundle.pem`,
+            rootCertificates.join("\n") + "\n",
+            { mode: 0o600 },
+          );
+          NODE
+          docker cp "$RUNNER_TEMP/neon-ca-bundle.pem" "$POSTGRES_CONTAINER_ID:/tmp/neon-ca-bundle.pem"
+          docker exec -u 0 "$POSTGRES_CONTAINER_ID" chmod 0644 /tmp/neon-ca-bundle.pem
+          docker exec "$POSTGRES_CONTAINER_ID" test -s /tmp/neon-ca-bundle.pem
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE digipants_workspace_dev" \
+            -c "CREATE DATABASE workspace_shadow" \
+            -c "CREATE DATABASE auth_spike_test" \
+            -c "CREATE DATABASE auth_shadow"
+
+      - name: Generate ephemeral local auth configuration
+        run: |
+          set -euo pipefail
+          local_auth_secret="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
+          local_workspace_test_password="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
+          echo "::add-mask::$local_auth_secret"
+          echo "::add-mask::$local_workspace_test_password"
+          printf 'BETTER_AUTH_SECRET=%s\nLOCAL_WORKSPACE_TEST_PASSWORD=%s\n' "$local_auth_secret" "$local_workspace_test_password" >> "$GITHUB_ENV"
+
+      - name: Apply versioned migrations to fresh local databases and prove they contain no fixtures
+        env:
+          DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+          DIRECT_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
+          SHADOW_DIRECT_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/workspace_shadow
+          AUTH_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/auth_spike_test
+          AUTH_SHADOW_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/auth_shadow
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          npm --prefix production-source run db:generate
+          npm --prefix production-source run db:migrate:deploy
+          npm --prefix production-source run db:migrate:deploy
+          npm --prefix production-source run db:migrate:status
+          (cd production-source && npx prisma migrate diff \
+            --from-migrations prisma/migrations --to-config-datasource --exit-code)
+          (
+            cd production-source/experiments/client-workspace-auth
+            npm run auth:schema
+            npm run db:generate
+            npm run db:migrate:deploy
+            npm run db:migrate:deploy
+            npm run db:migrate:status
+            npm run db:migrate:diff
+          )
+          counts="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d digipants_workspace_dev -X -qAt -F '|' -v ON_ERROR_STOP=1 -c \
+            "SELECT (SELECT count(*)=0 FROM public.workspace_tenants)::text || '|' || \
+                    (SELECT count(*)=0 FROM public.workspace_projects)::text")"
+          test "$counts" = "true|true"
+          auth_counts="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d auth_spike_test -X -qAt -F '|' -v ON_ERROR_STOP=1 -c \
+            "SELECT (SELECT count(*)=0 FROM auth_spike.\"user\")::text || '|' || \
+                    (SELECT count(*)=0 FROM auth_spike.session)::text || '|' || \
+                    (SELECT count(*)=0 FROM auth_spike.mail_delivery_outbox)::text")"
+          test "$auth_counts" = "true|true|true"
+
+      - name: Install local test roles, RLS and synthetic application fixture
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d digipants_workspace_dev -v ON_ERROR_STOP=1 \
+            < production-source/experiments/client-workspace-db-security/sql/seed.sql
+          {
+            printf 'BEGIN;\n'
+            cat production-source/experiments/client-workspace-db-security/sql/roles.sql
+            cat production-source/experiments/client-workspace-db-security/sql/hardening.sql
+            printf '\nCOMMIT;\n'
+          } | docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d digipants_workspace_dev -v ON_ERROR_STOP=1
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d digipants_workspace_dev -v ON_ERROR_STOP=1 \
+            < production-source/scripts/workspace/production-rls-hardening.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d auth_spike_test -v ON_ERROR_STOP=1 \
+            < production-source/experiments/client-workspace-auth/sql/runtime-privileges.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d auth_spike_test -v ON_ERROR_STOP=1 \
+            < production-source/experiments/client-workspace-auth/sql/verify-runtime-privileges.sql
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres \
+            -v ON_ERROR_STOP=1 -c \
+            "CREATE ROLE cw_client_read_ci LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD 'local-only-ci-password'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d digipants_workspace_dev -v ON_ERROR_STOP=1 -c \
+            "GRANT cw_runtime TO cw_client_read_ci WITH INHERIT TRUE, SET FALSE"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres \
+            -v workspace_password="$LOCAL_WORKSPACE_TEST_PASSWORD" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE digipants_ws_dev LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'workspace_password';
+          GRANT cw_schema_owner TO digipants_ws_dev WITH INHERIT TRUE, SET TRUE;
+          SQL
+
+      - name: Verify trusted session, MFA, project-grant, revocation and logout behavior on local PostgreSQL
+        working-directory: production-source/experiments/client-workspace-auth
+        env:
+          RUN_AUTH_EXPERIMENT_INTEGRATION: "1"
+          AUTH_EXPERIMENT_ENABLED: "1"
+          AUTH_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/auth_spike_test
+          WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:local-only-ci-password@127.0.0.1:5432/digipants_workspace_dev
+        run: |
+          set -euo pipefail
+          export WORKSPACE_DATABASE_URL="postgresql://digipants_ws_dev:${LOCAL_WORKSPACE_TEST_PASSWORD}@127.0.0.1:5432/digipants_workspace_dev"
+          node --conditions=react-server --import tsx --test tests/trusted-published-project-postgres.test.mjs
+
+      - name: Validate the child-only direct URL and pin hosted connection targets
+        env:
+          WORKSPACE_ACTIVATION_DIRECT_URL: ${{ secrets.WORKSPACE_ACTIVATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$WORKSPACE_ACTIVATION_DIRECT_URL"
+          node --input-type=module <<'NODE'
+          let url;
+          try { url = new URL(process.env.WORKSPACE_ACTIVATION_DIRECT_URL || ""); }
+          catch { throw new Error("The direct connection URL is unavailable or malformed"); }
+          const allowed = new Set(["sslmode", "channel_binding"]);
+          if (!["postgres:", "postgresql:"].includes(url.protocol) ||
+              url.hostname !== "ep-summer-haze-za0emgk3.c-2.eu-west-2.aws.neon.tech" ||
+              url.username !== "cw_activation_migrator" ||
+              url.password.length < 32 ||
+              url.pathname !== "/digipants_workspace_prod" ||
+              url.hash || (url.port && url.port !== "5432") ||
+              url.searchParams.get("sslmode") !== "verify-full" ||
+              url.searchParams.get("channel_binding") !== "require" ||
+              [...url.searchParams.keys()].some(key => !allowed.has(key))) {
+            throw new Error("The URL is not the reviewed restricted login on the disposable child");
+          }
+          const workspace = new URL(url);
+          const auth = new URL(url);
+          auth.pathname = "/digipants_auth_prod";
+          for (const [name, value] of [
+            ["DIRECT_URL", workspace.href],
+            ["DATABASE_URL", workspace.href],
+            ["AUTH_DATABASE_URL", auth.href],
+          ]) {
+            process.stdout.write("::add-mask::" + value + "\n");
+            appendFileSync(process.env.GITHUB_ENV, name + "=" + value + "\n");
+          }
+          NODE
+
+      - name: Verify the clone has no copied workspace rows and the child-only role is restricted
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          checks="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -F '|' \
+            -v ON_ERROR_STOP=1 -c \
+            "SELECT (SELECT count(*)=0 FROM public.workspace_tenants)::text || '|' || \
+                    (SELECT count(*)=0 FROM public.workspace_projects)::text || '|' || \
+                    (SELECT count(*)=1 AND min(octet_length(signing_key))=32 FROM public.workspace_context_signing_keys)::text || '|' || \
+                    (SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreatedb AND NOT rolcreaterole \
+                       FROM pg_catalog.pg_roles WHERE rolname=current_user)::text || '|' || \
+                    (pg_has_role(current_user,'cw_schema_owner','SET'))::text || '|' || \
+                    (NOT pg_has_role(current_user,'cw_runtime','USAGE'))::text || '|' || \
+                    (NOT pg_has_role(current_user,'cw_audit_writer','USAGE'))::text")"
+          test "$checks" = "true|true|true|true|true|true|true"
+          auth_checks="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" \
+            -X -qAt -F '|' -v ON_ERROR_STOP=1 -c \
+            "SELECT (SELECT count(*)=0 FROM auth_spike.\"user\")::text || '|' || \
+                    (SELECT count(*)=0 FROM auth_spike.session)::text || '|' || \
+                    (SELECT count(*)=0 FROM auth_spike.mail_delivery_outbox)::text")"
+          test "$auth_checks" = "true|true|true"
+
+      - name: Verify both migration ledgers and security preflights on the clone
+        working-directory: production-source/experiments/client-workspace-auth
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          npm --prefix ../.. run db:generate
+          npm --prefix ../.. run db:migrate:deploy
+          npm --prefix ../.. run db:migrate:deploy
+          npm --prefix ../.. run db:migrate:status
+          npm run auth:schema
+          npm run db:generate
+          npm run db:migrate:deploy
+          npm run db:migrate:deploy
+          npm run db:migrate:status
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readdir, readFile } from "node:fs/promises";
+          import path from "node:path";
+          import pg from "pg";
+
+          async function verify(directory, connectionString) {
+            const client = new pg.Client({ connectionString });
+            try {
+              await client.connect();
+              const rows = (await client.query(
+                'SELECT migration_name,checksum,finished_at,rolled_back_at FROM public."_prisma_migrations" WHERE rolled_back_at IS NULL ORDER BY migration_name'
+              )).rows;
+              const entries = (await readdir(directory, { withFileTypes: true }))
+                .filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+              if (rows.length !== entries.length) throw new Error("count");
+              for (const name of entries) {
+                const row = rows.find(item => item.migration_name === name);
+                const checksum = createHash("sha256")
+                  .update(await readFile(path.join(directory, name, "migration.sql")))
+                  .digest("hex");
+                if (!row || !row.finished_at || row.rolled_back_at || row.checksum !== checksum) {
+                  throw new Error("checksum");
+                }
+              }
+            } finally { await client.end().catch(() => {}); }
+          }
+
+          async function preflight(filename, connectionString) {
+            const client = new pg.Client({ connectionString });
+            try {
+              await client.connect();
+              await client.query("SET ROLE cw_schema_owner");
+              const result = await client.query(await readFile(filename, "utf8"));
+              if (result.rows.length !== 1 ||
+                  Object.values(result.rows[0]).some(value => value !== true)) {
+                throw new Error("flag");
+              }
+            } finally { await client.end().catch(() => {}); }
+          }
+
+          try {
+            await verify("../../prisma/migrations", process.env.DIRECT_URL);
+            await verify("prisma/migrations", process.env.AUTH_DATABASE_URL);
+            await preflight("../../scripts/workspace/production-security-preflight.sql",
+              process.env.DIRECT_URL);
+            await preflight("../../scripts/workspace/production-auth-preflight.sql",
+              process.env.AUTH_DATABASE_URL);
+            process.stdout.write("PASS: cloned Workspace/Auth ledgers, checksums, and every security-preflight flag\n");
+          } catch {
+            process.stderr.write("Clone ledger, checksum, or security-preflight acceptance failed; details suppressed.\n");
+            process.exitCode = 1;
+          }
+          NODE
+
+      - name: Seed only the two reviewed synthetic tenants on the child
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          {
+            printf 'SET ROLE cw_schema_owner;\nBEGIN;\n'
+            printf 'CREATE POLICY cw_clone_fixture_audit_insert ON public.workspace_audit_events FOR INSERT TO cw_schema_owner WITH CHECK (true);\n'
+            cat production-source/experiments/client-workspace-db-security/sql/seed.sql
+            printf '\nDROP POLICY cw_clone_fixture_audit_insert ON public.workspace_audit_events;\nCOMMIT;\nRESET ROLE;\n'
+          } | docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1'
+
+      - name: Verify real public-pooler TLS and synthetic tenant isolation
+        working-directory: production-source/experiments/client-workspace-auth
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          WORKSPACE_POOLER_ACCEPTANCE_ENABLED: "1"
+          WORKSPACE_POOLER_TEST_BRANCH_ID: br-sweet-resonance-zatbu439
+          WORKSPACE_POOLER_LIVE_BRANCH_ID: br-floral-shadow-zapa2jbz
+          WORKSPACE_POOLER_TEST_DATABASE: digipants_workspace_prod
+          WORKSPACE_POOLER_TEST_TENANT_A: 11111111-1111-4111-8111-111111111111
+          WORKSPACE_POOLER_TEST_TENANT_B: 22222222-2222-4222-8222-222222222222
+          WORKSPACE_POOLER_TEST_PASSWORD: ${{ secrets.WORKSPACE_POOLER_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$WORKSPACE_POOLER_TEST_PASSWORD"
+          export WORKSPACE_POOLER_TEST_URL="$(node --input-type=module <<'NODE'
+          let url;
+          try { url = new URL(process.env.DIRECT_URL); }
+          catch { throw new Error("The verified child URL could not be parsed"); }
+          url.hostname = "ep-summer-haze-za0emgk3-pooler.c-2.eu-west-2.aws.neon.tech";
+          url.username = "cw_pooler_acceptance";
+          url.password = process.env.WORKSPACE_POOLER_TEST_PASSWORD;
+          url.searchParams.set("sslmode", "verify-full");
+          url.searchParams.set("channel_binding", "require");
+          const value = url.href;
+          process.stdout.write(value);
+          NODE
+          )"
+          node scripts/neon-pooler-acceptance.mjs
+
+      - name: Revoke and restore the synthetic staff grant to prove live revocation
+        working-directory: production-source/experiments/client-workspace-auth
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          WORKSPACE_POOLER_ACCEPTANCE_ENABLED: "1"
+          WORKSPACE_POOLER_TEST_BRANCH_ID: br-sweet-resonance-zatbu439
+          WORKSPACE_POOLER_LIVE_BRANCH_ID: br-floral-shadow-zapa2jbz
+          WORKSPACE_POOLER_TEST_DATABASE: digipants_workspace_prod
+          WORKSPACE_POOLER_TEST_TENANT_A: 11111111-1111-4111-8111-111111111111
+          WORKSPACE_POOLER_TEST_TENANT_B: 22222222-2222-4222-8222-222222222222
+          WORKSPACE_POOLER_TEST_PASSWORD: ${{ secrets.WORKSPACE_POOLER_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$WORKSPACE_POOLER_TEST_PASSWORD"
+          restore() {
+            docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+              sh -eu -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          UPDATE public.workspace_staff_project_grants
+             SET status='active', revoked_at=NULL
+           WHERE tenant_id='11111111-1111-4111-8111-111111111111'
+             AND project_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+             AND principal_id='33333333-3333-4333-8333-333333333333'
+             AND role='delivery_lead';
+          RESET ROLE;
+          SQL
+          }
+          trap restore EXIT
+          changed="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          UPDATE public.workspace_staff_project_grants
+             SET status='revoked', revoked_at=statement_timestamp()
+           WHERE tenant_id='11111111-1111-4111-8111-111111111111'
+             AND project_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+             AND principal_id='33333333-3333-4333-8333-333333333333'
+             AND role='delivery_lead'
+             AND status='active'
+          RETURNING principal_id::text;
+          RESET ROLE;
+          SQL
+          )"
+          test "$changed" = "33333333-3333-4333-8333-333333333333"
+          export WORKSPACE_POOLER_TEST_URL="$(node --input-type=module <<'NODE'
+          let url;
+          try { url = new URL(process.env.DIRECT_URL); }
+          catch { throw new Error("The verified child URL could not be parsed"); }
+          url.hostname = "ep-summer-haze-za0emgk3-pooler.c-2.eu-west-2.aws.neon.tech";
+          url.username = "cw_pooler_acceptance";
+          url.password = process.env.WORKSPACE_POOLER_TEST_PASSWORD;
+          url.searchParams.set("sslmode", "verify-full");
+          url.searchParams.set("channel_binding", "require");
+          process.stdout.write(url.href);
+          NODE
+          )"
+          WORKSPACE_POOLER_EXPECT_STAFF_REVOKED=1 node scripts/neon-pooler-acceptance.mjs
+          restore
+          trap - EXIT
+
+      - name: Append a signed synthetic transition for backup/restore verification
+        working-directory: production-source/experiments/client-workspace-auth
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+          import { createSignedContextToken } from "./scripts/neon-pooler-acceptance.mjs";
+
+          const client = new pg.Client({ connectionString: process.env.DIRECT_URL });
+          try {
+            await client.connect();
+            await client.query("BEGIN");
+            const { rows } = await client.query(
+              "SELECT pg_current_xact_id()::text AS xid");
+            const context = {
+              transactionId: rows[0].xid,
+              tenantId: "11111111-1111-4111-8111-111111111111",
+              projectId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              actorSubject: "synthetic-security-owner",
+              purpose: "delivery.edit",
+            };
+            const token = createSignedContextToken(context);
+            await client.query("SET ROLE cw_schema_owner");
+            await client.query(
+              "SELECT set_config('app.workspace_tenant_id',$1,true), " +
+              "set_config('app.workspace_context_token',$2,true)",
+              [context.tenantId, token]);
+            const update = await client.query(
+              "UPDATE public.workspace_projects SET state='active',revision=2 " +
+              "WHERE id=$1::uuid AND tenant_id=$2::uuid AND revision=1",
+              [context.projectId, context.tenantId]);
+            if (update.rowCount !== 1) throw new Error("transition");
+            await client.query(
+              "SELECT public.cw_append_audit_event($1::uuid,$2::uuid,$3::uuid," +
+              "'system','state.transition','workspace_project',$2::text,1,2,$4)",
+              [context.tenantId, context.projectId,
+               "44444444-4444-4444-8444-444444444444", "state-transition-001"]);
+            await client.query("COMMIT");
+            process.stdout.write("PASS: signed synthetic state transition and audit were recorded\n");
+          } catch {
+            await client.query("ROLLBACK").catch(() => {});
+            process.stderr.write("Signed synthetic transition failed; connection details suppressed.\n");
+            process.exitCode = 1;
+          } finally { await client.end().catch(() => {}); }
+          NODE
+
+      - name: Back up the Neon child and restore into isolated local PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          backup="$RUNNER_TEMP/workspace-child-recovery.dump"
+          trap 'rm -f "$backup"' EXIT
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U local_restore -d postgres \
+            -v ON_ERROR_STOP=1 -c "CREATE DATABASE workspace_restore_test"
+          counts="$(docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -F "|" -v ON_ERROR_STOP=1' <<'SQL'
+          SET ROLE cw_schema_owner;
+          SELECT (SELECT count(*) FROM public.workspace_tenants)::text,
+                 (SELECT count(*) FROM public.workspace_projects)::text,
+                 (SELECT count(*) FROM public.workspace_audit_events)::text;
+          RESET ROLE;
+          SQL
+          )"
+          IFS='|' read -r expected_tenants expected_projects expected_audits <<< "$counts"
+          test "$expected_tenants" = "2"
+          test "$expected_projects" = "2"
+          test "$expected_audits" = "3"
+          docker exec -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'pg_dump --format=custom --no-owner --no-acl --role=cw_schema_owner --dbname="$DATABASE_URL"' \
+            > "$backup"
+          test -s "$backup"
+          docker exec -i "$POSTGRES_CONTAINER_ID" pg_restore \
+            -U local_restore -d workspace_restore_test --exit-on-error \
+            --no-owner --no-acl < "$backup"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -U local_restore \
+            -d workspace_restore_test -v ON_ERROR_STOP=1 \
+            -v expected_tenant_count="$expected_tenants" \
+            -v expected_project_count="$expected_projects" \
+            -v expected_audit_count="$expected_audits" \
+            < production-source/experiments/client-workspace-db-security/sql/verify-restore.sql
+          rm -f "$backup"
+          trap - EXIT
+
+      - name: Report completed disposable acceptance
+        if: success()
+        run: |
+          echo "PASS: clone-only TLS, signed RLS isolation, auth session gates, revocation, migration checksums, security preflights, and recovery restore"
