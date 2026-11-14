@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'b093f6f5d1deaad4d752a16251bb9eac176e04c7')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'fae7c63e7b693974eca4fdfa853388a44a0f3cf6')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -306,19 +306,22 @@ jobs:
             const client = new pg.Client({ connectionString });
             try {
               await client.connect();
+              await client.query("RESET ROLE");
               const identity = (await client.query(
-                "SELECT current_user AS role, current_database() AS database, " +
+                "SELECT session_user AS login, current_user AS role, current_database() AS database, " +
                   "has_table_privilege(current_user,'public._prisma_migrations','SELECT') AS can_read_ledger"
               )).rows[0];
               const expectedDatabase = directory === "prisma/migrations"
                 ? "digipants_auth_prod" : "digipants_workspace_prod";
               const target = {
+                login: identity?.login ?? null,
                 role: identity?.role ?? null,
                 database: identity?.database ?? null,
                 canReadLedger: identity?.can_read_ledger ?? null,
               };
               process.stdout.write("Ledger verifier target: " + JSON.stringify(target) + "\\n");
-              if (target.role !== "cw_activation_migrator" ||
+              if (target.login !== "cw_activation_migrator" ||
+                  target.role !== "cw_activation_migrator" ||
                   target.database !== expectedDatabase || target.canReadLedger !== true) {
                 throw new Error("ledger-target-or-select");
               }
