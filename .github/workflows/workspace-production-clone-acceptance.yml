@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '01bf9b4f213caa9c38e5168bb9ef739b8ddd989b')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'd7a645140bd9bfa82137260b73aa269f7d60e0a1')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -609,7 +609,17 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
+          transition_state="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 \
+              -c "SET ROLE cw_schema_owner" \
+              -c "SELECT CASE WHEN state='''planned''' AND revision=1 THEN '''ready''' \
+                        WHEN state='''active''' AND revision=2 THEN '''complete''' \
+                        ELSE '''unexpected''' END \
+                   FROM public.workspace_projects \
+                  WHERE id='''aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'''::uuid"')"
+          case "$transition_state" in
+            ready)
+              node --input-type=module <<'NODE'
           import pg from "pg";
           import { createSignedContextToken } from "./scripts/neon-pooler-acceptance.mjs";
 
@@ -650,7 +660,15 @@ jobs:
             process.exitCode = 1;
           } finally { await client.end().catch(() => {}); }
           NODE
-
+              ;;
+            complete)
+              echo "Exact signed synthetic transition already present; skipping duplicate append."
+              ;;
+            *)
+              echo "Synthetic project transition state is unexpected; refusing to append."
+              exit 1
+              ;;
+          esac
       - name: Back up the Neon child and restore into isolated local PostgreSQL
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
