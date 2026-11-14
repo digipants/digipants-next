@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '5247b3e94cff457c4e59999438f08d96b1079216')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '98bda603f6ffccb7fe369e308a413c5342fd9aaf')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -393,7 +393,8 @@ jobs:
         run: |
           set -euo pipefail
           fixture_state="$(docker exec -i -e DATABASE_URL="$DIRECT_URL" "$POSTGRES_CONTAINER_ID" \
-            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL'
+            sh -eu -c 'psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1' <<'SQL' | \
+            awk '/^(empty|seeded|unexpected)$/ { state=$0 } END { print state }'
           SET ROLE cw_schema_owner;
           WITH counts AS (
             SELECT
