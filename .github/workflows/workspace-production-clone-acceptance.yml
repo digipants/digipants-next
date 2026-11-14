@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '95acbc464147f88b78c28c795e230408e74236e3')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '8c8765fcadadfc4a8bedfaae85e047cfeb58bb37')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -129,8 +129,9 @@ jobs:
       - name: Generate ephemeral local auth configuration
         run: |
           set -euo pipefail
-          node -e 'process.stdout.write("BETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(32).toString("base64url") + "\n")' \
-            >> "$GITHUB_ENV"
+          local_auth_secret="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
+          echo "::add-mask::$local_auth_secret"
+          printf 'BETTER_AUTH_SECRET=%s\n' "$local_auth_secret" >> "$GITHUB_ENV"
 
       - name: Apply versioned migrations to fresh local databases and prove they contain no fixtures
         env:
@@ -208,7 +209,7 @@ jobs:
           AUTH_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/auth_spike_test
           WORKSPACE_DATABASE_URL: postgresql://local_restore:disposable_ci_only@127.0.0.1:5432/digipants_workspace_dev
           WORKSPACE_READ_RUNTIME_DATABASE_URL: postgresql://cw_client_read_ci:local-only-ci-password@127.0.0.1:5432/digipants_workspace_dev
-        run: node --import tsx --test tests/trusted-published-project-postgres.test.mjs
+        run: node --conditions=react-server --import tsx --test tests/trusted-published-project-postgres.test.mjs
 
       - name: Validate the child-only direct URL and pin hosted connection targets
         env:
