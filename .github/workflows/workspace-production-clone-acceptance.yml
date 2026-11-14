@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '7428f5725f9e9682804a965b954d6f565230cda5')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'f76a45006a4669c211a54fe191d76ae52249265b')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -637,7 +637,9 @@ jobs:
               "FROM public.workspace_projects WHERE id=$1::uuid",
               [context.projectId]);
             if (rows.length !== 1) throw new Error("scoped project unavailable");
-            if (rows[0].state === "planned" && rows[0].revision === "1") {
+            const state = String(rows[0].state);
+            const revision = String(rows[0].revision);
+            if (state === "planned" && revision === "1") {
               const update = await client.query(
                 "UPDATE public.workspace_projects SET state='active',revision=2 " +
                 "WHERE id=$1::uuid AND tenant_id=$2::uuid AND revision=1",
@@ -650,10 +652,11 @@ jobs:
                  "44444444-4444-4444-8444-444444444444", "state-transition-001"]);
               await client.query("COMMIT");
               process.stdout.write("PASS: signed synthetic state transition and audit were recorded\n");
-            } else if (rows[0].state === "active" && rows[0].revision === "2") {
+            } else if (state === "active" && revision === "2") {
               await client.query("COMMIT");
               process.stdout.write("Exact signed synthetic transition already present; skipping duplicate append.\n");
             } else {
+              process.stderr.write("Scoped synthetic project state: " + state + "/" + revision + "\n");
               throw new Error("unexpected synthetic project state");
             }
           } catch {
