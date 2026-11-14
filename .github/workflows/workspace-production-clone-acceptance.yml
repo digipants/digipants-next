@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '42156dedacf8dfca1e41ae8364c7b9f53e39661c')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == 'c014783f6a74fb82ccbf21c02258ed32b5cee5a1')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -356,7 +356,8 @@ jobs:
           async function preflight(filename, connectionString, setSchemaOwnerRole) {
             const client = new pg.Client({ connectionString });
             try {
-              await client.conneif (setSchemaOwnerRole) await client.query("SET ROLE cw_schema_owner");E cw_schema_owner");
+              await client.connect();
+              if (setSchemaOwnerRole) await client.query("SET ROLE cw_schema_owner");
               const result = await client.query(await readFile(filename, "utf8"));
               if (result.rows.length !== 1) throw new Error("preflight-row-count");
               const failedFlags = Object.entries(result.rows[0])
