@@ -110,6 +110,7 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
     assert.deepEqual(visible, {
       id: id.projectA, tenantId: id.tenantA, title: "Example Portal Project",
       state: "planned", revision: "1",
+      milestones: [], progressUpdates: [],
     });
     assert.equal(Object.isFrozen(visible), true);
     assert.equal(JSON.stringify(visible).includes("providerSubject"), false);
