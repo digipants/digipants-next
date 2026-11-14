@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   clone-acceptance:
-    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '48bb10c9d3f22d9f8c92855d959c146278a6150f')) }}
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && ((github.event_name == 'workflow_dispatch' && inputs.run_acceptance == true) || (github.event_name == 'push' && github.event.before == '42156dedacf8dfca1e41ae8364c7b9f53e39661c')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -267,7 +267,9 @@ jobs:
         run: |
           set -euo pipefail
           checks="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$DIRECT_URL" -X -qAt -F '|' \
-            -v ON_ERROR_STOP=1 -c \
+            -v ON_ERROR_STOP=1 \
+            -c "RESET ROLE" \
+            -c \
             "SELECT (SELECT count(*)=0 FROM public.workspace_tenants)::text || '|' || \
                     (SELECT count(*)=0 FROM public.workspace_projects)::text || '|' || \
                     (SELECT count(*)=1 AND min(octet_length(signing_key))=32 FROM public.workspace_context_signing_keys)::text || '|' || \
@@ -281,7 +283,9 @@ jobs:
             exit 1
           fi
           auth_checks="$(docker exec "$POSTGRES_CONTAINER_ID" psql "$AUTH_DATABASE_URL" \
-            -X -qAt -v ON_ERROR_STOP=1 -c \
+            -X -qAt -v ON_ERROR_STOP=1 \
+            -c "RESET ROLE" \
+            -c \
             "SELECT (count(*)=3 AND bool_and(NOT has_table_privilege(current_user,c.oid,'SELECT')))::text \
                FROM pg_catalog.pg_class c \
                JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
