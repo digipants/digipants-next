@@ -1,21 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import { DocumentsPreview, RequirementsPreview } from "./WorkspacePreviewNext";
 import {
   ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, Check, CheckCircle2,
   ChevronRight, CircleHelp, Clock3, CreditCard, FileCheck2, FileText,
-  FolderKanban, LayoutDashboard, LockKeyhole, MessageSquareText, Receipt,
+  FolderKanban, FolderOpen, LayoutDashboard, LockKeyhole, MessageSquareText, Receipt,
   ShieldCheck, Sparkles,
 } from "lucide-react";
 
-type Section = "overview" | "progress" | "proposal" | "billing";
+type Section = "overview" | "requirements" | "proposal" | "progress" | "billing" | "documents";
 type Scenario = "on-track" | "awaiting-review" | "delayed";
 
 const navigation = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "progress", label: "Project progress", icon: FolderKanban },
+  { id: "requirements", label: "Requirements", icon: FileCheck2 },
   { id: "proposal", label: "Proposal", icon: FileText },
+  { id: "progress", label: "Project progress", icon: FolderKanban },
   { id: "billing", label: "Invoices & payments", icon: CreditCard },
+  { id: "documents", label: "Documents", icon: FolderOpen },
 ] as const;
 
 const milestones = [
@@ -240,7 +243,7 @@ export default function WorkspacePreview() {
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><BadgeCheck size={15}/> Synthetic demo</span>
         </div>
         <div className="mt-8 flex flex-wrap items-start justify-between gap-5">
-          <div><p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Welcome to your workspace</p><h1 className="mt-2 max-w-2xl text-[30px] font-semibold leading-[1.12] tracking-[-.045em] text-slate-900 dark:text-white sm:text-[43px]">A clearer picture of your project.</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 dark:text-slate-400">Your scope, progress, reviews and billing — in one calm, shared view.</p></div>
+          <div><p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Welcome to your workspace</p><h1 className="mt-2 max-w-2xl text-[30px] font-semibold leading-[1.12] tracking-[-.045em] text-slate-900 dark:text-white sm:text-[43px]">A clearer picture of your project.</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 dark:text-slate-400">Your requirements, progress, reviews, documents and billing — in one calm, shared view.</p></div>
         </div>
         <Card className="mt-7 overflow-hidden !border-0 !bg-[#0e3c32] p-6 text-white sm:p-8">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
@@ -250,9 +253,11 @@ export default function WorkspacePreview() {
         </Card>
         <div className="mt-8">
           {section === "overview" && <><SectionHeading overline="Your dashboard" title="Everything important, at a glance" caption="A first look at what customers could see once authenticated project records are safely connected."/><Overview onNavigate={setSection} scenario={scenario}/></>}
-          {section === "progress" && <Progress/>}
+          {section === "requirements" && <RequirementsPreview/>}
           {section === "proposal" && <Proposal onNavigate={setSection}/>}
+          {section === "progress" && <Progress/>}
           {section === "billing" && <Billing/>}
+          {section === "documents" && <DocumentsPreview/>}
         </div>
         <footer className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6 text-[11px] leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400"><span>© DigiPants · Illustrative Client Workspace preview</span><span className="inline-flex items-center gap-1.5"><LockKeyhole size={13}/> No real data, authentication or payments</span></footer>
       </div>
