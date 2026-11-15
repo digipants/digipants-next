@@ -7,7 +7,7 @@ import {
   createSignedContextToken,
 } from "../scripts/neon-pooler-acceptance.mjs";
 
-const pooled = "postgresql://cw_pooler_acceptance:" + "x".repeat(16) +
+const pooled = "postgresql://cw_workspace_prod_app:" + "x".repeat(16) +
   "@" + CHILD_POOLER_HOST + "/" + CHILD_DATABASE +
   "?sslmode=verify-full&channel_binding=require";
 
@@ -18,7 +18,7 @@ test("only the pinned child pooler URL and restricted login are accepted", () =>
     shortPassword,
     pooled.replace("-pooler.", "."),
     pooled.replace(CHILD_POOLER_HOST, "ep-other-pooler.c-2.eu-west-2.aws.neon.tech"),
-    pooled.replace("cw_pooler_acceptance", "postgres"),
+    pooled.replace("cw_workspace_prod_app", "postgres"),
     pooled.replace(CHILD_DATABASE, "digipants_auth_prod"),
     pooled.replace("verify-full", "require"),
     pooled.replace("?sslmode=verify-full&channel_binding=require", ""),
