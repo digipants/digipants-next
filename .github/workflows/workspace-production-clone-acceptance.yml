@@ -234,7 +234,7 @@ jobs:
           const allowed = new Set(["sslmode", "channel_binding"]);
           const checks = {
             protocol: ["postgres:", "postgresql:"].includes(url.protocol),
-            childHost: url.hostname === "ep-summer-haze-za0emgk3.c-2.eu-west-2.aws.neon.tech",
+            childHost: url.hostname === "ep-morning-boat-zax42wmd.c-2.eu-west-2.aws.neon.tech",
             restrictedLogin: url.username === "cw_activation_migrator",
             passwordPresent: url.password.length >= 16,
             expectedDatabase: url.pathname === "/digipants_workspace_prod",
@@ -520,7 +520,7 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           WORKSPACE_POOLER_ACCEPTANCE_ENABLED: "1"
-          WORKSPACE_POOLER_TEST_BRANCH_ID: br-sweet-resonance-zatbu439
+          WORKSPACE_POOLER_TEST_BRANCH_ID: br-restless-sound-zamshub1
           WORKSPACE_POOLER_LIVE_BRANCH_ID: br-floral-shadow-zapa2jbz
           WORKSPACE_POOLER_TEST_DATABASE: digipants_workspace_prod
           WORKSPACE_POOLER_TEST_TENANT_A: 11111111-1111-4111-8111-111111111111
@@ -533,8 +533,8 @@ jobs:
           let url;
           try { url = new URL(process.env.DIRECT_URL); }
           catch { throw new Error("The verified child URL could not be parsed"); }
-          url.hostname = "ep-summer-haze-za0emgk3-pooler.c-2.eu-west-2.aws.neon.tech";
-          url.username = "cw_pooler_acceptance";
+          url.hostname = "ep-morning-boat-zax42wmd-pooler.c-2.eu-west-2.aws.neon.tech";
+          url.username = "cw_workspace_prod_app";
           url.password = process.env.WORKSPACE_POOLER_TEST_PASSWORD;
           url.searchParams.set("sslmode", "verify-full");
           url.searchParams.set("channel_binding", "require");
@@ -549,7 +549,7 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           WORKSPACE_POOLER_ACCEPTANCE_ENABLED: "1"
-          WORKSPACE_POOLER_TEST_BRANCH_ID: br-sweet-resonance-zatbu439
+          WORKSPACE_POOLER_TEST_BRANCH_ID: br-restless-sound-zamshub1
           WORKSPACE_POOLER_LIVE_BRANCH_ID: br-floral-shadow-zapa2jbz
           WORKSPACE_POOLER_TEST_DATABASE: digipants_workspace_prod
           WORKSPACE_POOLER_TEST_TENANT_A: 11111111-1111-4111-8111-111111111111
@@ -591,8 +591,8 @@ jobs:
           let url;
           try { url = new URL(process.env.DIRECT_URL); }
           catch { throw new Error("The verified child URL could not be parsed"); }
-          url.hostname = "ep-summer-haze-za0emgk3-pooler.c-2.eu-west-2.aws.neon.tech";
-          url.username = "cw_pooler_acceptance";
+          url.hostname = "ep-morning-boat-zax42wmd-pooler.c-2.eu-west-2.aws.neon.tech";
+          url.username = "cw_workspace_prod_app";
           url.password = process.env.WORKSPACE_POOLER_TEST_PASSWORD;
           url.searchParams.set("sslmode", "verify-full");
           url.searchParams.set("channel_binding", "require");
