@@ -1,0 +1,86 @@
+name: Disposable Neon production runtime role smoke
+
+on:
+  push:
+    branches:
+      - feat/client-workspace-pooler-tls-acceptance-119
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-workspace-runtime-role-smoke
+  cancel-in-progress: false
+
+jobs:
+  runtime-role-smoke:
+    if: ${{ github.ref == 'refs/heads/feat/client-workspace-pooler-tls-acceptance-119' && github.event.before == '27ab31f1fe9ce34716e15ef5c34933e833d92dd7' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: neon-pooler-acceptance
+    steps:
+      - name: Confirm the protected one-time run gate
+        env:
+          WORKSPACE_POOLER_ACCEPTANCE_RUN: ${{ vars.WORKSPACE_POOLER_ACCEPTANCE_RUN }}
+        run: test "$WORKSPACE_POOLER_ACCEPTANCE_RUN" = "1"
+
+      - name: Check out the reviewed smoke harness
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install locked PostgreSQL client without lifecycle scripts
+        working-directory: experiments/client-workspace-auth
+        run: npm ci --ignore-scripts
+
+      - name: Build the restricted pooled URL for the disposable child
+        env:
+          WORKSPACE_ACTIVATION_DIRECT_URL: ${{ secrets.WORKSPACE_ACTIVATION_DIRECT_URL }}
+          WORKSPACE_POOLER_TEST_PASSWORD: ${{ secrets.WORKSPACE_POOLER_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$WORKSPACE_ACTIVATION_DIRECT_URL"
+          echo "::add-mask::$WORKSPACE_POOLER_TEST_PASSWORD"
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          let url;
+          try { url = new URL(process.env.WORKSPACE_ACTIVATION_DIRECT_URL || ""); }
+          catch { throw new Error("The child-only direct URL is unavailable or malformed"); }
+          const checks = {
+            directHost: url.hostname === "ep-morning-boat-zax42wmd.c-2.eu-west-2.aws.neon.tech",
+            migrationRole: decodeURIComponent(url.username) === "cw_activation_migrator",
+            database: url.pathname === "/digipants_workspace_prod",
+            passwordPresent: url.password.length >= 16,
+            noHash: !url.hash,
+            standardPort: !url.port || url.port === "5432",
+            safeOptions: [...url.searchParams.keys()].every(key => key === "sslmode" || key === "channel_binding"),
+            appPasswordPresent: (process.env.WORKSPACE_POOLER_TEST_PASSWORD || "").length >= 16,
+          };
+          if (!Object.values(checks).every(Boolean)) {
+            process.stdout.write("Disposable URL validation: " + JSON.stringify(checks) + "\n");
+            throw new Error("Only the reviewed child migration URL and restricted app password are accepted");
+          }
+          url.hostname = "ep-morning-boat-zax42wmd-pooler.c-2.eu-west-2.aws.neon.tech";
+          url.username = "cw_workspace_prod_app";
+          url.password = process.env.WORKSPACE_POOLER_TEST_PASSWORD;
+          url.searchParams.set("sslmode", "verify-full");
+          url.searchParams.set("channel_binding", "require");
+          const pooled = url.href;
+          process.stdout.write("::add-mask::" + pooled + "\n");
+          appendFileSync(process.env.GITHUB_ENV, "WORKSPACE_POOLER_TEST_URL=" + pooled + "\n");
+          NODE
+
+      - name: Verify the exact production runtime role over authenticated pooled TLS
+        working-directory: experiments/client-workspace-auth
+        env:
+          WORKSPACE_POOLER_TEST_URL: ${{ env.WORKSPACE_POOLER_TEST_URL }}
+          WORKSPACE_POOLER_TEST_BRANCH_ID: br-restless-sound-zamshub1
+          WORKSPACE_POOLER_LIVE_BRANCH_ID: br-floral-shadow-zapa2jbz
+        run: node scripts/neon-runtime-role-smoke.mjs
