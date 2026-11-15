@@ -3,9 +3,9 @@ import { createHmac } from "node:crypto";
 import { checkServerIdentity, TLSSocket } from "node:tls";
 import pg from "pg";
 
-export const CHILD_BRANCH_ID = "br-sweet-resonance-zatbu439";
+export const CHILD_BRANCH_ID = "br-restless-sound-zamshub1";
 export const LIVE_BRANCH_ID = "br-floral-shadow-zapa2jbz";
-export const CHILD_POOLER_HOST = "ep-summer-haze-za0emgk3-pooler.c-2.eu-west-2.aws.neon.tech";
+export const CHILD_POOLER_HOST = "ep-morning-boat-zax42wmd-pooler.c-2.eu-west-2.aws.neon.tech";
 export const CHILD_DATABASE = "digipants_workspace_prod";
 export const TENANT_A = "11111111-1111-4111-8111-111111111111";
 export const TENANT_B = "22222222-2222-4222-8222-222222222222";
@@ -28,7 +28,7 @@ export function assertPooledNeonUrl(value) {
   if (!["postgres:", "postgresql:"].includes(url.protocol) ||
       url.hostname !== CHILD_POOLER_HOST ||
       url.pathname !== "/" + CHILD_DATABASE ||
-      decodeURIComponent(url.username) !== "cw_pooler_acceptance" ||
+      decodeURIComponent(url.username) !== "cw_workspace_prod_app" ||
       decodeURIComponent(url.password).length < 16 ||
       url.hash || (url.port && url.port !== "5432") ||
       url.searchParams.get("sslmode") !== "verify-full" ||
@@ -220,7 +220,7 @@ async function verifyRoleAndPrivateData(client) {
     "has_database_privilege(current_user,'digipants_auth_prod','CONNECT') AS authConnect " +
     "FROM pg_catalog.pg_roles r WHERE r.rolname=current_user");
   const role = rows[0];
-  if (rows.length !== 1 || role.role !== "cw_pooler_acceptance" ||
+  if (rows.length !== 1 || role.role !== "cw_workspace_prod_app" ||
       role.sessionUser !== role.role || !role.rolcanlogin || !role.runtime ||
       role.rolsuper || role.rolcreaterole || role.rolcreatedb || role.rolbypassrls ||
       role.owner || role.audit || role.authConnect) {
