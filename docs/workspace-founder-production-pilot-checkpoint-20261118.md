@@ -41,3 +41,11 @@ General customer invitations, email, public registration, and payments remain di
 Rollback if founder-only route/security checks fail: disable `CLIENT_WORKSPACE_ENABLED` and/or `CLIENT_WORKSPACE_PRODUCTION_ENABLED`, keep all customer email off, trigger normal Git-connected redeployment and inspect logs without exposing secrets.
 
 Do **not** claim founder account activation is complete until an actual authorized production browser login and MFA have passed.
+
+## Founder verification delivery correction — 18 Nov 2026
+
+The first real founder email attempt reached `/api/workspace/founder/verification/` (GET 200; POST 202) but produced no `auth_spike.verification`, rate-window or `mail_delivery_outbox` record. The anti-enumeration design intentionally returns an opaque 202 for an ineligible or unprocessable request.
+
+Root cause found by reviewing `experiments/client-workspace-auth/src/mailbox-request-quota.ts`: production `admitLocalMailboxRequest()` requires the production-only 32-byte base64url `PRODUCTION_WORKSPACE_MAIL_RATE_HMAC_KEY`. The secret was absent. A newly generated independent key was configured in Netlify **Production only**, **Functions/Runtime scopes**, secret flag true. Its value must never be committed or logged.
+
+This documentation-only deployment delivers the new server-side environment secret; it does **not** enable general Workspace email, create a founder account, modify database schema, or send verification emails automatically. After deploy, account holder must explicitly retry the one-time founder verification request. Verify a successful `auth_spike.verification` / `mail_delivery_outbox` enqueue and delivery state using aggregate counts only, never reveal recipient/code.
