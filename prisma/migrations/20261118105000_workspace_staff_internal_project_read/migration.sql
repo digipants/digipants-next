@@ -47,8 +47,9 @@ BEGIN
 END;
 $$;
 
--- Reassert fail-closed execution rights without altering existing owner.
+-- Role-specific EXECUTE permission is installed by the separate, later
+-- roles.sql + hardening.sql security step on an empty database. Production
+-- CREATE OR REPLACE preserves the existing explicit cw_runtime EXECUTE grant.
+-- Do not require the runtime role to exist during the versioned migration.
 REVOKE ALL ON FUNCTION public.cw_lock_staff_project_grant(text,uuid,uuid,text)
   FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.cw_lock_staff_project_grant(text,uuid,uuid,text)
-  TO cw_runtime;
