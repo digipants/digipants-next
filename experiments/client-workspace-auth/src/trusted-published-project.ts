@@ -126,12 +126,12 @@ export async function loadPublishedProjectForTrustedIdentity(input: {
       if (!actors[0]?.principalId) {
         await setWorkspaceAuthorizationContext(tx, {
           tenantId: values.tenantId, projectId: values.projectId,
-          actorSubject: values.providerSubject, purpose: "delivery.edit",
+          actorSubject: values.providerSubject, purpose: "project.read_internal",
         });
         actors = await tx.$queryRaw<Array<{ principalId: string | null }>>`
           SELECT public.cw_lock_staff_project_grant(
             ${values.providerSubject}, ${values.tenantId}::uuid,
-            ${values.projectId}::uuid, 'delivery.edit'
+            ${values.projectId}::uuid, 'project.read_internal'
           )::text AS "principalId"
         `;
       }
