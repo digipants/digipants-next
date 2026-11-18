@@ -192,7 +192,7 @@ jobs:
           SQL
 
       - name: Run existing authentication integration suite
-        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' && github.event.pull_request.head.ref != 'feat/client-workspace-pilot-activation-114' && github.event.pull_request.head.ref != 'feat/client-workspace-invite-onboarding-115' && github.event.pull_request.head.ref != 'feat/client-workspace-delivery-reliability-116' && (github.event.pull_request.head.ref != 'feat/client-workspace-mail-abuse-gates-117' && github.event.pull_request.head.ref != 'fix/workspace-production-migration-guards-121') }}
+        if: ${{ github.event.pull_request.head.ref != 'feat/client-workspace-enrollment-recovery-97' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-read-111' && github.event.pull_request.head.ref != 'feat/client-workspace-authenticated-http-113' && github.event.pull_request.head.ref != 'feat/client-workspace-pilot-activation-114' && github.event.pull_request.head.ref != 'feat/client-workspace-invite-onboarding-115' && github.event.pull_request.head.ref != 'feat/client-workspace-delivery-reliability-116' && (github.event.pull_request.head.ref != 'feat/client-workspace-mail-abuse-gates-117' && github.event.pull_request.head.ref != 'fix/workspace-production-migration-guards-121' && github.event.pull_request.head.ref != 'fix/workspace-owner-published-read-20261118') }}
         working-directory: experiments/client-workspace-auth
         env:
           RUN_AUTH_EXPERIMENT_INTEGRATION: 1
