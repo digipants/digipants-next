@@ -134,6 +134,10 @@ if (process.env.RUN_AUTH_EXPERIMENT_INTEGRATION !== "1") {
       "Revoked staff membership cannot authorize a read");
     await workspaceAdmin.$executeRaw`UPDATE workspace_staff_memberships
       SET status='active',revoked_at=NULL WHERE principal_id=${id.principal}::uuid`;
+    await assert.rejects(read(), PublishedProjectAccessDenied,
+      "Membership reactivation alone never restores project grants");
+    await workspaceAdmin.$executeRaw`UPDATE workspace_staff_project_grants
+      SET status='active',revoked_at=NULL WHERE principal_id=${id.principal}::uuid`;
     assert.equal((await read()).id, id.projectA);
 
     await authDb.session.update({ where: { id: id.session },
