@@ -49,3 +49,17 @@ The first real founder email attempt reached `/api/workspace/founder/verificatio
 Root cause found by reviewing `experiments/client-workspace-auth/src/mailbox-request-quota.ts`: production `admitLocalMailboxRequest()` requires the production-only 32-byte base64url `PRODUCTION_WORKSPACE_MAIL_RATE_HMAC_KEY`. The secret was absent. A newly generated independent key was configured in Netlify **Production only**, **Functions/Runtime scopes**, secret flag true. Its value must never be committed or logged.
 
 This documentation-only deployment delivers the new server-side environment secret; it does **not** enable general Workspace email, create a founder account, modify database schema, or send verification emails automatically. After deploy, account holder must explicitly retry the one-time founder verification request. Verify a successful `auth_spike.verification` / `mail_delivery_outbox` enqueue and delivery state using aggregate counts only, never reveal recipient/code.
+
+## Founder authentication milestone and permanent bootstrap shutdown — 18 Nov 2026
+
+The production login page displayed **Sign-in verified**, with a real production user present. Read-only Neon verification confirmed: one user, one verified TOTP factor, one active MFA-verified session, one genuine DigiPants internal published project, one `workspace_owner` staff grant, and completed one-time founder bootstrap. This confirms authentication; direct browser project-content acceptance remains a separate check.
+
+After this milestone, the operator set the following Netlify **production-only** values to `0`:
+
+- `CLIENT_WORKSPACE_FOUNDER_BOOTSTRAP_ENABLED`
+- `CLIENT_WORKSPACE_PRODUCTION_FOUNDER_ENABLED`
+- `CLIENT_WORKSPACE_PRODUCTION_FOUNDER_EMAIL_ENABLED`
+
+`CLIENT_WORKSPACE_ENABLED=1` and `CLIENT_WORKSPACE_PRODUCTION_ENABLED=1` stay on for protected founder sign-in and project access. `CLIENT_WORKSPACE_PRODUCTION_EMAIL_ENABLED=0` keeps general invitations/delivery off. No application code or database migration changed. This docs-only commit triggers a normal Git-connected production build to apply the closed enrollment switches; no manual Netlify deployment.
+
+The production login UI does not yet automatically route to the approved project when no `next` path is supplied. The account holder received a privately authorized exact project URL; verifying its live page is still pending. Do not assert successful browser project rendering until the account holder confirms it. A follow-up can implement a private authenticated \"My Workspace\" redirect, using a server-side grant lookup rather than hardcoding tenant/project IDs into public page code.
